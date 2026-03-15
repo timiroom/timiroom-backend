@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: timiroom-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: timiroom
+      POSTGRES_USER: timiroom
+      POSTGRES_PASSWORD: timiroom1234
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  neo4j:
+    image: neo4j:5
+    container_name: timiroom-neo4j
+    ports:
+      - "7474:7474"  # 브라우저 UI
+      - "7687:7687"  # Bolt 프로토콜
+    environment:
+      NEO4J_AUTH: neo4j/timiroom1234
+      TZ: Asia/Seoul
+    volumes:
+      - neo4j_data:/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: timiroom-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  redis_data:
