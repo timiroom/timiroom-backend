@@ -92,9 +92,9 @@ fix: JWT 토큰 만료 오류 수정
 
 ## 팀 구성
 
-| 역할 | 담당 |
-|------|------|
-| BE1 | AI 파이프라인 (LangChain4j, RAG, 멀티 에이전트) |
-| BE2 | DB 설계 (PostgreSQL, Neo4j, Redis, Event Sourcing) |
-| BE3 | 서버 아키텍처 (REST API, SSE, JWT, 배포) |
-| PM + FE | 기획 총괄 + React 프론트엔드 |
+| 역할 | 이름 | 담당 |
+|------|------|------|
+| BE1 | 이연호 | AI 파이프라인 (LangChain4j, RAG, 멀티 에이전트) |
+| BE2 | 하은현 | DB 설계 (PostgreSQL, Neo4j, Redis, Event Sourcing) |
+| BE3 | 정용환 | 서버 아키텍처 (REST API, SSE, JWT, 배포) |
+| PM + FE | - | 기획 총괄 + React 프론트엔드 |
