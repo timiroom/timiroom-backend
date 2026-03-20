@@ -1,0 +1,90 @@
+spring:
+  application:
+    name: rag-pipeline
+
+  # ── PostgreSQL ──────────────────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://localhost:5433/ragdb
+    username: raguser
+    password: ragpass
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # ── Spring AI ───────────────────────────────────────────────────
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o
+          temperature: 0.1
+      embedding:
+        options:
+          model: text-embedding-3-large
+          dimensions: 3072
+    vectorstore:
+      pgvector:
+        schema-name: public
+        table-name: document_chunks
+        dimensions: 3072
+        distance-type: COSINE_DISTANCE
+        index-type: HNSW
+        initialize-schema: false
+
+  # ── Kafka ───────────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+    consumer:
+      group-id: rag-pipeline-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: "com.rag.pipeline.*"
+
+  # ── 인코딩 ──────────────────────────────────────────────────────
+  server:
+    servlet:
+      encoding:
+        charset: UTF-8
+        force-request: true
+        force-response: true
+        enabled: true
+
+# ── 앱 설정 ─────────────────────────────────────────────────────
+app:
+  rag:
+    chunk-size: 512
+    chunk-overlap: 64
+    top-k-vector: 20
+    top-k-keyword: 20
+    top-k-final: 5
+    reranker:
+      enabled: true
+      provider: cohere
+      cohere-api-key: ${COHERE_API_KEY:}
+  kafka:
+    topics:
+      pipeline-result: rag.pipeline.result
+      dead-letter: rag.pipeline.result.DLT
+  validation:
+    max-retry: 3
+
+# ── 로깅 ────────────────────────────────────────────────────────
+logging:
+  level:
+    com.rag.pipeline: DEBUG
+    org.springframework.ai: INFO
+    org.springframework.kafka: INFO
