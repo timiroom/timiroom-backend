@@ -8,6 +8,12 @@ spring:
     username: raguser
     password: ragpass
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000    # 30초
+      idle-timeout: 600000         # 10분
+      max-lifetime: 1800000        # 30
 
   jpa:
     hibernate:
@@ -26,6 +32,10 @@ spring:
         options:
           model: gpt-4o
           temperature: 0.1
+      base-url: https://api.openai.com
+      connect-timeout: 10s
+      read-timeout: 120s
+
       embedding:
         options:
           model: text-embedding-3-large
@@ -84,6 +94,9 @@ app:
 
 # ── 로깅 ────────────────────────────────────────────────────────
 logging:
+  pattern:
+    # [시간] [pipelineId] [requestId] 레벨 클래스 - 메시지
+    console: "%d{HH:mm:ss} [%X{pipelineId:-NO_PIPE}] [%X{requestId:-NO_REQ}] %-5level %logger{36} - %msg%n"
   level:
     com.rag.pipeline: DEBUG
     org.springframework.ai: INFO
