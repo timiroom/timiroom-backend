@@ -1,108 +1,100 @@
 package com.rag.pipeline.phase2;
 
-import com.rag.pipeline.phase1.RagPipelineService;
+import com.rag.pipeline.common.response.ApiResponse;
+import com.rag.pipeline.phase2.dto.GenerateRequest;
+import com.rag.pipeline.phase2.dto.GenerateResponse;
 import com.rag.pipeline.phase2.graph.OrchestrationGraph;
 import com.rag.pipeline.phase2.state.PipelineState;
-import com.rag.pipeline.phase3.retry.RetryService;
-import com.rag.pipeline.phase3.validation.ValidationService;
-import com.rag.pipeline.phase4.kafka.KafkaProducerService;
+import com.rag.pipeline.phase1.RagPipelineService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
+import java.util.UUID;
 
-/**
- * 전체 파이프라인 REST API
- *
- * POST /api/v1/orchestration/generate
- *   Phase 1 RAG → Phase 2 멀티 에이전트 → Phase 3 검증 → Phase 4 Kafka 발행
- */
-@Slf4j
 @RestController
 @RequestMapping("/api/v1/orchestration")
 @RequiredArgsConstructor
+@Slf4j
 public class OrchestrationController {
 
-    private final RagPipelineService  ragPipelineService;
-    private final OrchestrationGraph  orchestrationGraph;
-    private final ValidationService   validationService;
-    private final RetryService        retryService;
-    private final KafkaProducerService kafkaProducerService;
+    private final RagPipelineService ragPipelineService;
+    private final OrchestrationGraph orchestrationGraph;
+    private final ObjectMapper objectMapper;
 
-    /**
-     * 전체 파이프라인 실행 (Phase 1 + 2 + 3 + 4)
-     *
-     * POST /api/v1/orchestration/generate
-     * { "query": "로그인 기능 만들어줘" }
-     */
     @PostMapping("/generate")
-    public ResponseEntity<Map<String, Object>> generate(
-            @RequestBody GenerateRequest request) {
+    public ResponseEntity<ApiResponse<?>> generate(
+            @RequestBody @Valid GenerateRequest request) {
 
-        log.info("=== 전체 파이프라인 시작 === query: '{}'", request.query());
-
-        // Phase 1 — RAG 컨텍스트 생성
-        String contextPrompt = ragPipelineService.buildContext(request.query());
-
-        // Phase 2 — 멀티 에이전트 오케스트레이션
-        PipelineState phase2Result = orchestrationGraph.execute(
-                request.query(),
-                contextPrompt
-        );
-
-        // Phase 3 — 검증
-        PipelineState validatedResult = validationService.validate(phase2Result);
-
-        // 검증 실패 시 재시도
-        if (!validatedResult.isValidated()) {
-            log.warn("검증 실패 — 재시도 시작");
-            validatedResult = retryService.retry(validatedResult);
-        }
-
-        // Human-in-the-Loop 필요 여부 확인
-        if (!validatedResult.isValidated()) {
-            return ResponseEntity.status(202).body(Map.of(
-                    "status",  "HUMAN_REVIEW_REQUIRED",
-                    "message", "자동 검증 실패 — 관리자 검토가 필요합니다",
-                    "query",   request.query()
-            ));
-        }
-
-        // Phase 4 — Kafka 발행 (비동기)
-        String pipelineId = kafkaProducerService.publish(validatedResult);
-
-        log.info("=== 전체 파이프라인 완료 === pipelineId: {}", pipelineId);
+        String pipelineId = UUID.randomUUID().toString();
+        MDC.put("pipelineId", pipelineId.substring(0, 8));
 
         try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper =
-                    new com.fasterxml.jackson.databind.ObjectMapper();
+            log.info("파이프라인 시작 | query: {}", request.getQuery());
 
-            Object dbSchemaObj = mapper.readValue(validatedResult.getDbSchema(), Object.class);
-            Object apiSpecObj  = mapper.readValue(validatedResult.getApiSpec(),  Object.class);
+            // Phase 1 — RAG 컨텍스트 생성
+            String contextPrompt = ragPipelineService.buildContext(request.getQuery());
+            log.debug("Phase 1 완료 | contextPrompt 생성됨");
 
-            return ResponseEntity.ok(Map.of(
-                    "pipelineId",  pipelineId,
-                    "query",       request.query(),
-                    "featureList", validatedResult.getFeatureList(),
-                    "dbSchema",    dbSchemaObj,
-                    "apiSpec",     apiSpecObj,
-                    "status",      validatedResult.getStatusMessage(),
-                    "retryCount",  validatedResult.getRetryCount()
-            ));
+            // Phase 2 — 멀티 에이전트 실행
+            PipelineState finalState = orchestrationGraph.execute(
+                    request.getQuery(), contextPrompt
+            );
+            log.debug("Phase 2 완료 | retryCount: {}", finalState.getRetryCount());
+
+            // Phase 3 — HITL 여부 확인
+            if (finalState.getStatusMessage() != null
+                    && finalState.getStatusMessage().contains("HUMAN_REVIEW")) {
+
+                log.warn("HITL 요청 | 자동 검증 실패");
+                return ResponseEntity.accepted()
+                        .body(ApiResponse.error(
+                                "PIPELINE_003",
+                                "자동 검증 실패 — 관리자 검토가 필요합니다"
+                        ));
+            }
+
+            // 응답 조립
+            GenerateResponse response = GenerateResponse.builder()
+                    .pipelineId(pipelineId)
+                    .query(request.getQuery())
+                    .featureList(finalState.getFeatureList())
+                    .dbSchema(parseJson(finalState.getDbSchema()))
+                    .apiSpec(parseJson(finalState.getApiSpec()))
+                    .status(finalState.getStatusMessage())
+                    .retryCount(finalState.getRetryCount())
+                    .build();
+
+            log.info("파이프라인 완료 | pipelineId: {}, retryCount: {}",
+                    pipelineId, finalState.getRetryCount());
+
+            return ResponseEntity.ok(
+                    ApiResponse.success(response, "파이프라인 생성 완료")
+            );
+
         } catch (Exception e) {
-            return ResponseEntity.ok(Map.of(
-                    "pipelineId",  pipelineId,
-                    "query",       request.query(),
-                    "featureList", validatedResult.getFeatureList(),
-                    "dbSchema",    validatedResult.getDbSchema(),
-                    "apiSpec",     validatedResult.getApiSpec(),
-                    "status",      validatedResult.getStatusMessage(),
-                    "retryCount",  validatedResult.getRetryCount()
-            ));
+            log.error("파이프라인 실패 | {}", e.getMessage(), e);
+            throw new RuntimeException(e);
+
+        } finally {
+            MDC.remove("pipelineId");
         }
     }
 
-    record GenerateRequest(String query) {}
+    private JsonNode parseJson(String json) {
+        try {
+            if (json == null || json.isBlank()) {
+                return objectMapper.createObjectNode();
+            }
+            return objectMapper.readTree(json);
+        } catch (Exception e) {
+            log.warn("JSON 파싱 실패, 빈 객체 반환 | {}", e.getMessage());
+            return objectMapper.createObjectNode();
+        }
+    }
 }
