@@ -49,7 +49,7 @@ spring:
         table-name: document_chunks
         dimensions: 3072
         distance-type: COSINE_DISTANCE
-        index-type: HNSW
+        index-type: IVF_FLAT
         initialize-schema: false
 
   # ── Kafka ───────────────────────────────────────────────────────
