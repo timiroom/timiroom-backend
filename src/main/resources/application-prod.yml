@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://pg.timiroom.kro.kr:443/timiroom?ssl=true&sslmode=require
+    username: timiroom
+    password: timiroom1234
+    driver-class-name: org.postgresql.Driver
+
+  neo4j:
+    uri: bolt+s://bolt.timiroom.kro.kr:443
+    authentication:
+      username: neo4j
+      password: timiroom1234
+
+  data:
+    redis:
+      host: redis.timiroom.kro.kr
+      port: 443
+      password: timiroom1234
+      ssl:
+        enabled: true
