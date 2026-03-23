@@ -59,6 +59,7 @@ dependencies {
 
     // ── 테스트
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     // spring-security-test 제거 — spring-security 의존성 없이 단독 사용 불가
 
     implementation "org.bsc.langgraph4j:langgraph4j-core:${langGraph4jVersion}"
