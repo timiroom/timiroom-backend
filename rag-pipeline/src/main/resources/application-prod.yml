@@ -1,0 +1,16 @@
+# ── NAS 서버 (timiroom.kro.kr) 연결 설정 ──────────────────────────
+# 민감 정보는 환경변수로 관리합니다.
+# 필요 환경변수: DB_USERNAME, DB_PASSWORD
+
+spring:
+  # ── PostgreSQL (NAS) ─────────────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://pg.timiroom.kro.kr:443/timiroom?ssl=true&sslmode=require
+    username: ${DB_USERNAME:timiroom}
+    password: ${DB_PASSWORD}
+
+  # ── Kafka (NAS) ─────────────────────────────────────────────────
+  # NAS Container Station에 Kafka 배포 완료 (2026-03-23)
+  # Spring Boot 앱도 NAS 컨테이너로 배포 시 kafka_default 네트워크에 연결하여 내부 통신
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}

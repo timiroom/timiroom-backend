@@ -79,8 +79,10 @@ public class KafkaConsumerService {
     private void processEvent(PipelineResultEvent event) {
         log.info("저장 처리 시작 — pipelineId: {}", event.getPipelineId());
         log.info("  featureList: {}", event.getFeatureList());
-        log.info("  dbSchema 길이: {} chars", event.getDbSchema().length());
-        log.info("  apiSpec 길이: {} chars", event.getApiSpec().length());
+        log.info("  dbSchema 길이: {} chars",
+                event.getDbSchema() != null ? event.getDbSchema().length() : 0);
+        log.info("  apiSpec 길이: {} chars",
+                event.getApiSpec() != null ? event.getApiSpec().length() : 0);
 
         // TODO: PostgreSQL 저장
         // TODO: Neo4j 저장

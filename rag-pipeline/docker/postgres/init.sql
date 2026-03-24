@@ -13,11 +13,10 @@ CREATE TABLE IF NOT EXISTS document_chunks (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
--- 벡터 검색용 HNSW 인덱스
-CREATE INDEX IF NOT EXISTS idx_chunks_embedding_hnsw
-    ON document_chunks
-    USING hnsw (embedding vector_cosine_ops)
-    WITH (m = 16, ef_construction = 64);
+-- 벡터 검색용 인덱스
+-- pgvector HNSW/IVFFlat 인덱스는 최대 2000 차원 제한
+-- 3072 차원(text-embedding-3-large)은 순차 스캔 사용
+-- 데이터 많아지면 차원 축소 or pgvector 0.8+ 업그레이드 필요
 
 -- 키워드 검색용 GIN 인덱스
 CREATE INDEX IF NOT EXISTS idx_chunks_content_gin
