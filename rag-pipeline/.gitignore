@@ -49,3 +49,8 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+
+# Kafka / Zookeeper 로컬 데이터
+kafka/
+zookeeper/
+desktop.ini

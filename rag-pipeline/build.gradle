@@ -64,6 +64,8 @@ dependencies {
 
     implementation "org.bsc.langgraph4j:langgraph4j-core:${langGraph4jVersion}"
     implementation 'org.springframework.kafka:spring-kafka'
+    implementation 'org.apache.httpcomponents.client5:httpclient5'
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 }
 
 test {
