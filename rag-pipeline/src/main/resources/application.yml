@@ -2,9 +2,6 @@ spring:
   application:
     name: rag-pipeline
 
-  profiles:
-    active: local
-
   # ── PostgreSQL ──────────────────────────────────────────────────
   datasource:
     url: jdbc:postgresql://localhost:5433/ragdb
@@ -20,7 +17,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     show-sql: false
     open-in-view: false
     properties:
@@ -68,15 +65,14 @@ spring:
       properties:
         spring.json.trusted.packages: "com.rag.pipeline.*"
 
-
-# ── 서버 설정 ────────────────────────────────────────────────────
-server:
-  servlet:
-    encoding:
-      charset: UTF-8
-      force-request: true
-      force-response: true
-      enabled: true
+  # ── 인코딩 ──────────────────────────────────────────────────────
+  server:
+    servlet:
+      encoding:
+        charset: UTF-8
+        force-request: true
+        force-response: true
+        enabled: true
 
 # ── 앱 설정 ─────────────────────────────────────────────────────
 app:
