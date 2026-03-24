@@ -80,6 +80,7 @@ public class OrchestrationController {
                     .pipelineId(kafkaPipelineId)
                     .query(request.getQuery())
                     .featureList(validatedState.getFeatureList())
+                    .prdDocument(parseJson(validatedState.getPrdDocument()))
                     .dbSchema(parseJson(validatedState.getDbSchema()))
                     .apiSpec(parseJson(validatedState.getApiSpec()))
                     .status(validatedState.getStatusMessage())

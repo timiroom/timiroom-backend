@@ -1,9 +1,6 @@
 package com.rag.pipeline.phase2.graph;
 
-import com.rag.pipeline.phase2.agent.ApiAgent;
-import com.rag.pipeline.phase2.agent.DbaAgent;
-import com.rag.pipeline.phase2.agent.PmAgent;
-import com.rag.pipeline.phase2.agent.QaAgent;
+import com.rag.pipeline.phase2.agent.*;
 import com.rag.pipeline.phase2.state.PipelineState;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +29,7 @@ public class OrchestrationGraph {
     private final DbaAgent dbaAgent;
     private final ApiAgent apiAgent;
     private final QaAgent  qaAgent;
+    private final PrdAgent prdAgent;
 
     private static final int MAX_QA_RETRY = 5;
 
@@ -50,8 +48,12 @@ public class OrchestrationGraph {
         log.info("PM 에이전트 실행 중...");
         PipelineState afterPm = pmAgent.execute(initialState);
 
+        // STEP 2 — PRD 에이전트 (PM 결과 기반)
+        log.info("PRD 에이전트 실행 중...");
+        PipelineState afterPrd = prdAgent.execute(afterPm);
+
         // STEP 2~4 — DBA + API 병렬 + QA 검수
-        PipelineState finalState = runWithQaRetry(afterPm, 0);
+        PipelineState finalState = runWithQaRetry(afterPrd, 0);
 
         log.info("=== Phase 2 완료 ===");
         return finalState;

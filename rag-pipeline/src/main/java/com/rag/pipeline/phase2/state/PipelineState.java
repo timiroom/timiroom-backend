@@ -8,7 +8,6 @@ import java.util.Map;
 
 /**
  * Phase 2 전체에서 공유되는 LangGraph4j State 객체
- *
  * 모든 에이전트가 이 State를 읽고 쓰면서 결과를 누적합니다.
  * 불변 객체로 설계하여 각 노드가 새 인스턴스를 반환합니다.
  */
@@ -45,6 +44,9 @@ public class PipelineState {
     @Builder.Default
     private final int retryCount = 0;
 
+    /** PRD 에이전트가 생성한 PRD 문서 (JSON) */
+    private final String prdDocument;
+
     /** 마지막 검증 실패 원인 (Retry 재주입용) */
     private final String lastValidationError;
 
@@ -69,7 +71,8 @@ public class PipelineState {
                 Map.entry("retryCount",           retryCount),
                 Map.entry("lastValidationError",  orEmpty(lastValidationError)),
                 Map.entry("validated",            validated),
-                Map.entry("statusMessage",        orEmpty(statusMessage))
+                Map.entry("statusMessage",        orEmpty(statusMessage)),
+                Map.entry("prdDocument", orEmpty(prdDocument))
         );
     }
 
@@ -87,6 +90,7 @@ public class PipelineState {
                 .lastValidationError((String) map.getOrDefault("lastValidationError", ""))
                 .validated((boolean) map.getOrDefault("validated", false))
                 .statusMessage((String) map.getOrDefault("statusMessage", ""))
+                .prdDocument((String) map.getOrDefault("prdDocument", ""))
                 .build();
     }
 

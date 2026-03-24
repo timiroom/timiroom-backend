@@ -31,6 +31,9 @@ public class PipelineResultEvent {
     /** PM 에이전트가 도출한 기능 목록 */
     private List<String> featureList;
 
+    /** PRD 에이전트가 생성한 DB 스키마 JSON */
+    private String prdDocument;
+
     /** DBA 에이전트가 생성한 DB 스키마 JSON */
     private String dbSchema;
 
