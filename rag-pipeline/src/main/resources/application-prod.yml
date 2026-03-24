@@ -10,7 +10,6 @@ spring:
     password: ${DB_PASSWORD}
 
   # ── Kafka (NAS) ─────────────────────────────────────────────────
-  # NAS Container Station에 Kafka 배포 완료 (2026-03-23)
-  # Spring Boot 앱도 NAS 컨테이너로 배포 시 kafka_default 네트워크에 연결하여 내부 통신
+  # TODO: NAS에 Kafka 컨테이너 추가 후 주소 변경
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    bootstrap-servers: kafka.timiroom.kro.kr:9092
