@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -84,25 +85,20 @@ public class PmAgent {
 
     private PmResponse parseResponse(String response) {
         try {
-            // JSON에서 각 필드 추출 (간단한 파싱)
             String clean = response.trim()
                     .replaceAll("```json", "")
                     .replaceAll("```", "")
                     .trim();
 
-            // featureList 추출
-            String featureListStr = extractJsonArray(clean, "featureList");
-            List<String> featureList = Arrays.stream(
-                            featureListStr.replaceAll("[\\[\\]\"]", "").split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .collect(Collectors.toList());
+            com.fasterxml.jackson.databind.ObjectMapper mapper =
+                    new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(clean);
 
-            // dbaInstruction 추출
-            String dbaInstruction = extractJsonValue(clean, "dbaInstruction");
+            List<String> featureList = new ArrayList<>();
+            root.path("featureList").forEach(n -> featureList.add(n.asText()));
 
-            // apiInstruction 추출
-            String apiInstruction = extractJsonValue(clean, "apiInstruction");
+            String dbaInstruction = root.path("dbaInstruction").asText("");
+            String apiInstruction = root.path("apiInstruction").asText("");
 
             return new PmResponse(featureList, dbaInstruction, apiInstruction);
 
@@ -114,24 +110,6 @@ public class PmAgent {
                     "파싱 실패: " + e.getMessage()
             );
         }
-    }
-
-    private String extractJsonArray(String json, String key) {
-        int start = json.indexOf("\"" + key + "\"");
-        if (start == -1) return "[]";
-        int arrStart = json.indexOf("[", start);
-        int arrEnd = json.indexOf("]", arrStart);
-        if (arrStart == -1 || arrEnd == -1) return "[]";
-        return json.substring(arrStart, arrEnd + 1);
-    }
-
-    private String extractJsonValue(String json, String key) {
-        int start = json.indexOf("\"" + key + "\"");
-        if (start == -1) return "";
-        int valStart = json.indexOf("\"", start + key.length() + 3) + 1;
-        int valEnd = json.indexOf("\"", valStart);
-        if (valStart == 0 || valEnd == -1) return "";
-        return json.substring(valStart, valEnd);
     }
 
     record PmResponse(

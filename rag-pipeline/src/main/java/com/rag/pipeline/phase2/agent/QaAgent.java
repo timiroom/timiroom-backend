@@ -6,6 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * QA 에이전트 — 논리적 정합성 검수
  *
@@ -138,35 +141,29 @@ public class QaAgent {
     /** QA 결과 JSON 파싱 */
     private QaResult parseQaResult(String json) {
         try {
-            boolean passed = json.contains("\"passed\": true") || json.contains("\"passed\":true");
+            String clean = json.trim()
+                    .replaceAll("```json", "")
+                    .replaceAll("```", "")
+                    .trim();
 
-            // issues 추출
-            java.util.List<String> issues = extractJsonArray(json, "issues");
-            java.util.List<String> suggestions = extractJsonArray(json, "suggestions");
+            com.fasterxml.jackson.databind.ObjectMapper mapper =
+                    new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(clean);
+
+            boolean passed = root.path("passed").asBoolean(true);
+
+            List<String> issues = new ArrayList<>();
+            root.path("issues").forEach(n -> issues.add(n.asText()));
+
+            List<String> suggestions = new ArrayList<>();
+            root.path("suggestions").forEach(n -> suggestions.add(n.asText()));
 
             return new QaResult(passed, issues, suggestions);
+
         } catch (Exception e) {
             log.error("QA 결과 파싱 실패 — {}", e.getMessage());
-            return new QaResult(true, java.util.List.of(), java.util.List.of());
+            return new QaResult(true, List.of(), List.of());
         }
-    }
-
-    /** JSON 배열 값 추출 */
-    private java.util.List<String> extractJsonArray(String json, String key) {
-        java.util.List<String> result = new java.util.ArrayList<>();
-        int start = json.indexOf("\"" + key + "\"");
-        if (start == -1) return result;
-        int arrStart = json.indexOf("[", start);
-        int arrEnd = json.indexOf("]", arrStart);
-        if (arrStart == -1 || arrEnd == -1) return result;
-        String arr = json.substring(arrStart + 1, arrEnd);
-        for (String item : arr.split(",")) {
-            String cleaned = item.trim()
-                    .replaceAll("^\"|\"$", "")
-                    .trim();
-            if (!cleaned.isEmpty()) result.add(cleaned);
-        }
-        return result;
     }
 
     record QaResult(
