@@ -1,6 +1,10 @@
 package com.rag.pipeline.phase2.agent;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.rag.pipeline.phase2.state.PipelineState;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -13,10 +17,11 @@ import org.springframework.stereotype.Component;
  *   PM 에이전트의 apiInstruction을 받아
  *   엔드포인트, HTTP 메서드, 요청/응답 스키마를 포함한 API 스펙 생성
  *
- * QA 재시도 시 발견된 결함을 프롬프트에 강하게 재주입하여
- *   누락된 엔드포인트를 반드시 포함하도록 유도
+ * 워크플로우 지원:
+ *   설계 후 featureList 매핑 검증 → PRD 누락 시 prdFeedbackFromApi에 피드백 저장
+ *   → OrchestrationGraph가 감지하면 PrdAgent로 rollback
  *
- * GPT-4o-mini 사용 — 단순 생성 작업, 비용 최적화
+ * GPT-4o 사용
  * DBA 에이전트와 병렬로 실행됨
  */
 @Slf4j
@@ -25,6 +30,21 @@ import org.springframework.stereotype.Component;
 public class ApiAgent {
 
     private final ChatClient.Builder chatClientBuilder;
+    private final ObjectMapper objectMapper;
+    private ChatClient chatClient;
+
+    @PostConstruct
+    private void init() {
+        this.chatClient = chatClientBuilder
+                .defaultOptions(
+                        org.springframework.ai.openai.OpenAiChatOptions.builder()
+                                .withModel("gpt-4o")
+                                .withTemperature(0.1)
+                                .build()
+                )
+                .build();
+    }
+
 
     private static final String API_PROMPT = """
             당신은 시니어 백엔드 개발자입니다.
@@ -35,7 +55,7 @@ public class ApiAgent {
               "endpoints": [
                 {
                   "method": "HTTP 메서드",
-                  "path": "/api/경로",
+                  "patprivate ChatClient chatClient;h": "/api/경로",
                   "description": "엔드포인트 설명",
                   "request": {
                     "headers": {"헤더명": "타입"},
@@ -47,7 +67,8 @@ public class ApiAgent {
                   }
                 }
               ],
-              "authentication": "인증 방식 설명"
+              "authentication": "인증 방식 설명",
+              "prdIssues": "누락된 API 또는 불명확한 요구사항 (없으면 빈 문자열 \\"\\")"
             }
             
             규칙:
@@ -56,6 +77,14 @@ public class ApiAgent {
             - 인증이 필요한 엔드포인트는 Authorization 헤더를 명시하세요
             - 기능 목록의 모든 기능에 대한 엔드포인트를 반드시 포함하세요
             - DB 스키마의 테이블과 일치하는 엔드포인트를 설계하세요
+            
+            ⚠️ 설계 후 반드시 아래 체크리스트를 검증하세요:
+            - [ ] featureList의 모든 기능에 해당하는 API 엔드포인트가 있는가?
+            - [ ] 각 엔드포인트의 request/response가 명확한가?
+            - [ ] 인증이 필요한 엔드포인트에 Authorization 헤더가 있는가?
+            
+            누락된 기능이 있으면 prdIssues 필드에 명시하세요.
+            모두 충족되면 prdIssues는 빈 문자열로 작성하세요.
             
             지시사항:
             %s
@@ -67,25 +96,10 @@ public class ApiAgent {
             %s
             """;
 
-    /**
-     * API 에이전트 실행
-     */
     public PipelineState execute(PipelineState state) {
         log.info("API 에이전트 시작");
 
-        ChatClient chatClient = chatClientBuilder
-                .defaultOptions(
-                        org.springframework.ai.openai.OpenAiChatOptions.builder()
-                                .withModel("gpt-4o")
-                                .withTemperature(0.1)
-                                .build()
-                )
-                .build();
-
-        String featureListStr = String.join("\n- ", state.getFeatureList());
-        featureListStr = "- " + featureListStr;
-
-        // contextPrompt에 QA 결함 재주입 내용이 포함되어 있음
+        String featureListStr = "- " + String.join("\n- ", state.getFeatureList());
         String context = state.getContextPrompt() != null
                 ? state.getContextPrompt() : "";
 
@@ -97,15 +111,36 @@ public class ApiAgent {
                 .call()
                 .content();
 
-        String apiSpec = response.trim()
+        String clean = response.trim()
                 .replaceAll("```json", "")
                 .replaceAll("```", "")
                 .trim();
 
+        // prdIssues 추출 후 apiSpec에서 제거
+        String prdIssues = "";
+        try {
+            JsonNode root = objectMapper.readTree(clean);
+            prdIssues = root.path("prdIssues").asText("");
+
+            // prdIssues 필드는 apiSpec에 저장할 필요 없으므로 제거
+            ((ObjectNode) root).remove("prdIssues");
+            clean = objectMapper.writeValueAsString(root);
+
+            if (!prdIssues.isBlank()) {
+                log.warn("API → PRD 피드백 발생: {}", prdIssues);
+            } else {
+                log.info("API 검증 통과 — featureList 전체 엔드포인트 매핑 확인");
+            }
+
+        } catch (Exception e) {
+            log.warn("API 응답 파싱 중 prdIssues 추출 실패: {}", e.getMessage());
+        }
+
         log.info("API 에이전트 완료 — API 스펙 생성");
 
         return state.toBuilder()
-                .apiSpec(apiSpec)
+                .apiSpec(clean)
+                .prdFeedbackFromApi(prdIssues)   // ← rollback 트리거
                 .statusMessage("API 에이전트 완료 — API 스펙 생성")
                 .build();
     }
