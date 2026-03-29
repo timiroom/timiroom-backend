@@ -54,6 +54,21 @@ public class PipelineState {
     @Builder.Default
     private final boolean validated = false;
 
+    /** Search 에이전트가 수집한 시장 조사 데이터 */
+    private final String marketResearch;
+
+    /** DBA 에이전트가 PRD에 요청하는 피드백 (rollback 트리거) */
+    @Builder.Default
+    private final String prdFeedbackFromDba = "";
+
+    /** API 에이전트가 PRD에 요청하는 피드백 (rollback 트리거) */
+    @Builder.Default
+    private final String prdFeedbackFromApi = "";
+
+    /** rollback 횟수 (무한루프 방지, 최대 2회) */
+    @Builder.Default
+    private final int rollbackCount = 0;
+
     // ── 상태 메시지 (SSE 전송용) ─────────────────────────────────
     private final String statusMessage;
 
@@ -72,7 +87,11 @@ public class PipelineState {
                 Map.entry("lastValidationError",  orEmpty(lastValidationError)),
                 Map.entry("validated",            validated),
                 Map.entry("statusMessage",        orEmpty(statusMessage)),
-                Map.entry("prdDocument", orEmpty(prdDocument))
+                Map.entry("prdDocument", orEmpty(prdDocument)),
+                Map.entry("marketResearch",      orEmpty(marketResearch)),
+                Map.entry("prdFeedbackFromDba",  orEmpty(prdFeedbackFromDba)),
+                Map.entry("prdFeedbackFromApi",  orEmpty(prdFeedbackFromApi)),
+                Map.entry("rollbackCount",       String.valueOf(rollbackCount))
         );
     }
 
@@ -91,6 +110,11 @@ public class PipelineState {
                 .validated((boolean) map.getOrDefault("validated", false))
                 .statusMessage((String) map.getOrDefault("statusMessage", ""))
                 .prdDocument((String) map.getOrDefault("prdDocument", ""))
+                .marketResearch((String) map.getOrDefault("marketResearch", ""))
+                .prdFeedbackFromDba((String) map.getOrDefault("prdFeedbackFromDba", ""))
+                .prdFeedbackFromApi((String) map.getOrDefault("prdFeedbackFromApi", ""))
+                .rollbackCount(Integer.parseInt(
+                        String.valueOf(map.getOrDefault("rollbackCount", "0"))))
                 .build();
     }
 
