@@ -40,7 +40,15 @@ public class PrdAgent {
         당신은 10년 경력의 시니어 PM이자 소프트웨어 아키텍트입니다.
         제공된 시장 데이터를 최대한 활용하여 투자자와 개발팀이 신뢰할 수 있는 최고 수준의 PRD를 작성하세요.
 
-        절대 금지:
+        ══ 작성 품질 원칙 ══
+        - 모든 텍스트 필드는 최소 기준 글자수를 반드시 충족해야 합니다.
+        - 단순 키워드 나열 금지 — 반드시 완성된 문장으로 작성하세요.
+        - 숫자/수치가 포함된 모든 항목에는 반드시 출처(기관명 + 연도)를 괄호로 명시하세요.
+        - 각 항목이 서로 다른 관점을 다루도록 중복 내용 금지.
+        - "~을 제공합니다", "~을 지원합니다" 같은 단순 서술 금지 —
+          반드시 "누가 / 무엇을 / 어떻게 / 왜" 구조로 구체적으로 작성하세요.
+
+        ══ 절대 금지 ══
         - 출처 없는 수치 사용
         - "내부 목표", "내부 설문조사" 표현
         - A사, B사 등 가상 서비스명
@@ -105,77 +113,86 @@ public class PrdAgent {
         String featureStr = "- " + String.join("\n- ", state.getFeatureList());
         String rollbackSection = isRollback ? buildRollbackSection(state) : "";
 
-        String prompt = String.format("""
+
+
+        String prompt = """
                 수집된 시장 데이터:
                 === 시장 데이터 ===
-                %s
+                {MARKET_DATA}
                 =================
-                %s
-
+                {ROLLBACK}
+                
                 아래 JSON 형식으로 PRD 앞부분을 작성하세요.
-
-                ⚠️ 구체적 목표 (반드시 달성):
-                - background: 한국 시장 실제 수치 4개 이상 포함, 각 수치에 출처 명시
-                - kpi: 최소 7개, basis에 외부 기관 출처 명시 (내부 목표 금지)
-                - competitors: 한국 실제 서비스명 5개, 실제 매출액 + 출처 포함
-                - userPainPoints: 최소 5개, 서로 다른 출처, 퍼센트 수치
-                - coreFeatures: 기능 목록 전체 개별 항목, 요구사항 4개씩
-                - userPersonas: 3개, 구체적 정보
-                - competitiveMatrix: 경쟁사 5개 vs 기준 5개
-                - techStack: 8개 레이어 (Spring Boot 기반으로 작성)
-                - releaseSchedule: 최소 6개 마일스톤
-
+                
+                ══ 필드별 최소 기준 (반드시 충족) ══
+                "projectOverview": "서비스 한 줄 개요 — 누구를 위해 무엇을 어떻게 제공하는가 (50자 이상)",
+                
+                ▸ background          : 500자 이상. 완성된 2~3문단. 시장 현황 → 문제점 → 기회 순서로 전개.
+                                        실제 수치 4개 이상, 각 수치 옆에 (출처: 기관명, YYYY년) 표기 필수.
+                ▸ goals               : 4개. 각 항목은 "~을 통해 ~을 달성하여 ~에 기여한다" 형식, 60자 이상.
+                ▸ kpi                 : 7개 이상. target은 현재 기준값 → 목표값 형식 (예: "0% → 30%").
+                                        basis는 반드시 "기관명, YYYY년 보고서" 형식으로 외부 출처 명시.
+                ▸ competitors.feature : 각 강점은 2문장 이상. "무엇을 어떻게 제공하며, 그 결과 ~" 구조.
+                ▸ competitors.weakness: 각 약점은 2문장 이상. 구체적 사용자 불편 상황 포함.
+                ▸ userPainPoints.data : "XX% 사용자가 ~를 불편하다고 응답 (출처: 기관명, YYYY년, N=표본수)" 형식.
+                ▸ userPainPoints.impact: 해당 페인 포인트가 서비스 선택/이탈에 미치는 구체적 영향 2문장 이상.
+                ▸ coreFeatures.description: 각 기능은 100자 이상. "사용자가 ~상황에서 ~을 하면 시스템이 ~을 수행하여 ~효과를 낸다" 구조.
+                ▸ coreFeatures.requirements: 4개씩. 각 항목은 "~할 때 → ~처리 → ~결과" 구조로 60자 이상.
+                                             예) "이메일 인증" (X) → "회원가입 시 6자리 인증코드를 이메일 발송 → 10분 내 미입력 시 만료 처리 → 재발송 버튼 노출하여 UX 저하 방지" (O)
+                ▸ userPersonas.goal  : 2문장 이상. 구체적 상황과 기대 결과 포함.
+                ▸ userPersonas.painPoint: 2문장 이상. 현재 어떤 방식으로 해결하고 있는지 포함.
+                ▸ userPersonas.usagePattern: 2문장 이상. 접속 빈도/시간대/디바이스 포함.
+                ▸ userFlow            : 8단계 이상. 각 단계는 "사용자 행동 → 시스템 반응 → 다음 단계 연결" 구조, 80자 이상.
+                                        예) "1. 서비스 최초 진입 — 비로그인 사용자가 메인 화면 접속 → 팝업 없이 주요 기능 미리보기 제공 → 하단 CTA 버튼으로 가입 유도"
+                ▸ uxConsiderations.detail: 150자 이상. 구체적 구현 방법, 적용 화면/시나리오, 기대 효과 포함.
+                ▸ techStack           : 8개 레이어 각각 선택 이유 2문장 이상 (기술 특성 + 이 서비스에 적합한 이유).
+                ▸ nonFunctionalRequirements: 각 항목 구체적 수치 + 측정 방법 + 근거 출처 포함. 100자 이상.
+                ▸ releaseSchedule.description: 각 마일스톤 100자 이상. 완료 기준(Done Criteria) 포함.
+                ▸ releaseSchedule.deliverables: 3개 이상.
+                ▸ mvpScope.rationale  : 100자 이상. 포함/제외 기준 논리와 비즈니스 근거 서술.
+                
                 검증 체크리스트 (생성 후 스스로 확인):
+                [ ] background가 500자 이상인가?
                 [ ] 경쟁사가 모두 한국 서비스인가?
-                [ ] background에 실제 수치 4개 이상인가?
                 [ ] KPI basis에 "내부 목표" 표현이 없는가?
-                [ ] techStack에 backend가 Spring Boot로 되어있는가?
-
+                [ ] coreFeatures.requirements 각 항목이 60자 이상인가?
+                [ ] userFlow가 8단계 이상이며 각 단계가 80자 이상인가?
+                [ ] techStack backend가 Spring Boot이며 이유가 2문장 이상인가?
+                
                 JSON:
                 {
-                 background: 한국 시장 실제 수치 4개 이상 포함, 각 수치에 출처 명시.
-                            반드시 하나의 자연스러운 문단으로 작성. 시장 현황 → 문제점 → 기회 순서로 서술.
-                            최소 200자 이상 작성.
-                        
-                         - coreFeatures: 기능 목록 전체 개별 항목. 요구사항은 4개씩이며
-                           각 요구사항은 "무엇을 → 어떻게 → 왜" 구조로 구체적으로 작성.
-                           예) "이메일 인증" (X) → "회원가입 시 이메일 인증 링크 발송 — 미인증 계정은 로그인 차단하여 스팸 계정 방지" (O)
-                        
-                         - userFlow: 최소 6단계. 각 단계는 사용자 행동 + 시스템 반응 + 다음 단계로 이어지는 흐름을 포함.
-                           예) "1. 회원가입 — 사용자가 이메일/비밀번호 입력 → 시스템이 이메일 인증 링크 발송 → 인증 완료 시 자동 로그인"
-                        
-                         - uxConsiderations: 최소 6개. 각 항목의 detail은 2~3문장으로 구체적 구현 방법까지 명시.
-                           단순 키워드 나열 금지.
-                  "goals": ["목표1","목표2","목표3","목표4"],
-                  "kpi": [{"metric":"지표","target":"수치","basis":"출처: 기관명 (YYYY년)","measurementMethod":"측정방법","frequency":"주기"}],
+                  "projectOverview": "서비스 한 줄 개요 — 누구를 위해 무엇을 어떻게 제공하는가 (50자 이상)",
+                  "background": "500자 이상 서술형 문단. 시장 현황 → 문제점 → 기회 순서. 수치마다 (출처: 기관명, YYYY년) 표기.",
+                  "goals": ["~을 통해 ~을 달성하여 ~에 기여한다 (60자 이상)"],
+                  "kpi": [{"metric":"지표명","target":"현재값 → 목표값","basis":"기관명, YYYY년 보고서","measurementMethod":"구체적 측정 방법","frequency":"측정 주기"}],
                   "marketData": {
-                    "marketSize": "시장규모 + 출처",
-                    "growthRate": "성장률 + 출처",
-                    "competitors": [{"name":"한국서비스명","revenue":"매출+출처","marketShare":"점유율","feature":"강점","weakness":"약점","differentiator":"차별화"}],
-                    "userPainPoints": [{"point":"Pain Point","data":"XX%% 불편 (출처: 한국기관명, YYYY년)","impact":"영향도"}]
+                    "marketSize": "구체적 시장 규모 수치 + (출처: 기관명, YYYY년)",
+                    "growthRate": "성장률 수치 + (출처: 기관명, YYYY년)",
+                    "competitors": [{"name":"한국 실제 서비스명","revenue":"매출액 + (출처: 기관명, YYYY년)","marketShare":"점유율 + 출처","feature":"강점 2문장 이상 — 무엇을 어떻게 제공하며 결과는","weakness":"약점 2문장 이상 — 구체적 사용자 불편 포함","differentiator":"우리 서비스와의 차별화 포인트 2문장"}],
+                    "userPainPoints": [{"point":"Pain Point 명칭","data":"XX% 사용자가 ~불편 응답 (출처: 기관명, YYYY년, N=표본수)","impact":"서비스 선택/이탈에 미치는 영향 2문장 이상"}]
                   },
-                  "userPersonas": [{"name":"이름","age":"나이","job":"직업","techLevel":"낮음/중간/높음","goal":"목표","painPoint":"불편함","usagePattern":"이용패턴"}],
+                  "userPersonas": [{"name":"실제 느낌의 이름","age":"나이","job":"직업 + 회사 규모","techLevel":"낮음/중간/높음","goal":"구체적 상황과 기대 결과 포함 2문장","painPoint":"현재 해결 방식 포함 2문장","usagePattern":"접속 빈도/시간대/디바이스 포함 2문장"}],
                   "competitiveMatrix": {
-                    "criteria": ["기준1","기준2","기준3","기준4","기준5"],
+                    "criteria": ["평가 기준 5개 — 단순 키워드 아닌 '~의 편의성' 형식"],
                     "competitors": [{"name":"서비스명","scores":["상/중/하","상/중/하","상/중/하","상/중/하","상/중/하"]}]
                   },
-                  "coreFeatures": [{"name":"기능명","description":"설명","priority":"P0/P1/P2","requirements":["요구사항1","요구사항2","요구사항3","요구사항4"]}],
-                  "mvpScope": {"included":["기능1","기능2","기능3","기능4"],"excluded":["기능1","기능2"],"rationale":"근거"},
-                  "userFlow": ["1. 단계 — 설명","2. 단계 — 설명","3. 단계 — 설명","4. 단계 — 설명","5. 단계 — 설명","6. 단계 — 설명"],
-                  "uxConsiderations": [{"category":"카테고리","detail":"상세 내용","reference":"참고 기준"}],
-                  "techStack": {"backend":"Spring Boot - 이유","frontend":"기술 - 이유","database":"PostgreSQL - 이유","cache":"Redis - 이유","messageQueue":"Kafka - 이유","cdn":"기술 - 이유","monitoring":"기술 - 이유","auth":"OAuth 2.0 - 이유"},
-                  "nonFunctionalRequirements": {"performance":"수치+출처","security":"구체적 보안 기술","legal":"법 조항 번호 명시","scalability":"확장 전략","availability":"SLA+근거"},
-                  "releaseSchedule": [{"date":"기간","milestone":"마일스톤명","description":"설명","team":"담당팀","deliverables":["산출물1","산출물2"]}]
+                  "coreFeatures": [{"name":"기능명","description":"사용자가 ~상황에서 ~하면 시스템이 ~하여 ~효과. 100자 이상.","priority":"P0/P1/P2","requirements":["~할 때 → ~처리 → ~결과 구조로 60자 이상"]}],
+                  "mvpScope": {"included":["기능명"],"excluded":["기능명"],"rationale":"포함/제외 기준 논리와 비즈니스 근거 100자 이상"},
+                  "userFlow": ["1. 단계명 — 사용자 행동 → 시스템 반응 → 다음 단계 연결 (80자 이상)"],
+                  "uxConsiderations": [{"category":"카테고리명","detail":"구체적 구현 방법, 적용 화면/시나리오, 기대 효과 포함 150자 이상","reference":"UX 원칙 또는 참고 기준"}],
+                  "techStack": {"backend":"Spring Boot 선택 이유 2문장 이상 — 기술 특성 + 이 서비스에 적합한 이유","frontend":"기술명 + 이유 2문장","database":"PostgreSQL + 이유 2문장","cache":"Redis + 이유 2문장","messageQueue":"기술명 + 이유 2문장","cdn":"기술명 + 이유 2문장","monitoring":"기술명 + 이유 2문장","auth":"OAuth 2.0 + 이유 2문장"},
+                  "nonFunctionalRequirements": {"performance":"구체적 수치 + 측정 방법 + 근거 출처, 100자 이상","security":"적용 보안 기술 + 대상 위협 + 규정 조항, 100자 이상","legal":"법 조항 번호 + 핵심 내용 + 위반 시 리스크, 100자 이상","scalability":"수평/수직 확장 전략 + 트리거 조건, 100자 이상","availability":"SLA 수치 + 달성 방법 + 장애 허용 시간, 100자 이상"},
+                  "releaseSchedule": [{"date":"기간","milestone":"마일스톤명","description":"완료 기준(Done Criteria) 포함 100자 이상","team":"담당팀","deliverables":["산출물1","산출물2","산출물3"]}]
                 }
+                
+                사용자 요구사항: {USER_QUERY}
+                기능 목록: {FEATURE_STR}
+                """
+                .replace("{MARKET_DATA}", marketData)
+                .replace("{ROLLBACK}", rollbackSection)
+                .replace("{USER_QUERY}", state.getUserQuery())
+                .replace("{FEATURE_STR}", featureStr);
 
-                사용자 요구사항: %s
-                기능 목록: %s
-                """,
-                marketData,
-                rollbackSection,
-                state.getUserQuery(),
-                featureStr
-        );
 
         return callChatCompletions(prompt);
     }
@@ -184,53 +201,60 @@ public class PrdAgent {
         String featureStr = "- " + String.join("\n- ", state.getFeatureList());
         String rollbackSection = isRollback ? buildRollbackSection(state) : "";
 
-        String prompt = String.format("""
+
+
+        String prompt = """
                 수집된 시장 데이터:
                 === 시장 데이터 ===
-                %s
+                {MARKET_DATA}
                 =================
-                %s
-
+                {ROLLBACK}
                 아래 JSON 형식으로 PRD 뒷부분을 작성하세요.
 
-                ⚠️ 구체적 목표 (반드시 달성):
-                        - fsd: 최소 12개. description은 "사용자/관리자가 ~할 수 있어야 한다" 형식으로 구체적으로.
-                          action은 구현 방법을 기술 스택 기준으로 작성.
-                          acceptanceCriteria는 테스트 가능한 조건으로 작성.
-                          예) "로그인 3회 실패 시 계정 잠금 → 5분 후 자동 해제, 잠금 중 로그인 시도 시 에러 메시지 표시"
-                        
-                        - operationPolicy: 최소 8개. description은 정책의 목적과 범위를 2문장으로.
-                          action은 구체적인 처리 프로세스를 단계별로 작성.
-                          legalBasis는 조항 번호와 핵심 내용 함께 명시.
-                        
-                        - risks: 최소 5개. description은 리스크 발생 시나리오를 구체적으로 서술 (최소 2문장).
-                          strategy는 예방 조치를 구체적 기술/프로세스로 명시.
-                          contingency는 발생 후 대응 절차를 단계별로 작성.
-                          예) "1단계: 즉시 서비스 중단 → 2단계: 영향 범위 파악 → 3단계: 고객 통보 → 4단계: 복구"
-                - successMetrics: 최소 7개, measurementTool/frequency/owner 포함
+                ══ 필드별 최소 기준 (반드시 충족) ══
+                ▸ fsd                 : 12개 이상.
+                  - description       : "사용자/관리자가 ~상황에서 ~할 수 있어야 한다" 형식. 80자 이상.
+                  - action            : 기술 스택 기반으로 구현 단계 3단계 이상. "①~② ~③~" 구조.
+                                        예) "① Spring Security로 로그인 시도 횟수 Redis에 카운팅 → ② 3회 초과 시 계정 잠금 플래그 DB 저장 → ③ 5분 타이머 만료 후 Redis 키 삭제로 자동 해제"
+                  - acceptanceCriteria: 테스트 가능한 조건 2개 이상. "~하면 ~이어야 한다" 형식.
+
+                ▸ operationPolicy     : 8개 이상.
+                  - description       : 정책의 목적(왜 필요한가)과 적용 범위(어디에 적용되는가) 2문장. 100자 이상.
+                  - action            : 처리 프로세스를 순서대로 4단계 이상. "1) ~ → 2) ~ → 3) ~ → 4) ~" 구조.
+                  - legalBasis        : "법령명 제X조(조항명) — 핵심 의무 내용" 형식. 항목마다 서로 다른 조항 사용.
+
+                ▸ risks               : 5개 이상.
+                  - description       : 리스크 발생 트리거 + 예상 피해 범위 + 사업에 미치는 영향 3문장. 150자 이상.
+                  - strategy          : 구체적 예방 기술/프로세스 2가지 이상 명시. 100자 이상.
+                  - contingency       : 발생 후 대응 절차 4단계 이상.
+                                        예) "1단계: 즉시 서비스 일시 중단 및 장애 공지 → 2단계: 로그 분석으로 영향 범위 파악 → 3단계: 영향 사용자 개별 이메일/SMS 통보 → 4단계: 원인 제거 후 단계적 복구 → 5단계: 재발 방지 보고서 작성"
+
+                ▸ successMetrics      : 7개 이상.
+                  - target            : 현재 기준값 → 목표값 형식 (예: "0명 → 5,000명/월").
+                  - measurementTool   : 구체적 도구명 (예: "Google Analytics 4 + Mixpanel").
+                  - baselineNote      : 현재 수치가 없는 경우 "런칭 후 1개월 기준 수립" 등 명시.
 
                 검증 체크리스트:
-                [ ] fsd가 12개 이상인가?
+                [ ] fsd가 12개 이상이며 action이 3단계 이상인가?
                 [ ] operationPolicy의 legalBasis가 전부 다른 조항인가?
-                [ ] risks에 contingency가 모두 있는가?
-                [ ] successMetrics가 7개 이상인가?
+                [ ] risks의 description이 150자 이상이며 contingency가 4단계 이상인가?
+                [ ] successMetrics가 7개 이상이며 target에 현재값→목표값 형식인가?
 
                 JSON:
                 {
-                  "risks": [{"title":"리스크명","probability":"상/중/하","impact":"상/중/하","description":"설명","strategy":"대응전략","contingency":"비상계획"}],
-                  "fsd": [{"id":"FSD_001","category":"분류","description":"요구사항","action":"구현액션","acceptanceCriteria":"완료기준","note":"비고"}],
-                  "operationPolicy": [{"id":"POL_001","category":"정책명","description":"정책설명","action":"처리액션","legalBasis":"법적근거 조항번호","note":"비고"}],
-                  "successMetrics": [{"metric":"지표명","target":"목표치","measurementTool":"측정도구","frequency":"측정주기","owner":"담당팀"}]
+                  "risks": [{"title":"리스크명","probability":"상/중/하","impact":"상/중/하","description":"발생 트리거 + 피해 범위 + 사업 영향 3문장 150자 이상","strategy":"예방 기술/프로세스 2가지 이상 100자 이상","contingency":"1단계: ~ → 2단계: ~ → 3단계: ~ → 4단계: ~ (4단계 이상)"}],
+                  "fsd": [{"id":"FSD_001","category":"기능 분류","description":"사용자/관리자가 ~상황에서 ~할 수 있어야 한다 (80자 이상)","action":"① ~ → ② ~ → ③ ~ (3단계 이상, 기술 스택 기반)","acceptanceCriteria":"~하면 ~이어야 한다 조건 2개 이상","note":"비고 또는 연관 FSD"}],
+                  "operationPolicy": [{"id":"POL_001","category":"정책 분류","description":"정책 목적 + 적용 범위 2문장 100자 이상","action":"1) ~ → 2) ~ → 3) ~ → 4) ~ (4단계 이상)","legalBasis":"법령명 제X조(조항명) — 핵심 의무 내용","note":"비고"}],
+                  "successMetrics": [{"metric":"지표명","target":"현재값 → 목표값","measurementTool":"구체적 도구명","frequency":"측정 주기","owner":"담당팀","baselineNote":"기준값 수립 방법 또는 현재 상태"}]
                 }
 
-                서비스 요구사항: %s
-                기능 목록: %s
-                """,
-                marketData,
-                rollbackSection,
-                state.getUserQuery(),
-                featureStr
-        );
+                서비스 요구사항: {USER_QUERY}
+                기능 목록: {FEATURE_STR}
+                """
+                .replace("{MARKET_DATA}", marketData)
+                .replace("{ROLLBACK}", rollbackSection)
+                .replace("{USER_QUERY}", state.getUserQuery())
+                .replace("{FEATURE_STR}", featureStr);
 
         return callChatCompletions(prompt);
     }
@@ -252,7 +276,7 @@ public class PrdAgent {
         Map<String, Object> requestBody = Map.of(
                 "model", "gpt-4o",
                 "temperature", 0.1,
-                "max_tokens", 8192,
+                "max_tokens", 16000,
                 "response_format", Map.of("type", "json_object"),
                 "messages", List.of(
                         Map.of("role", "system", "content", SYSTEM_PROMPT),
