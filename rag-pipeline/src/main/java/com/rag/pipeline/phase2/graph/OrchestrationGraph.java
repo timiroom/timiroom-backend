@@ -25,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class OrchestrationGraph {
 
+    private final SearchAgent searchAgent;
     private final PmAgent  pmAgent;
     private final DbaAgent dbaAgent;
     private final ApiAgent apiAgent;
@@ -44,16 +45,22 @@ public class OrchestrationGraph {
                 .contextPrompt(contextPrompt)
                 .build();
 
-        // STEP 1 — PM 에이전트
+        // STEP 1 — Search 에이전트
+        log.info("Search 에이전트 실행 중...");
+        PipelineState afterSearch = searchAgent.execute(initialState);
+
+        // STEP 2 — PM 에이전트
         log.info("PM 에이전트 실행 중...");
-        PipelineState afterPm = pmAgent.execute(initialState);
+        PipelineState afterPm = pmAgent.execute(afterSearch);  // ← 1번 버그 수정도 포함
 
-        // STEP 2 — PRD 에이전트 (PM 결과 기반)
-        log.info("PRD 에이전트 실행 중...");
-        PipelineState afterPrd = prdAgent.execute(afterPm);
+        // STEP 3 — PRD + DBA/API rollback 포함
+        // runPrdWithRollback이 DBA/API 결과까지 포함해서 반환
+        log.info("PRD + DBA/API 에이전트 실행 중...");
+        PipelineState afterPrdDbaApi = runPrdWithRollback(afterPm);
 
-        // STEP 2~4 — DBA + API 병렬 + QA 검수
-        PipelineState finalState = runWithQaRetry(afterPrd, 0);
+        // STEP 4 — QA만 재시도 (DBA/API 재실행 없음)
+        log.info("QA 에이전트 실행 중...");
+        PipelineState finalState = runQaRetryOnly(afterPrdDbaApi, 0);
 
         log.info("=== Phase 2 완료 ===");
         return finalState;
@@ -132,5 +139,120 @@ public class OrchestrationGraph {
                 .build();
 
         return runWithQaRetry(retryState, attempt + 1);
+    }
+
+    private PipelineState runPrdWithRollback(PipelineState pmState) {
+        PipelineState current = pmState;
+
+        for (int attempt = 0; attempt <= 2; attempt++) {
+            log.info("PRD 에이전트 실행 중... (시도 {})", attempt + 1);
+            PipelineState afterPrd = prdAgent.execute(current);
+
+            // DBA + API 병렬 실행해서 피드백 수집
+            CompletableFuture<PipelineState> dbaFuture =
+                    CompletableFuture.supplyAsync(() -> dbaAgent.execute(afterPrd));
+            CompletableFuture<PipelineState> apiFuture =
+                    CompletableFuture.supplyAsync(() -> apiAgent.execute(afterPrd));
+
+            PipelineState dbaResult = dbaFuture.join();
+            PipelineState apiResult = apiFuture.join();
+
+            boolean dbaHasFeedback = dbaResult.getPrdFeedbackFromDba() != null
+                    && !dbaResult.getPrdFeedbackFromDba().isBlank();
+            boolean apiHasFeedback = apiResult.getPrdFeedbackFromApi() != null
+                    && !apiResult.getPrdFeedbackFromApi().isBlank();
+
+            // 피드백 없으면 통과
+            if (!dbaHasFeedback && !apiHasFeedback) {
+                log.info("PRD ↔ DBA/API 검증 통과 (시도 {})", attempt + 1);
+                return afterPrd.toBuilder()
+                        .dbSchema(dbaResult.getDbSchema())
+                        .apiSpec(apiResult.getApiSpec())
+                        .build();
+            }
+
+            // 피드백 있으면 rollback
+            if (attempt < 2) {
+                log.warn("PRD rollback #{} — DBA피드백: {}, API피드백: {}",
+                        attempt + 1,
+                        dbaResult.getPrdFeedbackFromDba(),
+                        apiResult.getPrdFeedbackFromApi());
+
+                current = afterPrd.toBuilder()
+                        .prdFeedbackFromDba(dbaResult.getPrdFeedbackFromDba())
+                        .prdFeedbackFromApi(apiResult.getPrdFeedbackFromApi())
+                        .rollbackCount(attempt + 1)
+                        .build();
+            } else {
+                // 최대 rollback 초과 → 그냥 진행
+                log.warn("PRD rollback 최대 횟수 초과 — 현재 결과로 진행");
+                return afterPrd.toBuilder()
+                        .dbSchema(dbaResult.getDbSchema())
+                        .apiSpec(apiResult.getApiSpec())
+                        .build();
+            }
+        }
+
+        return current;
+    }
+    /**
+     * QA만 재시도 — DBA/API는 재실행하지 않음
+     * runPrdWithRollback에서 이미 DBA/API가 실행됐기 때문
+     */
+    private PipelineState runQaRetryOnly(PipelineState state, int attempt) {
+
+        log.info("QA 에이전트 실행 중... (시도 {})", attempt + 1);
+        PipelineState qaResult = qaAgent.execute(state);
+
+        boolean qaFailed = qaResult.getLastValidationError() != null
+                && !qaResult.getLastValidationError().isBlank();
+
+        // QA 통과
+        if (!qaFailed) {
+            log.info("QA 검수 통과 (시도 {})", attempt + 1);
+            return qaResult;
+        }
+
+        // 최대 재시도 초과
+        if (attempt >= MAX_QA_RETRY) {
+            log.warn("QA 최대 재시도 초과 ({}) — Phase 3로 위임", MAX_QA_RETRY);
+            return qaResult.toBuilder()
+                    .lastValidationError("")
+                    .statusMessage("QA 최대 재시도 초과 — Phase 3 형식 검증으로 위임")
+                    .build();
+        }
+
+        // QA 실패 → DBA/API만 재실행 후 QA 재시도
+        log.warn("QA 검수 실패 — DBA/API 재실행 후 재시도 ({}/{})", attempt + 1, MAX_QA_RETRY);
+
+        String retryContext = state.getContextPrompt()
+                + "\n\n=== 이전 설계의 치명적 결함 (반드시 수정) ===\n"
+                + qaResult.getLastValidationError()
+                + "\n\n위 결함을 모두 수정하여 완전한 설계를 다시 생성하세요.";
+
+        PipelineState retryBase = state.toBuilder()
+                .contextPrompt(retryContext)
+                .lastValidationError("")
+                .retryCount(attempt + 1)
+                .build();
+
+        // DBA + API 병렬 재실행
+        CompletableFuture<PipelineState> dbaFuture =
+                CompletableFuture.supplyAsync(() -> dbaAgent.execute(retryBase));
+        CompletableFuture<PipelineState> apiFuture =
+                CompletableFuture.supplyAsync(() -> apiAgent.execute(retryBase));
+
+        PipelineState dbaResult = dbaFuture.join();
+        PipelineState apiResult = apiFuture.join();
+
+        PipelineState merged = retryBase.toBuilder()
+                .dbSchema(dbaResult.getDbSchema())
+                .apiSpec(apiResult.getApiSpec())
+                .prdFeedbackFromDba(dbaResult.getPrdFeedbackFromDba())
+                .prdFeedbackFromApi(apiResult.getPrdFeedbackFromApi())
+                .retryCount(attempt + 1)
+                .build();
+
+        return runQaRetryOnly(merged, attempt + 1);
     }
 }
