@@ -45,4 +45,6 @@ public class PipelineResultEvent {
 
     /** 이벤트 생성 시각 */
     private LocalDateTime createdAt;
+
+    private String marketResearch;
 }
