@@ -95,19 +95,33 @@ public class HybridSearchService {
     // ── 키워드 검색 (PostgreSQL FTS) ──────────────────────────────
 
     private List<DocumentChunk> keywordSearch(String query) {
-        // 공백을 & 로 연결해서 tsquery 형식으로 변환
-        String tsQuery = Arrays.stream(query.trim().split("\\s+"))
+        // 특수문자 제거 + 영문/숫자만 추출하여 tsquery 생성
+        String cleaned = query.replaceAll("[^a-zA-Z0-9가-힣\\s]", " ").trim();
+
+        // 한국어가 포함되어 있으면 FTS 스킵 (영어만 처리)
+        boolean hasKorean = cleaned.matches(".*[가-힣]+.*");
+        if (hasKorean) {
+            log.debug("한국어 쿼리 — FTS 스킵, 벡터 검색만 사용: '{}'", query);
+            return Collections.emptyList();
+        }
+
+        String tsQuery = Arrays.stream(cleaned.trim().split("\\s+"))
+                .filter(w -> !w.isBlank())
                 .collect(Collectors.joining(" & "));
 
+        if (tsQuery.isBlank()) {
+            return Collections.emptyList();
+        }
+
         String sql = """
-                SELECT id, content, metadata,
-                       ts_rank(to_tsvector('english', content),
-                               to_tsquery('english', ?)) AS rank
-                FROM document_chunks
-                WHERE to_tsvector('english', content) @@ to_tsquery('english', ?)
-                ORDER BY rank DESC
-                LIMIT ?
-                """;
+            SELECT id, content, metadata,
+                   ts_rank(to_tsvector('english', content),
+                           to_tsquery('english', ?)) AS rank
+            FROM document_chunks
+            WHERE to_tsvector('english', content) @@ to_tsquery('english', ?)
+            ORDER BY rank DESC
+            LIMIT ?
+            """;
 
         try {
             return jdbcTemplate.query(sql, (rs, rowNum) ->
