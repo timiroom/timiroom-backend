@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * PRD 에이전트 — 시장 데이터 기반 PRD 생성
@@ -77,13 +78,19 @@ public class PrdAgent {
             String marketData = state.getMarketResearch() != null
                     ? state.getMarketResearch() : "시장 데이터 없음";
 
-            // STEP 2A — PRD 앞부분 생성
-            log.info("STEP 2A: PRD 앞부분 생성 중...");
-            String partA = generatePartA(state, marketData, isRollback);
+            // STEP 2A + 2B — 병렬 생성 (기존 순차 대비 ~55초 절감)
+            log.info("STEP 2A + 2B: PRD 앞/뒷부분 병렬 생성 중...");
+            final String finalMarketData = marketData;
+            final boolean finalIsRollback = isRollback;
 
-            // STEP 2B — PRD 뒷부분 생성
-            log.info("STEP 2B: PRD 뒷부분 생성 중...");
-            String partB = generatePartB(state, marketData, isRollback);
+            CompletableFuture<String> futureA = CompletableFuture.supplyAsync(
+                    () -> generatePartA(state, finalMarketData, finalIsRollback));
+            CompletableFuture<String> futureB = CompletableFuture.supplyAsync(
+                    () -> generatePartB(state, finalMarketData, finalIsRollback));
+
+            String partA = futureA.join();
+            String partB = futureB.join();
+            log.info("STEP 2A + 2B 완료");
 
             String prdDocument = mergeJsonParts(partA, partB);
             log.info("PRD 에이전트 완료 — {}chars", prdDocument.length());
@@ -136,6 +143,17 @@ public class PrdAgent {
                 ▸ competitors.weakness: 각 약점은 2문장 이상. 구체적 사용자 불편 상황 포함.
                 ▸ userPainPoints.data : "XX% 사용자가 ~를 불편하다고 응답 (출처: 기관명, YYYY년, N=표본수)" 형식.
                 ▸ userPainPoints.impact: 해당 페인 포인트가 서비스 선택/이탈에 미치는 구체적 영향 2문장 이상.
+                ▸ competitors         : 반드시 5개. 4개 이하 절대 금지.
+                                        서비스 도메인에 맞는 한국 실제 경쟁 서비스 5개 선정.
+                                        (패션이면 무신사/지그재그/에이블리/카카오스타일/W컨셉 등)
+                                        (이커머스면 쿠팡/네이버/11번가/G마켓/티몬 등)
+                                        실제 매출액 + 출처 반드시 포함.
+                ▸ userPersonas        : 반드시 3개. 2개 이하 절대 금지.
+                                        연령대/직업/기술수준이 서로 다른 3명으로 구성.
+                ▸ coreFeatures        : featureList의 각 기능을 반드시 개별 항목으로 작성.
+                                        절대 여러 기능을 하나로 묶지 말 것.
+                                        featureList가 10개면 coreFeatures도 반드시 10개.
+                                        "상품 관리 기능", "주문 관리 기능" 같은 묶음 표현 절대 금지.
                 ▸ coreFeatures.description: 각 기능은 100자 이상. "사용자가 ~상황에서 ~을 하면 시스템이 ~을 수행하여 ~효과를 낸다" 구조.
                 ▸ coreFeatures.requirements: 4개씩. 각 항목은 "~할 때 → ~처리 → ~결과" 구조로 60자 이상.
                                              예) "이메일 인증" (X) → "회원가입 시 6자리 인증코드를 이메일 발송 → 10분 내 미입력 시 만료 처리 → 재발송 버튼 노출하여 UX 저하 방지" (O)
@@ -153,9 +171,11 @@ public class PrdAgent {
                 
                 검증 체크리스트 (생성 후 스스로 확인):
                 [ ] background가 500자 이상인가?
-                [ ] 경쟁사가 모두 한국 서비스인가?
+                [ ] 경쟁사가 반드시 5개이며 모두 한국 서비스인가? (4개 이하면 실패)
                 [ ] KPI basis에 "내부 목표" 표현이 없는가?
+                [ ] coreFeatures가 featureList 개수와 동일하며 묶음 처리 없는가?
                 [ ] coreFeatures.requirements 각 항목이 60자 이상인가?
+                [ ] userPersonas가 반드시 3개인가? (2개 이하면 실패)
                 [ ] userFlow가 8단계 이상이며 각 단계가 80자 이상인가?
                 [ ] techStack backend가 Spring Boot이며 이유가 2문장 이상인가?
                 
@@ -194,7 +214,7 @@ public class PrdAgent {
                 .replace("{FEATURE_STR}", featureStr);
 
 
-        return callChatCompletions(prompt);
+        return callChatCompletions(prompt, 8000);
     }
 
     private String generatePartB(PipelineState state, String marketData, boolean isRollback) {
@@ -256,7 +276,7 @@ public class PrdAgent {
                 .replace("{USER_QUERY}", state.getUserQuery())
                 .replace("{FEATURE_STR}", featureStr);
 
-        return callChatCompletions(prompt);
+        return callChatCompletions(prompt, 6000);
     }
 
     private String buildRollbackSection(PipelineState state) {
@@ -272,11 +292,11 @@ public class PrdAgent {
         return sb.toString();
     }
 
-    private String callChatCompletions(String userPrompt) {
+    private String callChatCompletions(String userPrompt, int maxTokens) {
         Map<String, Object> requestBody = Map.of(
                 "model", "gpt-4o",
                 "temperature", 0.1,
-                "max_tokens", 16000,
+                "max_tokens", maxTokens,
                 "response_format", Map.of("type", "json_object"),
                 "messages", List.of(
                         Map.of("role", "system", "content", SYSTEM_PROMPT),
