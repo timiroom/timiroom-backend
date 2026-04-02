@@ -38,7 +38,7 @@ public class ApiAgent {
         this.chatClient = chatClientBuilder
                 .defaultOptions(
                         org.springframework.ai.openai.OpenAiChatOptions.builder()
-                                .withModel("gpt-4o")
+                                .withModel("gpt-4o-mini")
                                 .withTemperature(0.1)
                                 .build()
                 )
