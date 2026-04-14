@@ -21,12 +21,12 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .requestCache(cache -> cache.requestCache(new NullRequestCache()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/", "/auth/login", "/auth/register").permitAll()
                         .anyRequest().authenticated()
                 )
-                .oauth2Login(oauth -> oauth
-                        .defaultSuccessUrl("/home", true)
-                )
+//                .oauth2Login(oauth -> oauth
+//                        .defaultSuccessUrl("/auth/home", true)
+//                )
                 .logout(logout -> logout
                         .logoutUrl("/auth/logout")
                         .invalidateHttpSession(true)
