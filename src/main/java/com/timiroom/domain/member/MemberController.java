@@ -4,6 +4,8 @@ import com.timiroom.domain.member.dto.MemberLoginRequest;
 import com.timiroom.domain.member.dto.MemberRegisterRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -22,4 +24,6 @@ public class MemberController {
     public void sessionLogin(@RequestBody MemberLoginRequest request, HttpSession session){
         memberService.login(request, session);
     }
+
+
 }
