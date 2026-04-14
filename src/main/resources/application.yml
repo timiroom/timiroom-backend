@@ -14,5 +14,16 @@ spring:
   profiles:
     active: local
 
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: Ov23li42fuMQnxzbpwhp
+            client-secret: 08dfc0ac32ac702d1a56ae50a69b1a4bac58b0d7
+            scope:
+              - user:email
+
 server:
   port: 8080
+
