@@ -24,6 +24,9 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**").permitAll()
                         .anyRequest().authenticated()
                 )
+                .oauth2Login(oauth -> oauth
+                        .defaultSuccessUrl("/home", true)
+                )
                 .logout(logout -> logout
                         .logoutUrl("/auth/logout")
                         .invalidateHttpSession(true)
@@ -38,7 +41,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .maximumSessions(1)
                         .maxSessionsPreventsLogin(false)
-                );;;
+                );
         return http.build();
     }
 
