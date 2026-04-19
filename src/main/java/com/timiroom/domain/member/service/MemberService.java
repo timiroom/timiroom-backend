@@ -1,13 +1,14 @@
-package com.timiroom.domain.member;
+package com.timiroom.domain.member.service;
 
+import com.timiroom.domain.member.Member;
+import com.timiroom.domain.member.MemberRepository;
 import com.timiroom.domain.member.dto.MemberLoginRequest;
 import com.timiroom.domain.member.dto.MemberRegisterRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -28,12 +29,20 @@ public class MemberService {
         memberRepository.save(member);
     }
 
-    public void login(MemberLoginRequest request, HttpSession session){
+    public void login(MemberLoginRequest request, HttpServletRequest httpRequest) {
 
-        var token = new UsernamePasswordAuthenticationToken(request.getMemberName(), request.getPassword());
+        var token = new UsernamePasswordAuthenticationToken(
+                request.getMemberName(),
+                request.getPassword()
+        );
 
-        Authentication authentication = authenticationManager.authenticate(token);
+        authenticationManager.authenticate(token); // 인증 실패 시 예외 발생
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        Member member = memberRepository.findAllByMemberName(request.getMemberName())
+                .orElseThrow(() -> new RuntimeException("회원 없음"));
+
+        // 세션에 memberId만 저장
+        HttpSession session = httpRequest.getSession(true);
+        session.setAttribute("memberId", member.getMemberId());
     }
 }

@@ -1,4 +1,4 @@
-package com.timiroom.global;
+package com.timiroom.domain.member.service;
 
 import com.timiroom.domain.member.Member;
 import com.timiroom.domain.member.MemberRepository;
