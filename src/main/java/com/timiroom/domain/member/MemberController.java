@@ -28,21 +28,4 @@ public class MemberController {
     public void login(@RequestBody MemberLoginRequest request, HttpServletRequest httpRequest) {
         memberService.login(request, httpRequest);
     }
-
-    @GetMapping("/me")
-    public ResponseEntity<?> me(HttpSession session) {
-        Long memberId = (Long) session.getAttribute("memberId");
-        if (memberId == null) {
-            return ResponseEntity.status(401).build();
-        }
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new RuntimeException("회원 없음"));
-
-        return ResponseEntity.ok(Map.of(
-                "memberId", member.getMemberId(),
-                "memberName", member.getMemberName(),
-                "email", member.getEmail(),
-                "provider", member.getProvider()
-        ));
-    }
 }
