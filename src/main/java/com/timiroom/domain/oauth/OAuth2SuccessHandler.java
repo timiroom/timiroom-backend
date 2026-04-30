@@ -27,12 +27,18 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
 
         String provider = ((OAuth2AuthenticationToken) authentication).getAuthorizedClientRegistrationId();
-        String providerId = oAuth2User.getAttribute("id").toString();
+
+        // ✅ provider에 따라 분기 처리
+        String providerId;
+        if (provider.equals("google")) {
+            providerId = oAuth2User.getAttribute("sub").toString(); // Google은 sub
+        } else {
+            providerId = oAuth2User.getAttribute("id").toString();  // GitHub는 id
+        }
 
         Member member = memberRepository.findByProviderAndProviderId(provider, providerId)
                 .orElseThrow(() -> new RuntimeException("회원 없음"));
 
-        // 세션에 memberId만 저장
         HttpSession session = request.getSession(true);
         session.setAttribute("memberId", member.getMemberId());
 

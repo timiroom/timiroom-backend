@@ -19,11 +19,16 @@ spring:
       client:
         registration:
           github:
-            client-id: Ov23li42fuMQnxzbpwhp
-            client-secret: 08dfc0ac32ac702d1a56ae50a69b1a4bac58b0d7
+            client-id: ${GITHUB_ID}
+            client-secret: ${GITHUB_SECRET}
             scope:
               - user:email
-
+          google:
+            client-id: ${GOOGLE_ID}
+            client-secret: ${GOOGLE_SECRET}
+            scope:
+              - profile
+              - email
 server:
   port: 8080
 
