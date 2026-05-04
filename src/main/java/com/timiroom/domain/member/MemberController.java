@@ -19,13 +19,21 @@ public class MemberController {
     private final MemberService memberService;
     private final MemberRepository memberRepository;
 
-    @PostMapping("/register")
-    public void register(@RequestBody MemberRegisterRequest request) {
-        memberService.register(request);
-    }
+    @GetMapping("/me")
+    public ResponseEntity<?> getMe(HttpSession session) {
+        Long memberId = (Long) session.getAttribute("memberId");
+        if (memberId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Not logged in"));
+        }
 
-    @PostMapping("/login")
-    public void login(@RequestBody MemberLoginRequest request, HttpServletRequest httpRequest) {
-        memberService.login(request, httpRequest);
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("Member not found"));
+
+        return ResponseEntity.ok(Map.of(
+                "id", member.getMemberId(),
+                "name", member.getMemberName(),
+                "email", member.getEmail(),
+                "provider", member.getProvider()
+        ));
     }
 }

@@ -19,13 +19,12 @@ spring:
       client:
         registration:
           github:
-            client-id: ${GITHUB_ID}
-            client-secret: ${GITHUB_SECRET}
-            scope:
-              - user:email
+            client-id: ${GITHUB_CLIENT_ID}
+            client-secret: ${GITHUB_CLIENT_SECRET}
+
           google:
-            client-id: ${GOOGLE_ID}
-            client-secret: ${GOOGLE_SECRET}
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
             scope:
               - profile
               - email

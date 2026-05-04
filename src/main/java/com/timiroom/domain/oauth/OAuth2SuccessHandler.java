@@ -42,6 +42,6 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         HttpSession session = request.getSession(true);
         session.setAttribute("memberId", member.getMemberId());
 
-        response.sendRedirect("/auth/me");
+        response.sendRedirect("http://localhost:3000/");
     }
 }
