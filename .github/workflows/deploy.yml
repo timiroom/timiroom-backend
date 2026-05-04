@@ -29,20 +29,42 @@ jobs:
       - name: Setup Kustomize
         uses: imranismail/setup-kustomize@v2
 
-      - name: Update Ops Repo with Kustomize
+      - name: Install kubeseal
+        run: |
+          wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.27.3/kubeseal-0.27.3-linux-amd64.tar.gz
+          tar -xvzf kubeseal-0.27.3-linux-amd64.tar.gz kubeseal
+          sudo mv kubeseal /usr/local/bin/
+
+      - name: Update Ops Repo with Sealed Secrets
         run: |
           git clone https://${{ secrets.GH_PAT }}@github.com/timiroom/timiroom-ops.git
           cd timiroom-ops/apps/backend
           
+          # Check if pub-cert.pem exists (kubeseal public cert)
+          if [ ! -f pub-cert.pem ]; then
+            echo "❌ ERROR: pub-cert.pem not found in timiroom-ops/apps/backend/"
+            echo "Generate sealed-secrets public cert: kubectl get secret -n kube-system sealed-secrets-key -o jsonpath='{.data.tls\.crt}' | base64 -d > pub-cert.pem"
+            exit 1
+          fi
+          
           kustomize edit set image backend-image=${{ secrets.DOCKER_USERNAME }}/timiroom-backend:${{ env.IMAGE_TAG }}
           
-          rm -f secrets.env
-          echo "$ALL_SECRETS_JSON" | jq -r 'to_entries[] | select(.key | startswith("APP_")) | "\(.key | sub("^APP_"; ""))=\(.value)"' > secrets.env
+          rm -f temp-secrets.env
+          echo "$ALL_SECRETS_JSON" | jq -r 'to_entries[] | select(.key | startswith("APP_")) | "\(.key | sub("^APP_"; ""))=\(.value)"' > temp-secrets.env
+          
+          kubectl create secret generic backend-secrets --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
+          
+          kubeseal --format=yaml --cert=pub-cert.pem < plain-secret.yaml > sealed-secret.yaml
+          
+          rm -f temp-secrets.env plain-secret.yaml
           
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
-          git add .
-          git commit -m "chore: kustomize deploy with dynamic secrets [${{ env.IMAGE_TAG }}]"
+          git add kustomization.yaml sealed-secret.yaml
+          
+          git rm --ignore-unmatch secrets.env
+          
+          git commit -m "chore: deploy image & update sealed secrets [${{ env.IMAGE_TAG }}]"
           git push
         env:
           ALL_SECRETS_JSON: ${{ toJson(secrets) }}
