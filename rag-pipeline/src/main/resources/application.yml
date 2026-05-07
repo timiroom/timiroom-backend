@@ -20,7 +20,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: update
     show-sql: false
     open-in-view: false
     properties:
@@ -44,6 +44,14 @@ spring:
         options:
           model: text-embedding-3-large
           dimensions: 3072
+
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        options:
+          model: claude-sonnet-4-20250514
+          max-tokens: 1024
+          temperature: 0.3
     vectorstore:
       pgvector:
         schema-name: public
@@ -56,6 +64,14 @@ spring:
   # ── Kafka ───────────────────────────────────────────────────────
   kafka:
     bootstrap-servers: localhost:9092
+    # 모든 Kafka 클라이언트(Admin/Producer/Consumer) 공통 설정
+    properties:
+      "[reconnect.backoff.ms]": 3000        # 재연결 초기 대기
+      "[reconnect.backoff.max.ms]": 30000   # 최대 30초 간격 (기본 1초→스팸 방지)
+      "[request.timeout.ms]": 5000
+      "[metadata.max.age.ms]": 30000
+    admin:
+      fail-fast: false   # Kafka 없어도 앱 기동 허용
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -66,7 +82,7 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       auto-offset-reset: earliest
       properties:
-        spring.json.trusted.packages: "com.rag.pipeline.*"
+        "[spring.json.trusted.packages]": "com.rag.pipeline.*"
 
 
 # ── 서버 설정 ────────────────────────────────────────────────────

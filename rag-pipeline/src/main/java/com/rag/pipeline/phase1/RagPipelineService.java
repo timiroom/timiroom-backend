@@ -1,15 +1,22 @@
 package com.rag.pipeline.phase1;
 
 import com.rag.pipeline.common.dto.DocumentChunk;
+import com.rag.pipeline.phase1.form.FormData;
+import com.rag.pipeline.phase1.form.FormToQueryService;
+import com.rag.pipeline.phase1.parsing.PDFParsingService;
 import com.rag.pipeline.phase1.reranker.RerankerService;
 import com.rag.pipeline.phase1.search.HybridSearchService;
 import com.rag.pipeline.phase1.search.QueryExpansionService;
+import com.rag.pipeline.phase1.session.SessionVectorStore;
+import com.rag.pipeline.phase2.state.PipelineState;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Phase 1 — 전체 RAG 파이프라인 오케스트레이터
@@ -28,6 +35,9 @@ public class RagPipelineService {
     private final QueryExpansionService queryExpansionService;
     private final HybridSearchService   hybridSearchService;
     private final RerankerService       rerankerService;
+    private final FormToQueryService    formToQueryService;
+    private final PDFParsingService     pdfParsingService;
+    private final SessionVectorStore    sessionVectorStore;
 
     @Value("${app.rag.top-k-vector:20}")
     private int topKHybrid;
@@ -76,6 +86,71 @@ public class RagPipelineService {
 
         log.info("=== Phase 1 완료 === context 길이: {} chars", context.length());
         return finalPrompt;
+    }
+
+    /**
+     * [임시] 폼 데이터 + PDF 직접 수신 → Phase 1 전체 실행
+     *
+     * 처리 순서:
+     * 1. PDF 파싱 → SessionVectorStore
+     * 2. 폼 → 구조화 쿼리 합성
+     * 3. 쿼리 확장 (6개)
+     * 4. HybridSearch (글로벌 + 세션 병합)
+     * 5. Reranking (최종 5개)
+     * 6. PipelineState 조립 → 반환
+     */
+    public PipelineState buildFromForm(FormData formData, List<MultipartFile> pdfFiles) {
+        String sessionId = UUID.randomUUID().toString();
+        log.info("[{}] Phase 1 시작 — 프로젝트: {}", sessionId, formData.projectName());
+
+        try {
+            // Step 1: PDF 파싱
+            pdfParsingService.parseAndStoreAll(pdfFiles, sessionId);
+
+            // Step 2: 폼 → 구조화 쿼리
+            String synthesizedQuery = formToQueryService.synthesize(formData);
+
+            // Step 3: 쿼리 확장
+            List<String> expandedQueries = queryExpansionService.expand(synthesizedQuery);
+
+            // Step 4: Hybrid Search (글로벌 + 세션)
+            List<DocumentChunk> retrieved =
+                hybridSearchService.searchWithSession(expandedQueries, sessionId);
+
+            // Step 5: Reranking
+            List<DocumentChunk> reranked = rerankerService.rerank(synthesizedQuery, retrieved);
+
+            // Step 6: PipelineState 조립
+            String contextPrompt = assembleContext(reranked, synthesizedQuery);
+
+            return PipelineState.builder()
+                .sessionId(sessionId)
+                .userQuery(synthesizedQuery)
+                .projectName(formData.projectName())
+                .platform(formData.platform())
+                .techStack(formData.techStack())
+                .problemDefinition(formData.problemDefinition())
+                .targetUsers(formData.targetUsers())
+                .mustFeatures(formToQueryService.extractMustFeatures(formData))
+                .excludedFeatures(formToQueryService.extractExcludedFeatures(formData))
+                .featureList(formToQueryService.extractAllIncludedFeatures(formData))
+                .contextPrompt(contextPrompt)
+                .statusMessage("Phase 1 완료")
+                .build();
+
+        } finally {
+            sessionVectorStore.clear(sessionId);
+        }
+    }
+
+    private String assembleContext(List<DocumentChunk> chunks, String query) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[프로젝트 컨텍스트]\n").append(query).append("\n\n");
+        if (!chunks.isEmpty()) {
+            sb.append("[관련 지식베이스 — 상위 ").append(chunks.size()).append("개]\n");
+            chunks.forEach(c -> sb.append(c.getContent()).append("\n---\n"));
+        }
+        return sb.toString();
     }
 
     /**

@@ -40,7 +40,7 @@ public class PmAgent {
             }
             
             규칙:
-            - featureList는 구체적인 기능 단위로 작성하세요 (최대 10개)
+            - featureList는 서비스를 구성하는 모든 핵심·부가 기능을 빠짐없이 열거하세요 (개수 제한 없음, 최대한 상세하게)
             - dbaInstruction은 필요한 테이블, 관계, 제약조건을 명시하세요
             - apiInstruction은 필요한 엔드포인트와 인증 방식을 명시하세요
             - JSON 외 다른 텍스트는 절대 포함하지 마세요

@@ -34,7 +34,8 @@ public class KafkaConsumerService {
             attempts = "3",
             backoff = @Backoff(delay = 2000),
             topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE,
-            dltTopicSuffix = ".DLT"
+            dltTopicSuffix = ".DLT",
+            autoCreateTopics = "false"   // KafkaAdmin이 기동 시 AdminClient 연결 시도하지 않음
     )
     @KafkaListener(
             topics = "${app.kafka.topics.pipeline-result}",

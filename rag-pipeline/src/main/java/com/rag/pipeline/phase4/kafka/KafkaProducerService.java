@@ -42,6 +42,7 @@ public class KafkaProducerService {
                 .userQuery(state.getUserQuery())
                 .featureList(state.getFeatureList())
                 .prdDocument(state.getPrdDocument())
+                .marketResearch(state.getMarketResearch())
                 .dbSchema(state.getDbSchema())
                 .apiSpec(state.getApiSpec())
                 .retryCount(state.getRetryCount())

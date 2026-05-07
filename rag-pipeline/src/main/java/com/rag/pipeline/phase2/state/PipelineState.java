@@ -1,5 +1,8 @@
 package com.rag.pipeline.phase2.state;
 
+import com.rag.pipeline.phase1.form.PlatformType;
+import com.rag.pipeline.phase1.form.ProblemDefinition;
+import com.rag.pipeline.phase1.form.TargetUser;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -14,6 +17,20 @@ import java.util.Map;
 @Getter
 @Builder(toBuilder = true)
 public class PipelineState {
+
+    // ── Phase 1 폼 데이터 ────────────────────────────────────────
+    private final String sessionId;
+    private final String projectName;
+    private final PlatformType platform;
+    private final List<String> techStack;
+    private final ProblemDefinition problemDefinition;
+    private final List<TargetUser> targetUsers;
+
+    /** MoSCoW 기준 분리된 기능 목록 */
+    private final List<String> mustFeatures;
+    private final List<String> shouldFeatures;
+    private final List<String> couldFeatures;
+    private final List<String> excludedFeatures;
 
     // ── Phase 1 결과 ────────────────────────────────────────────
     /** 사용자 원본 입력 */
@@ -76,7 +93,15 @@ public class PipelineState {
 
     public Map<String, Object> toMap() {
         return Map.ofEntries(
-                Map.entry("userQuery",           orEmpty(userQuery)),
+                Map.entry("sessionId",            orEmpty(sessionId)),
+                Map.entry("projectName",          orEmpty(projectName)),
+                Map.entry("platform",             platform != null ? platform.name() : ""),
+                Map.entry("techStack",            techStack != null ? techStack : List.of()),
+                Map.entry("mustFeatures",         mustFeatures != null ? mustFeatures : List.of()),
+                Map.entry("shouldFeatures",       shouldFeatures != null ? shouldFeatures : List.of()),
+                Map.entry("couldFeatures",        couldFeatures != null ? couldFeatures : List.of()),
+                Map.entry("excludedFeatures",     excludedFeatures != null ? excludedFeatures : List.of()),
+                Map.entry("userQuery",            orEmpty(userQuery)),
                 Map.entry("contextPrompt",        orEmpty(contextPrompt)),
                 Map.entry("featureList",          featureList != null ? featureList : List.of()),
                 Map.entry("dbaInstruction",       orEmpty(dbaInstruction)),
@@ -87,17 +112,25 @@ public class PipelineState {
                 Map.entry("lastValidationError",  orEmpty(lastValidationError)),
                 Map.entry("validated",            validated),
                 Map.entry("statusMessage",        orEmpty(statusMessage)),
-                Map.entry("prdDocument", orEmpty(prdDocument)),
-                Map.entry("marketResearch",      orEmpty(marketResearch)),
-                Map.entry("prdFeedbackFromDba",  orEmpty(prdFeedbackFromDba)),
-                Map.entry("prdFeedbackFromApi",  orEmpty(prdFeedbackFromApi)),
-                Map.entry("rollbackCount",       String.valueOf(rollbackCount))
+                Map.entry("prdDocument",          orEmpty(prdDocument)),
+                Map.entry("marketResearch",       orEmpty(marketResearch)),
+                Map.entry("prdFeedbackFromDba",   orEmpty(prdFeedbackFromDba)),
+                Map.entry("prdFeedbackFromApi",   orEmpty(prdFeedbackFromApi)),
+                Map.entry("rollbackCount",        String.valueOf(rollbackCount))
         );
     }
 
     @SuppressWarnings("unchecked")
     public static PipelineState fromMap(Map<String, Object> map) {
         return PipelineState.builder()
+                .sessionId((String) map.getOrDefault("sessionId", ""))
+                .projectName((String) map.getOrDefault("projectName", ""))
+                .platform(parsePlatform((String) map.getOrDefault("platform", "")))
+                .techStack((List<String>) map.getOrDefault("techStack", List.of()))
+                .mustFeatures((List<String>) map.getOrDefault("mustFeatures", List.of()))
+                .shouldFeatures((List<String>) map.getOrDefault("shouldFeatures", List.of()))
+                .couldFeatures((List<String>) map.getOrDefault("couldFeatures", List.of()))
+                .excludedFeatures((List<String>) map.getOrDefault("excludedFeatures", List.of()))
                 .userQuery((String) map.getOrDefault("userQuery", ""))
                 .contextPrompt((String) map.getOrDefault("contextPrompt", ""))
                 .featureList((List<String>) map.getOrDefault("featureList", List.of()))
@@ -116,6 +149,11 @@ public class PipelineState {
                 .rollbackCount(Integer.parseInt(
                         String.valueOf(map.getOrDefault("rollbackCount", "0"))))
                 .build();
+    }
+
+    private static PlatformType parsePlatform(String s) {
+        if (s == null || s.isBlank()) return null;
+        try { return PlatformType.valueOf(s); } catch (Exception e) { return null; }
     }
 
     private static String orEmpty(String s) {

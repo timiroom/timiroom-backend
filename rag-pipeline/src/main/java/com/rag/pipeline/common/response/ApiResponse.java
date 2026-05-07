@@ -33,6 +33,11 @@ public class ApiResponse<T> {
                 .build();
     }
 
+    // 성공 응답 (ok 별칭)
+    public static <T> ApiResponse<T> ok(T data) {
+        return success(data);
+    }
+
     // 에러 응답
     public static <T> ApiResponse<T> error(String code, String message) {
         return ApiResponse.<T>builder()

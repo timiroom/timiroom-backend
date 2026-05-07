@@ -1,6 +1,7 @@
 package com.rag.pipeline.phase1.search;
 
 import com.rag.pipeline.common.dto.DocumentChunk;
+import com.rag.pipeline.phase1.session.SessionVectorStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -27,6 +28,7 @@ public class HybridSearchService {
 
     private final VectorStore vectorStore;
     private final JdbcTemplate jdbcTemplate;
+    private final SessionVectorStore sessionVectorStore;
 
     @Value("${app.rag.top-k-vector:20}")
     private int topKVector;
@@ -36,6 +38,8 @@ public class HybridSearchService {
 
     // RRF 상수 (보통 60 사용)
     private static final int RRF_K = 60;
+
+    private static final double SESSION_BOOST_FACTOR = 1.5;
 
     /**
      * 단일 쿼리로 Hybrid Search 수행
@@ -70,6 +74,28 @@ public class HybridSearchService {
 
         List<DocumentChunk> all = new ArrayList<>(deduped.values());
         return all.subList(0, Math.min(topK, all.size()));
+    }
+
+    /**
+     * 글로벌 VectorStore + 세션 임시 VectorStore 병합 검색
+     * 세션 PDF 청크에 boostFactor 1.5 적용
+     *
+     * @param queries   QueryExpansionService에서 반환한 확장 검색어 목록
+     * @param sessionId SessionVectorStore 키 (PDF 없으면 null)
+     */
+    public List<DocumentChunk> searchWithSession(List<String> queries, String sessionId) {
+        // 1. 글로벌 Hybrid Search (기존 로직)
+        List<DocumentChunk> globalResults = this.searchMultiple(queries, topKVector);
+
+        // 2. 세션 PDF 청크 병합
+        if (sessionId != null && sessionVectorStore.hasSession(sessionId)) {
+            List<DocumentChunk> sessionChunks = sessionVectorStore.get(sessionId);
+            List<DocumentChunk> sessionResults =
+                similaritySearch(queries, sessionChunks, SESSION_BOOST_FACTOR);
+            return mergeByRRF(globalResults, sessionResults);
+        }
+
+        return globalResults;
     }
 
     // ── 벡터 검색 ─────────────────────────────────────────────────
@@ -137,6 +163,41 @@ public class HybridSearchService {
             log.warn("키워드 검색 실패 — query: '{}', 원인: {}", query, e.getMessage());
             return Collections.emptyList();
         }
+    }
+
+    // ── 세션 청크 유사도 검색 (키워드 기반) ──────────────────────────
+
+    private List<DocumentChunk> similaritySearch(
+            List<String> queries, List<DocumentChunk> chunks, double boostFactor) {
+        if (chunks.isEmpty()) return List.of();
+
+        Set<String> terms = queries.stream()
+            .flatMap(q -> Arrays.stream(q.toLowerCase().split("\\s+")))
+            .filter(t -> t.length() > 1)
+            .collect(Collectors.toSet());
+
+        if (terms.isEmpty()) return chunks;
+
+        return chunks.stream()
+            .map(chunk -> {
+                String lower = chunk.getContent().toLowerCase();
+                long hits = terms.stream().filter(lower::contains).count();
+                double score = (double) hits / terms.size() * boostFactor;
+                return DocumentChunk.builder()
+                    .id(chunk.getId())
+                    .content(chunk.getContent())
+                    .metadata(chunk.getMetadata())
+                    .relevanceScore(score)
+                    .build();
+            })
+            .filter(c -> c.getRelevanceScore() != null && c.getRelevanceScore() > 0)
+            .sorted(Comparator.comparingDouble(DocumentChunk::getRelevanceScore).reversed())
+            .collect(Collectors.toList());
+    }
+
+    private List<DocumentChunk> mergeByRRF(
+            List<DocumentChunk> globalResults, List<DocumentChunk> sessionResults) {
+        return reciprocalRankFusion(globalResults, sessionResults, topKVector);
     }
 
     // ── RRF 병합 ──────────────────────────────────────────────────

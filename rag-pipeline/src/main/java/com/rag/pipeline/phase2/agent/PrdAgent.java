@@ -12,7 +12,6 @@ import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * PRD 에이전트 — 시장 데이터 기반 PRD 생성
@@ -78,19 +77,15 @@ public class PrdAgent {
             String marketData = state.getMarketResearch() != null
                     ? state.getMarketResearch() : "시장 데이터 없음";
 
-            // STEP 2A + 2B — 병렬 생성 (기존 순차 대비 ~55초 절감)
-            log.info("STEP 2A + 2B: PRD 앞/뒷부분 병렬 생성 중...");
-            final String finalMarketData = marketData;
-            final boolean finalIsRollback = isRollback;
+            // STEP 2A 먼저 생성 → KPI·경쟁사 데이터를 Part B에 전달하여 successMetrics 정합성 확보
+            log.info("STEP 2A: PRD 앞부분 생성 중...");
+            String partA = generatePartA(state, marketData, isRollback);
+            log.info("STEP 2A 완료");
 
-            CompletableFuture<String> futureA = CompletableFuture.supplyAsync(
-                    () -> generatePartA(state, finalMarketData, finalIsRollback));
-            CompletableFuture<String> futureB = CompletableFuture.supplyAsync(
-                    () -> generatePartB(state, finalMarketData, finalIsRollback));
-
-            String partA = futureA.join();
-            String partB = futureB.join();
-            log.info("STEP 2A + 2B 완료");
+            // STEP 2B: Part A의 KPI/경쟁사 목록을 context로 받아 successMetrics 정렬
+            log.info("STEP 2B: PRD 뒷부분 생성 중...");
+            String partB = generatePartB(state, marketData, isRollback, partA);
+            log.info("STEP 2B 완료");
 
             String prdDocument = mergeJsonParts(partA, partB);
             log.info("PRD 에이전트 완료 — {}chars", prdDocument.length());
@@ -135,24 +130,30 @@ public class PrdAgent {
                 "projectOverview": "서비스 한 줄 개요 — 누구를 위해 무엇을 어떻게 제공하는가 (50자 이상)",
                 
                 ▸ background          : 500자 이상. 완성된 2~3문단. 시장 현황 → 문제점 → 기회 순서로 전개.
+                                        반드시 위 '시장 데이터'에서 수집된 실제 수치를 그대로 인용하세요.
                                         실제 수치 4개 이상, 각 수치 옆에 (출처: 기관명, YYYY년) 표기 필수.
+                                        시장 데이터에 없는 수치를 창작하지 마세요.
                 ▸ goals               : 4개. 각 항목은 "~을 통해 ~을 달성하여 ~에 기여한다" 형식, 60자 이상.
+                                        반드시 사용자가 요청한 서비스({USER_QUERY})의 목표여야 합니다.
                 ▸ kpi                 : 7개 이상. target은 현재 기준값 → 목표값 형식 (예: "0% → 30%").
-                                        basis는 반드시 "기관명, YYYY년 보고서" 형식으로 외부 출처 명시.
+                                        basis는 반드시 위 '사용자통계' 데이터의 업계 평균 수치를 기준으로 산정.
+                                        "기관명, YYYY년 보고서" 형식으로 외부 출처 명시.
+                                        metric 이름은 이후 successMetrics에서 그대로 재사용되므로 명확하게 작성.
                 ▸ competitors.feature : 각 강점은 2문장 이상. "무엇을 어떻게 제공하며, 그 결과 ~" 구조.
                 ▸ competitors.weakness: 각 약점은 2문장 이상. 구체적 사용자 불편 상황 포함.
                 ▸ userPainPoints.data : "XX% 사용자가 ~를 불편하다고 응답 (출처: 기관명, YYYY년, N=표본수)" 형식.
+                                        반드시 위 '시장 데이터 Pain Point' 섹션의 수치를 인용하세요.
                 ▸ userPainPoints.impact: 해당 페인 포인트가 서비스 선택/이탈에 미치는 구체적 영향 2문장 이상.
                 ▸ competitors         : 반드시 5개. 4개 이하 절대 금지.
-                                        서비스 도메인에 맞는 한국 실제 경쟁 서비스 5개 선정.
-                                        (패션이면 무신사/지그재그/에이블리/카카오스타일/W컨셉 등)
-                                        (이커머스면 쿠팡/네이버/11번가/G마켓/티몬 등)
+                                        반드시 위 '시장 데이터'의 [경쟁사목록]에서 언급된 한국 서비스 우선 선정.
+                                        서비스 도메인({USER_QUERY})에 직접 경쟁하는 한국 서비스만 선정.
+                                        글로벌 서비스(Shopify, Magento 등) 절대 금지.
                                         실제 매출액 + 출처 반드시 포함.
                 ▸ userPersonas        : 반드시 3개. 2개 이하 절대 금지.
                                         연령대/직업/기술수준이 서로 다른 3명으로 구성.
-                ▸ coreFeatures        : featureList의 각 기능을 반드시 개별 항목으로 작성.
+                ▸ coreFeatures        : featureList의 각 기능을 반드시 1:1로 개별 항목으로 작성.
                                         절대 여러 기능을 하나로 묶지 말 것.
-                                        featureList가 10개면 coreFeatures도 반드시 10개.
+                                        featureList N개면 coreFeatures도 반드시 N개 (개수 동일).
                                         "상품 관리 기능", "주문 관리 기능" 같은 묶음 표현 절대 금지.
                 ▸ coreFeatures.description: 각 기능은 100자 이상. "사용자가 ~상황에서 ~을 하면 시스템이 ~을 수행하여 ~효과를 낸다" 구조.
                 ▸ coreFeatures.requirements: 4개씩. 각 항목은 "~할 때 → ~처리 → ~결과" 구조로 60자 이상.
@@ -173,7 +174,7 @@ public class PrdAgent {
                 [ ] background가 500자 이상인가?
                 [ ] 경쟁사가 반드시 5개이며 모두 한국 서비스인가? (4개 이하면 실패)
                 [ ] KPI basis에 "내부 목표" 표현이 없는가?
-                [ ] coreFeatures가 featureList 개수와 동일하며 묶음 처리 없는가?
+                [ ] coreFeatures 항목 수가 featureList 항목 수와 정확히 일치하며 묶음 처리 없는가?
                 [ ] coreFeatures.requirements 각 항목이 60자 이상인가?
                 [ ] userPersonas가 반드시 3개인가? (2개 이하면 실패)
                 [ ] userFlow가 8단계 이상이며 각 단계가 80자 이상인가?
@@ -217,16 +218,21 @@ public class PrdAgent {
         return callChatCompletions(prompt, 8000);
     }
 
-    private String generatePartB(PipelineState state, String marketData, boolean isRollback) {
+    private String generatePartB(PipelineState state, String marketData, boolean isRollback, String partA) {
         String featureStr = "- " + String.join("\n- ", state.getFeatureList());
         String rollbackSection = isRollback ? buildRollbackSection(state) : "";
 
-
+        // Part A에서 생성된 KPI 목록 추출 (successMetrics 정합 용도)
+        String partAKpiSummary = extractKpiSummary(partA);
 
         String prompt = """
                 수집된 시장 데이터:
                 === 시장 데이터 ===
                 {MARKET_DATA}
+                =================
+
+                === Part A에서 생성된 KPI 목록 (successMetrics와 반드시 1:1 대응) ===
+                {PART_A_KPI}
                 =================
                 {ROLLBACK}
                 아래 JSON 형식으로 PRD 뒷부분을 작성하세요.
@@ -249,16 +255,18 @@ public class PrdAgent {
                   - contingency       : 발생 후 대응 절차 4단계 이상.
                                         예) "1단계: 즉시 서비스 일시 중단 및 장애 공지 → 2단계: 로그 분석으로 영향 범위 파악 → 3단계: 영향 사용자 개별 이메일/SMS 통보 → 4단계: 원인 제거 후 단계적 복구 → 5단계: 재발 방지 보고서 작성"
 
-                ▸ successMetrics      : 7개 이상.
-                  - target            : 현재 기준값 → 목표값 형식 (예: "0명 → 5,000명/월").
+                ▸ successMetrics      : 7개 이상. 반드시 위 'Part A KPI 목록'의 각 metric과 1:1 대응하여 작성.
+                  - metric            : Part A kpi의 metric 이름과 동일하게 사용할 것.
+                  - target            : Part A kpi의 target 값을 그대로 가져와서 "현재값 → 목표값" 형식 유지.
                   - measurementTool   : 구체적 도구명 (예: "Google Analytics 4 + Mixpanel").
-                  - baselineNote      : 현재 수치가 없는 경우 "런칭 후 1개월 기준 수립" 등 명시.
+                  - baselineNote      : Part A kpi의 basis 출처를 참조하여 기준값 수립 방법 명시.
 
                 검증 체크리스트:
                 [ ] fsd가 12개 이상이며 action이 3단계 이상인가?
                 [ ] operationPolicy의 legalBasis가 전부 다른 조항인가?
                 [ ] risks의 description이 150자 이상이며 contingency가 4단계 이상인가?
-                [ ] successMetrics가 7개 이상이며 target에 현재값→목표값 형식인가?
+                [ ] successMetrics가 7개 이상이며 Part A KPI metric명과 일치하는가?
+                [ ] successMetrics의 target이 Part A kpi의 target 값과 동일한가?
 
                 JSON:
                 {
@@ -272,11 +280,33 @@ public class PrdAgent {
                 기능 목록: {FEATURE_STR}
                 """
                 .replace("{MARKET_DATA}", marketData)
+                .replace("{PART_A_KPI}", partAKpiSummary)
                 .replace("{ROLLBACK}", rollbackSection)
                 .replace("{USER_QUERY}", state.getUserQuery())
                 .replace("{FEATURE_STR}", featureStr);
 
         return callChatCompletions(prompt, 6000);
+    }
+
+    private String extractKpiSummary(String partA) {
+        try {
+            JsonNode node = objectMapper.readTree(partA);
+            JsonNode kpiNode = node.path("kpi");
+            if (kpiNode.isMissingNode() || !kpiNode.isArray()) {
+                return "Part A KPI 없음 — successMetrics를 서비스 목표에 맞게 독립 작성";
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("아래 KPI와 successMetrics를 1:1 대응하여 동일한 metric명·target값을 사용하세요:\n");
+            for (JsonNode kpi : kpiNode) {
+                sb.append("- metric: ").append(kpi.path("metric").asText())
+                  .append(" | target: ").append(kpi.path("target").asText())
+                  .append(" | basis: ").append(kpi.path("basis").asText())
+                  .append("\n");
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return "Part A KPI 파싱 실패 — successMetrics를 서비스 목표에 맞게 독립 작성";
+        }
     }
 
     private String buildRollbackSection(PipelineState state) {
