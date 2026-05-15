@@ -1,17 +1,17 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/timiroom
-    username: timiroom
-    password: timiroom1234
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   neo4j:
-    uri: bolt://localhost:7687
+    uri: ${NEO4J_URI}
     authentication:
-      username: neo4j
-      password: timiroom1234
+      username: ${NEO4J_USERNAME}
+      password: ${NEO4J_PASSWORD}
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
