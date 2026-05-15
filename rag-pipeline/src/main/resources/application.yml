@@ -1,0 +1,124 @@
+spring:
+  application:
+    name: rag-pipeline
+
+  profiles:
+    active: local
+
+  # ── PostgreSQL ──────────────────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://localhost:5433/ragdb
+    username: raguser
+    password: ragpass
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000    # 30초
+      idle-timeout: 600000         # 10분
+      max-lifetime: 1800000        # 30
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # ── Spring AI ───────────────────────────────────────────────────
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o
+          temperature: 0.1
+          stream: false
+      base-url: https://api.openai.com
+      connect-timeout: 10s
+      read-timeout: 120s
+
+      embedding:
+        options:
+          model: text-embedding-3-large
+          dimensions: 3072
+
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        options:
+          model: claude-sonnet-4-20250514
+          max-tokens: 1024
+          temperature: 0.3
+    vectorstore:
+      pgvector:
+        schema-name: public
+        table-name: document_chunks
+        dimensions: 3072
+        distance-type: COSINE_DISTANCE
+        index-type: IVF_FLAT
+        initialize-schema: false
+
+  # ── Kafka ───────────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: localhost:9092
+    # 모든 Kafka 클라이언트(Admin/Producer/Consumer) 공통 설정
+    properties:
+      "[reconnect.backoff.ms]": 3000        # 재연결 초기 대기
+      "[reconnect.backoff.max.ms]": 30000   # 최대 30초 간격 (기본 1초→스팸 방지)
+      "[request.timeout.ms]": 5000
+      "[metadata.max.age.ms]": 30000
+    admin:
+      fail-fast: false   # Kafka 없어도 앱 기동 허용
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+    consumer:
+      group-id: rag-pipeline-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      properties:
+        "[spring.json.trusted.packages]": "com.rag.pipeline.*"
+
+
+# ── 서버 설정 ────────────────────────────────────────────────────
+server:
+  servlet:
+    encoding:
+      charset: UTF-8
+      force-request: true
+      force-response: true
+      enabled: true
+
+# ── 앱 설정 ─────────────────────────────────────────────────────
+app:
+  rag:
+    chunk-size: 512
+    chunk-overlap: 64
+    top-k-vector: 20
+    top-k-keyword: 20
+    top-k-final: 5
+    reranker:
+      enabled: true
+      provider: cohere
+      cohere-api-key: ${COHERE_API_KEY:}
+  kafka:
+    topics:
+      pipeline-result: rag.pipeline.result
+      dead-letter: rag.pipeline.result.DLT
+  validation:
+    max-retry: 3
+
+# ── 로깅 ────────────────────────────────────────────────────────
+logging:
+  pattern:
+    # [시간] [pipelineId] [requestId] 레벨 클래스 - 메시지
+    console: "%d{HH:mm:ss} [%X{pipelineId:-NO_PIPE}] [%X{requestId:-NO_REQ}] %-5level %logger{36} - %msg%n"
+  level:
+    com.rag.pipeline: DEBUG
+    org.springframework.ai: INFO
+    org.springframework.kafka: INFO

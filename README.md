@@ -199,6 +199,17 @@ PostgreSQL (5432), Neo4j (7474/7687), Redis (6379) 컨테이너 실행
 ./gradlew bootRun --args='--spring.profiles.active=prod'
 ```
 
+### 4. 환경변수 설정
+
+키 코드 없으신 분들은 '이연호'한테 카톡하시면 됩니다.
+
+| 변수 | 설명 | 필수 |
+|------|------|------|
+| `OPENAI_API_KEY` | OpenAI API 키 | O |
+| `ANTHROPIC_API_KEY` | Claude API 키 | O |
+
+> 자세한 설정은 [Notion](https://www.notion.so/Timiroom-35933f97d4d5816ba701f760a989b7c6) 참고
+
 ---
 
 ## 팀 구성
