@@ -1,4 +1,9 @@
 spring:
+  session:
+    timeout: 30m
+    redis:
+      namespace: spring:session
+
   datasource:
     url: jdbc:postgresql://localhost:5432/timiroom
     username: timiroom
@@ -15,3 +20,12 @@ spring:
     redis:
       host: localhost
       port: 6379
+
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            scope:
+              - user:email
+              - read:user
