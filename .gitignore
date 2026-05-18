@@ -1,4 +1,6 @@
 .env
+.env.local
+.env.*.local
 HELP.md
 .gradle
 build/
