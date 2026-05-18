@@ -1,7 +1,7 @@
-package com.timiroom.domain.oauth;
+package com.timiroom.global.oauth;
 
-import com.timiroom.domain.member.Member;
-import com.timiroom.domain.member.MemberRepository;
+import com.timiroom.domain.member.entity.Member;
+import com.timiroom.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;

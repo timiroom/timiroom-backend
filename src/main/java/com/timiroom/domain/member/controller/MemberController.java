@@ -1,9 +1,8 @@
-package com.timiroom.domain.member;
+package com.timiroom.domain.member.controller;
 
-import com.timiroom.domain.member.dto.MemberLoginRequest;
-import com.timiroom.domain.member.dto.MemberRegisterRequest;
+import com.timiroom.domain.member.repository.MemberRepository;
+import com.timiroom.domain.member.entity.Member;
 import com.timiroom.domain.member.service.MemberService;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -30,7 +29,7 @@ public class MemberController {
                 .orElseThrow(() -> new RuntimeException("Member not found"));
 
         return ResponseEntity.ok(Map.of(
-                "id", member.getMemberId(),
+                "id", member.getId(),
                 "name", member.getMemberName(),
                 "email", member.getEmail(),
                 "provider", member.getProvider()

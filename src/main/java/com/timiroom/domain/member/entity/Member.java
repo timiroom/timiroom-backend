@@ -1,26 +1,28 @@
-package com.timiroom.domain.member;
+package com.timiroom.domain.member.entity;
 
+import com.timiroom.domain.member.enums.Role;
 import com.timiroom.global.BaseEntity;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
-import org.hibernate.annotations.CreationTimestamp;
-
-import java.time.LocalDateTime;
+import lombok.NoArgsConstructor;
 
 @Entity
+@NoArgsConstructor
+@AllArgsConstructor
 @Getter
+@Table(name = "member")
 public class Member extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "member_id")
-    private Long memberId;
+    private Long id;
 
     @Column(name = "member_name", unique = true)
     private String memberName;
 
     @Column(name = "password")
-    private String password;  // 소셜 로그인은 null 가능
+    private String password;
 
     @Column(name = "email", nullable = false)
     private String email;
@@ -33,17 +35,6 @@ public class Member extends BaseEntity {
 
     @Column(name = "provider_id")  // 소셜 로그인 고유 ID
     private String providerId;
-
-    // 로컬 로그인용
-    public static Member create(String memberName, String password, String email) {
-        Member member = new Member();
-        member.memberName = memberName;
-        member.password = password;
-        member.email = email;
-        member.role = Role.USER;
-        member.provider = "local";
-        return member;
-    }
 
     // 소셜 로그인용
     public static Member createOAuth(String memberName, String email, String provider, String providerId) {

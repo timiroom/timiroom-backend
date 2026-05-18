@@ -1,7 +1,7 @@
-package com.timiroom.domain.oauth;
+package com.timiroom.global.oauth;
 
-import com.timiroom.domain.member.Member;
-import com.timiroom.domain.member.MemberRepository;
+import com.timiroom.domain.member.entity.Member;
+import com.timiroom.domain.member.repository.MemberRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -40,7 +40,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 .orElseThrow(() -> new RuntimeException("회원 없음"));
 
         HttpSession session = request.getSession(true);
-        session.setAttribute("memberId", member.getMemberId());
+        session.setAttribute("memberId", member.getId());
 
         response.sendRedirect("http://localhost:3000/");
     }

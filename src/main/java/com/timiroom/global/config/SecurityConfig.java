@@ -1,7 +1,7 @@
-package com.timiroom.config;
+package com.timiroom.global.config;
 
-import com.timiroom.domain.oauth.OAuth2MemberService;
-import com.timiroom.domain.oauth.OAuth2SuccessHandler;
+import com.timiroom.global.oauth.OAuth2MemberService;
+import com.timiroom.global.oauth.OAuth2SuccessHandler;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -14,7 +14,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.savedrequest.NullRequestCache;
 
 @Configuration
 @RequiredArgsConstructor
