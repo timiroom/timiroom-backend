@@ -1,4 +1,3 @@
-.env
 HELP.md
 .gradle
 build/
@@ -36,3 +35,22 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# 환경변수 (API 키) — 절대 올리면 안 됨
+.env
+.env.*
+
+# 빌드 결과물
+.gradle/
+
+# IntelliJ
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kafka / Zookeeper 로컬 데이터
+#kafka/
+zookeeper/
+desktop.ini
