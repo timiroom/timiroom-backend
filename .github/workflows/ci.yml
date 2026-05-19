@@ -13,6 +13,9 @@ on:
   pull_request:
     branches: [ develop, main ]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   backend:
     name: Backend Build
@@ -34,6 +37,9 @@ jobs:
             ~/.gradle/wrapper
           key: gradle-backend-${{ hashFiles('build.gradle', 'settings.gradle') }}
           restore-keys: gradle-backend-
+
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
 
       - name: Build
         run: ./gradlew build -x test --no-daemon
@@ -58,6 +64,10 @@ jobs:
             ~/.gradle/wrapper
           key: gradle-rag-${{ hashFiles('rag-pipeline/build.gradle', 'rag-pipeline/settings.gradle') }}
           restore-keys: gradle-rag-
+
+      - name: Grant gradlew permission
+        working-directory: rag-pipeline
+        run: chmod +x gradlew
 
       - name: Build
         working-directory: rag-pipeline
