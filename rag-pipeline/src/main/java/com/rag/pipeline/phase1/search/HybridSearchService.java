@@ -1,0 +1,245 @@
+package com.rag.pipeline.phase1.search;
+
+import com.rag.pipeline.common.dto.DocumentChunk;
+import com.rag.pipeline.phase1.session.SessionVectorStore;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * STEP 3 — Hybrid Search (벡터 검색 + 키워드 검색 + RRF 병합)
+ *
+ * - 벡터 검색:   pgvector HNSW, cosine similarity 기반
+ * - 키워드 검색: PostgreSQL FTS, BM25 기반
+ * - RRF 병합:   두 결과를 단일 정렬 리스트로 통합
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class HybridSearchService {
+
+    private final VectorStore vectorStore;
+    private final JdbcTemplate jdbcTemplate;
+    private final SessionVectorStore sessionVectorStore;
+
+    @Value("${app.rag.top-k-vector:20}")
+    private int topKVector;
+
+    @Value("${app.rag.top-k-keyword:20}")
+    private int topKKeyword;
+
+    // RRF 상수 (보통 60 사용)
+    private static final int RRF_K = 60;
+
+    private static final double SESSION_BOOST_FACTOR = 1.5;
+
+    /**
+     * 단일 쿼리로 Hybrid Search 수행
+     */
+    public List<DocumentChunk> search(String query, int topK) {
+        log.debug("Hybrid Search 시작 — query: '{}', topK: {}", query, topK);
+
+        List<DocumentChunk> vectorResults  = vectorSearch(query);
+        List<DocumentChunk> keywordResults = keywordSearch(query);
+
+        List<DocumentChunk> merged = reciprocalRankFusion(vectorResults, keywordResults, topK);
+
+        log.debug("Hybrid Search 완료 — {} docs 반환 (vector: {}, keyword: {})",
+                merged.size(), vectorResults.size(), keywordResults.size());
+        return merged;
+    }
+
+    /**
+     * 복수 쿼리(Query Expansion 결과)로 Hybrid Search 수행 후 중복 제거
+     */
+    public List<DocumentChunk> searchMultiple(List<String> queries, int topK) {
+        // LinkedHashMap으로 순서 유지하면서 중복 제거
+        Map<String, DocumentChunk> deduped = new LinkedHashMap<>();
+
+        for (String query : queries) {
+            List<DocumentChunk> results = search(query, topK);
+            for (DocumentChunk chunk : results) {
+                // 동일 ID는 먼저 들어온 것(높은 순위) 유지
+                deduped.putIfAbsent(chunk.getId().toString(), chunk);
+            }
+        }
+
+        List<DocumentChunk> all = new ArrayList<>(deduped.values());
+        return all.subList(0, Math.min(topK, all.size()));
+    }
+
+    /**
+     * 글로벌 VectorStore + 세션 임시 VectorStore 병합 검색
+     * 세션 PDF 청크에 boostFactor 1.5 적용
+     *
+     * @param queries   QueryExpansionService에서 반환한 확장 검색어 목록
+     * @param sessionId SessionVectorStore 키 (PDF 없으면 null)
+     */
+    public List<DocumentChunk> searchWithSession(List<String> queries, String sessionId) {
+        // 1. 글로벌 Hybrid Search (기존 로직)
+        List<DocumentChunk> globalResults = this.searchMultiple(queries, topKVector);
+
+        // 2. 세션 PDF 청크 병합
+        if (sessionId != null && sessionVectorStore.hasSession(sessionId)) {
+            List<DocumentChunk> sessionChunks = sessionVectorStore.get(sessionId);
+            List<DocumentChunk> sessionResults =
+                similaritySearch(queries, sessionChunks, SESSION_BOOST_FACTOR);
+            return mergeByRRF(globalResults, sessionResults);
+        }
+
+        return globalResults;
+    }
+
+    // ── 벡터 검색 ─────────────────────────────────────────────────
+
+    private List<DocumentChunk> vectorSearch(String query) {
+        SearchRequest request = SearchRequest.query(query)
+                .withTopK(topKVector)
+                .withSimilarityThreshold(0.5);
+
+        List<Document> docs = vectorStore.similaritySearch(request);
+
+        return docs.stream()
+                .map(doc -> DocumentChunk.builder()
+                        .id(UUID.fromString(doc.getId()))
+                        .content(doc.getContent())
+                        .metadata(doc.getMetadata())
+                        .relevanceScore(((Number) doc.getMetadata()
+                                .getOrDefault("distance", 0.0)).doubleValue())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    // ── 키워드 검색 (PostgreSQL FTS) ──────────────────────────────
+
+    private List<DocumentChunk> keywordSearch(String query) {
+        // 특수문자 제거 + 영문/숫자만 추출하여 tsquery 생성
+        String cleaned = query.replaceAll("[^a-zA-Z0-9가-힣\\s]", " ").trim();
+
+        // 한국어가 포함되어 있으면 FTS 스킵 (영어만 처리)
+        boolean hasKorean = cleaned.matches(".*[가-힣]+.*");
+        if (hasKorean) {
+            log.debug("한국어 쿼리 — FTS 스킵, 벡터 검색만 사용: '{}'", query);
+            return Collections.emptyList();
+        }
+
+        String tsQuery = Arrays.stream(cleaned.trim().split("\\s+"))
+                .filter(w -> !w.isBlank())
+                .collect(Collectors.joining(" & "));
+
+        if (tsQuery.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        String sql = """
+            SELECT id, content, metadata,
+                   ts_rank(to_tsvector('english', content),
+                           to_tsquery('english', ?)) AS rank
+            FROM document_chunks
+            WHERE to_tsvector('english', content) @@ to_tsquery('english', ?)
+            ORDER BY rank DESC
+            LIMIT ?
+            """;
+
+        try {
+            return jdbcTemplate.query(sql, (rs, rowNum) ->
+                            DocumentChunk.builder()
+                                    .id(UUID.fromString(rs.getString("id")))
+                                    .content(rs.getString("content"))
+                                    .metadata(Collections.emptyMap())
+                                    .relevanceScore(rs.getDouble("rank"))
+                                    .build(),
+                    tsQuery, tsQuery, topKKeyword
+            );
+        } catch (Exception e) {
+            log.warn("키워드 검색 실패 — query: '{}', 원인: {}", query, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    // ── 세션 청크 유사도 검색 (키워드 기반) ──────────────────────────
+
+    private List<DocumentChunk> similaritySearch(
+            List<String> queries, List<DocumentChunk> chunks, double boostFactor) {
+        if (chunks.isEmpty()) return List.of();
+
+        Set<String> terms = queries.stream()
+            .flatMap(q -> Arrays.stream(q.toLowerCase().split("\\s+")))
+            .filter(t -> t.length() > 1)
+            .collect(Collectors.toSet());
+
+        if (terms.isEmpty()) return chunks;
+
+        return chunks.stream()
+            .map(chunk -> {
+                String lower = chunk.getContent().toLowerCase();
+                long hits = terms.stream().filter(lower::contains).count();
+                double score = (double) hits / terms.size() * boostFactor;
+                return DocumentChunk.builder()
+                    .id(chunk.getId())
+                    .content(chunk.getContent())
+                    .metadata(chunk.getMetadata())
+                    .relevanceScore(score)
+                    .build();
+            })
+            .filter(c -> c.getRelevanceScore() != null && c.getRelevanceScore() > 0)
+            .sorted(Comparator.comparingDouble(DocumentChunk::getRelevanceScore).reversed())
+            .collect(Collectors.toList());
+    }
+
+    private List<DocumentChunk> mergeByRRF(
+            List<DocumentChunk> globalResults, List<DocumentChunk> sessionResults) {
+        return reciprocalRankFusion(globalResults, sessionResults, topKVector);
+    }
+
+    // ── RRF 병합 ──────────────────────────────────────────────────
+
+    /**
+     * Reciprocal Rank Fusion
+     * score(d) = Σ 1 / (k + rank_i(d))
+     */
+    private List<DocumentChunk> reciprocalRankFusion(
+            List<DocumentChunk> vectorResults,
+            List<DocumentChunk> keywordResults,
+            int topK) {
+
+        Map<String, Double> scoreMap = new HashMap<>();
+        Map<String, DocumentChunk> chunkMap = new HashMap<>();
+
+        // 벡터 검색 결과 점수 부여
+        for (int i = 0; i < vectorResults.size(); i++) {
+            DocumentChunk chunk = vectorResults.get(i);
+            String id = chunk.getId().toString();
+            scoreMap.merge(id, 1.0 / (RRF_K + i + 1), Double::sum);
+            chunkMap.putIfAbsent(id, chunk);
+        }
+
+        // 키워드 검색 결과 점수 부여
+        for (int i = 0; i < keywordResults.size(); i++) {
+            DocumentChunk chunk = keywordResults.get(i);
+            String id = chunk.getId().toString();
+            scoreMap.merge(id, 1.0 / (RRF_K + i + 1), Double::sum);
+            chunkMap.putIfAbsent(id, chunk);
+        }
+
+        // RRF 점수 기준 내림차순 정렬 후 topK 반환
+        return scoreMap.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit(topK)
+                .map(e -> DocumentChunk.builder()
+                        .id(chunkMap.get(e.getKey()).getId())
+                        .content(chunkMap.get(e.getKey()).getContent())
+                        .metadata(chunkMap.get(e.getKey()).getMetadata())
+                        .relevanceScore(e.getValue())
+                        .build())
+                .collect(Collectors.toList());
+    }
+}
