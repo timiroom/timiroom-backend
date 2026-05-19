@@ -7,9 +7,9 @@ spring:
 
   # ── PostgreSQL ──────────────────────────────────────────────────
   datasource:
-    url: jdbc:postgresql://localhost:5433/ragdb
-    username: raguser
-    password: ragpass
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/ragdb}
+    username: ${DB_USERNAME:raguser}
+    password: ${DB_PASSWORD:ragpass}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -63,7 +63,7 @@ spring:
 
   # ── Kafka ───────────────────────────────────────────────────────
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     # 모든 Kafka 클라이언트(Admin/Producer/Consumer) 공통 설정
     properties:
       "[reconnect.backoff.ms]": 3000        # 재연결 초기 대기
