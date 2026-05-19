@@ -7,6 +7,17 @@ spring:
       hibernate:
         format_sql: false
 
+  servlet:
+    session:
+      cookie:
+        domain: .timiroom.kro.kr
+        same-site: lax
+        secure: true
+        http-only: true
+
+cors:
+  allowed-origins: "https://timiroom.kro.kr"
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
