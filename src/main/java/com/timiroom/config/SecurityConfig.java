@@ -4,6 +4,7 @@ import com.timiroom.domain.oauth.OAuth2MemberService;
 import com.timiroom.domain.oauth.OAuth2SuccessHandler;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -16,12 +17,18 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.savedrequest.NullRequestCache;
 
+import java.util.Arrays;
+import java.util.List;
+
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
 
     private final OAuth2MemberService oAuth2MemberService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
+
+    @Value("${cors.allowed-origins}")
+    private String allowedOrigins;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -65,7 +72,7 @@ public class SecurityConfig {
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
-        configuration.addAllowedOrigin("http://localhost:3000");
+        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         configuration.addAllowedHeader("*");
         configuration.addAllowedMethod("*");
         configuration.setAllowCredentials(true);
