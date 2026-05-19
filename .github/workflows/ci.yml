@@ -3,6 +3,13 @@ name: CI
 on:
   push:
     branches: [ develop ]
+    paths:
+      - 'src/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'rag-pipeline/src/**'
+      - 'rag-pipeline/build.gradle'
+      - 'rag-pipeline/settings.gradle'
   pull_request:
     branches: [ develop, main ]
 
@@ -10,10 +17,6 @@ jobs:
   backend:
     name: Backend Build
     runs-on: ubuntu-latest
-    if: |
-      contains(toJson(github.event.commits.*.modified + github.event.commits.*.added), 'src/')
-      || contains(toJson(github.event.commits.*.modified + github.event.commits.*.added), 'build.gradle')
-      || github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
@@ -38,9 +41,6 @@ jobs:
   rag-pipeline:
     name: Rag-Pipeline Build
     runs-on: ubuntu-latest
-    if: |
-      contains(toJson(github.event.commits.*.modified + github.event.commits.*.added), 'rag-pipeline/')
-      || github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
