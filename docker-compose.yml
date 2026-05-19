@@ -1,4 +1,6 @@
 services:
+
+  # ── 공유 PostgreSQL (timiroom-backend + rag-pipeline 모두 사용) ──
   postgres:
     image: pgvector/pgvector:pg16
     container_name: timiroom-postgres
@@ -11,19 +13,27 @@ services:
       TZ: Asia/Seoul
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U timiroom -d timiroom"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ── Neo4j ───────────────────────────────────────────────────────
   neo4j:
     image: neo4j:5
     container_name: timiroom-neo4j
     ports:
-      - "7474:7474"  # 브라우저 UI
-      - "7687:7687"  # Bolt 프로토콜
+      - "7474:7474"
+      - "7687:7687"
     environment:
       NEO4J_AUTH: neo4j/timiroom1234
       TZ: Asia/Seoul
     volumes:
       - neo4j_data:/data
 
+  # ── Redis ───────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: timiroom-redis
@@ -33,7 +43,56 @@ services:
     volumes:
       - redis_data:/data
 
+  # ── Kafka (rag-pipeline Phase 4 벡터 저장 파이프라인) ────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.0
+    container_name: timiroom-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD-SHELL", "cub zk-ready localhost:2181 10 2>/dev/null"]
+      interval: 10s
+      timeout: 15s
+      retries: 10
+      start_period: 15s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: timiroom-kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_HEAP_OPTS: "-Xms512M -Xmx1G"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
 volumes:
   postgres_data:
   neo4j_data:
   redis_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:

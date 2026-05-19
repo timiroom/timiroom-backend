@@ -5,18 +5,18 @@ spring:
   profiles:
     active: local
 
-  # ── PostgreSQL ──────────────────────────────────────────────────
+  # ── PostgreSQL (timiroom 공유 DB) ───────────────────────────────
   datasource:
-    url: jdbc:postgresql://localhost:5433/ragdb
-    username: raguser
-    password: ragpass
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/timiroom}
+    username: ${DB_USERNAME:timiroom}
+    password: ${DB_PASSWORD:timiroom1234}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
       connection-timeout: 30000    # 30초
       idle-timeout: 600000         # 10분
-      max-lifetime: 1800000        # 30
+      max-lifetime: 1800000        # 30분
 
   jpa:
     hibernate:

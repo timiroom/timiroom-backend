@@ -19,19 +19,26 @@ public class Member extends BaseEntity {
     @Column(name = "member_name", unique = true)
     private String memberName;
 
-    @Column(name = "password")
-    private String password;  // 소셜 로그인은 null 가능
+    @Column(name = "password", nullable = true)
+    private String password;
 
     @Column(name = "email", nullable = false)
     private String email;
 
+    @Column(name = "nickname", length = 30)
+    private String nickname;
+
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
     @Enumerated(EnumType.STRING)
     private Role role;
 
-    @Column(name = "provider")  // "local", "github", "google" 등
-    private String provider;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider", length = 20)
+    private Provider provider;
 
-    @Column(name = "provider_id")  // 소셜 로그인 고유 ID
+    @Column(name = "provider_id")
     private String providerId;
 
     // 로컬 로그인용
@@ -41,12 +48,12 @@ public class Member extends BaseEntity {
         member.password = password;
         member.email = email;
         member.role = Role.USER;
-        member.provider = "local";
+        member.provider = Provider.LOCAL;
         return member;
     }
 
     // 소셜 로그인용
-    public static Member createOAuth(String memberName, String email, String provider, String providerId) {
+    public static Member createOAuth(String memberName, String email, Provider provider, String providerId) {
         Member member = new Member();
         member.memberName = memberName;
         member.email = email;

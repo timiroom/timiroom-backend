@@ -2,6 +2,16 @@ spring:
   application:
     name: timiroom-backend
 
+  profiles:
+    active: local
+
+  # ── Database ─────────────────────────────────────────────────────
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/timiroom}
+    username: ${DB_USERNAME:timiroom}
+    password: ${DB_PASSWORD:timiroom1234}
+    driver-class-name: org.postgresql.Driver
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -11,23 +21,46 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-  profiles:
-    active: local
+  # ── Neo4j ────────────────────────────────────────────────────────
+  neo4j:
+    uri: ${NEO4J_URI:bolt://localhost:7687}
+    authentication:
+      username: ${NEO4J_USERNAME:neo4j}
+      password: ${NEO4J_PASSWORD:timiroom1234}
 
+  # ── Redis ────────────────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  session:
+    timeout: 30m
+    redis:
+      namespace: spring:session
+
+  # ── OAuth2 ───────────────────────────────────────────────────────
   security:
     oauth2:
       client:
         registration:
           github:
-            client-id: ${GITHUB_CLIENT_ID}
-            client-secret: ${GITHUB_CLIENT_SECRET}
-
+            client-id: ${GITHUB_CLIENT_ID:dummy}
+            client-secret: ${GITHUB_CLIENT_SECRET:dummy}
+            scope:
+              - user:email
+              - read:user
           google:
-            client-id: ${GOOGLE_CLIENT_ID}
-            client-secret: ${GOOGLE_CLIENT_SECRET}
+            client-id: ${GOOGLE_CLIENT_ID:dummy}
+            client-secret: ${GOOGLE_CLIENT_SECRET:dummy}
             scope:
               - profile
               - email
+
+# ── Server ───────────────────────────────────────────────────────
 server:
   port: 8080
 
+# ── rag-pipeline 연동 URL ─────────────────────────────────────────
+rag-pipeline:
+  base-url: ${RAG_PIPELINE_URL:http://localhost:8081}

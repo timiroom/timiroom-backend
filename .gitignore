@@ -1,4 +1,11 @@
 .env
+.env.*
+.env.txt
+.claude/
+src/main/resources/application-local.yml
+rag-pipeline/src/main/resources/application-local.yml
+rag-pipeline/.env
+rag-pipeline/.env.*
 HELP.md
 .gradle
 build/
