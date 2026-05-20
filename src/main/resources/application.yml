@@ -64,3 +64,6 @@ server:
 # ── rag-pipeline 연동 URL ─────────────────────────────────────────
 rag-pipeline:
   base-url: ${RAG_PIPELINE_URL:http://localhost:8081}
+
+cors:
+  allowed-origins: "http://localhost:3000"

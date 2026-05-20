@@ -63,7 +63,7 @@ spring:
 
   # ── Kafka ───────────────────────────────────────────────────────
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     # 모든 Kafka 클라이언트(Admin/Producer/Consumer) 공통 설정
     properties:
       "[reconnect.backoff.ms]": 3000        # 재연결 초기 대기
@@ -84,6 +84,9 @@ spring:
       properties:
         "[spring.json.trusted.packages]": "com.rag.pipeline.*"
 
+
+cors:
+  allowed-origins: "http://localhost:3000,http://localhost:5500,http://127.0.0.1:5500"
 
 # ── 서버 설정 ────────────────────────────────────────────────────
 server:
