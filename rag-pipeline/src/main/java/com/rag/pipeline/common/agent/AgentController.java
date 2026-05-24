@@ -4,10 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import com.rag.pipeline.common.agent.dto.AgentRequest;
+import com.rag.pipeline.common.agent.dto.AgentResponse;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -18,17 +22,17 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * 프론트엔드 AgentPanel ↔ LLM 프록시.
  *
- * 사용자가 입력한 API 키를 X-LLM-Api-Key 헤더로 받아
- * Anthropic / OpenAI 에 실제 요청을 전달하고 SSE로 스트리밍합니다.
- * 서버 측 API 키는 사용하지 않으므로 보안상 안전합니다.
+ * 서버에 설정된 API 키(application.yml)를 사용하여
+ * Anthropic / OpenAI 에 요청을 전달합니다.
  *
  * POST /api/agent/chat         — 단일 응답
  * POST /api/agent/chat/stream  — SSE 스트리밍
- * POST /api/agent/test         — API 키 유효성 검증
+ * POST /api/agent/test         — API 연결 유효성 검증
  */
 @Slf4j
 @RestController
@@ -38,25 +42,24 @@ public class AgentController {
 
     private final ObjectMapper objectMapper;
 
+    @Qualifier("pipelineExecutor")
+    private final Executor pipelineExecutor;
+
     @Value("${spring.ai.anthropic.api-key:}")
     private String anthropicApiKey;
 
     @Value("${spring.ai.openai.api-key:}")
     private String openAiApiKey;
 
+    @Value("${app.agent.timeout.stream:90}")
+    private int streamTimeoutSec;
+
+    @Value("${app.agent.timeout.sync:60}")
+    private int syncTimeoutSec;
+
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(15))
         .build();
-
-    // ── Request / Response ────────────────────────────────────────
-
-    record AgentRequest(
-        List<Map<String, String>> messages,
-        String systemPrompt,
-        Object projectContext
-    ) {}
-
-    record AgentResponse(String content, Map<String, Object> usage) {}
 
     // ── SSE 스트리밍 ──────────────────────────────────────────────
 
@@ -80,7 +83,7 @@ public class AgentController {
                 log.error("스트리밍 오류: {}", e.getMessage());
                 try { emitter.completeWithError(e); } catch (Exception ignored) {}
             }
-        });
+        }, pipelineExecutor);
 
         return emitter;
     }
@@ -99,7 +102,7 @@ public class AgentController {
             : callOpenAi(apiKey, model, request);
     }
 
-    // ── API 키 검증 ───────────────────────────────────────────────
+    // ── API 연결 유효성 검증 ──────────────────────────────────────
 
     @PostMapping("/test")
     public Map<String, Boolean> test(
@@ -119,16 +122,20 @@ public class AgentController {
 
     // ── Anthropic 구현 ────────────────────────────────────────────
 
-    private void streamAnthropic(SseEmitter emitter, String apiKey, String model, AgentRequest req) throws Exception {
-        HttpRequest httpReq = HttpRequest.newBuilder()
+    private HttpRequest buildAnthropicRequest(String apiKey, String model,
+                                               AgentRequest req, boolean stream) throws Exception {
+        return HttpRequest.newBuilder()
             .uri(URI.create("https://api.anthropic.com/v1/messages"))
             .header("x-api-key", apiKey)
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
-            .timeout(Duration.ofSeconds(90))
-            .POST(HttpRequest.BodyPublishers.ofString(buildAnthropicBody(model, req, true)))
+            .timeout(Duration.ofSeconds(stream ? streamTimeoutSec : syncTimeoutSec))
+            .POST(HttpRequest.BodyPublishers.ofString(buildAnthropicBody(model, req, stream)))
             .build();
+    }
 
+    private void streamAnthropic(SseEmitter emitter, String apiKey, String model, AgentRequest req) throws Exception {
+        HttpRequest httpReq = buildAnthropicRequest(apiKey, model, req, true);
         HttpResponse<java.io.InputStream> resp =
             httpClient.send(httpReq, HttpResponse.BodyHandlers.ofInputStream());
 
@@ -157,15 +164,7 @@ public class AgentController {
     }
 
     private AgentResponse callAnthropic(String apiKey, String model, AgentRequest req) throws Exception {
-        HttpRequest httpReq = HttpRequest.newBuilder()
-            .uri(URI.create("https://api.anthropic.com/v1/messages"))
-            .header("x-api-key", apiKey)
-            .header("anthropic-version", "2023-06-01")
-            .header("content-type", "application/json")
-            .timeout(Duration.ofSeconds(60))
-            .POST(HttpRequest.BodyPublishers.ofString(buildAnthropicBody(model, req, false)))
-            .build();
-
+        HttpRequest httpReq = buildAnthropicRequest(apiKey, model, req, false);
         HttpResponse<String> resp = httpClient.send(httpReq, HttpResponse.BodyHandlers.ofString());
         JsonNode node = objectMapper.readTree(resp.body());
         String content = node.path("content").get(0).path("text").asText();
@@ -191,15 +190,19 @@ public class AgentController {
 
     // ── OpenAI 구현 ───────────────────────────────────────────────
 
-    private void streamOpenAi(SseEmitter emitter, String apiKey, String model, AgentRequest req) throws Exception {
-        HttpRequest httpReq = HttpRequest.newBuilder()
+    private HttpRequest buildOpenAiRequest(String apiKey, String model,
+                                            AgentRequest req, boolean stream) throws Exception {
+        return HttpRequest.newBuilder()
             .uri(URI.create("https://api.openai.com/v1/chat/completions"))
             .header("Authorization", "Bearer " + apiKey)
             .header("content-type", "application/json")
-            .timeout(Duration.ofSeconds(90))
-            .POST(HttpRequest.BodyPublishers.ofString(buildOpenAiBody(model, req, true)))
+            .timeout(Duration.ofSeconds(stream ? streamTimeoutSec : syncTimeoutSec))
+            .POST(HttpRequest.BodyPublishers.ofString(buildOpenAiBody(model, req, stream)))
             .build();
+    }
 
+    private void streamOpenAi(SseEmitter emitter, String apiKey, String model, AgentRequest req) throws Exception {
+        HttpRequest httpReq = buildOpenAiRequest(apiKey, model, req, true);
         HttpResponse<java.io.InputStream> resp =
             httpClient.send(httpReq, HttpResponse.BodyHandlers.ofInputStream());
 
@@ -226,14 +229,7 @@ public class AgentController {
     }
 
     private AgentResponse callOpenAi(String apiKey, String model, AgentRequest req) throws Exception {
-        HttpRequest httpReq = HttpRequest.newBuilder()
-            .uri(URI.create("https://api.openai.com/v1/chat/completions"))
-            .header("Authorization", "Bearer " + apiKey)
-            .header("content-type", "application/json")
-            .timeout(Duration.ofSeconds(60))
-            .POST(HttpRequest.BodyPublishers.ofString(buildOpenAiBody(model, req, false)))
-            .build();
-
+        HttpRequest httpReq = buildOpenAiRequest(apiKey, model, req, false);
         HttpResponse<String> resp = httpClient.send(httpReq, HttpResponse.BodyHandlers.ofString());
         JsonNode node = objectMapper.readTree(resp.body());
         String content = node.path("choices").get(0).path("message").path("content").asText();
