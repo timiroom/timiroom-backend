@@ -63,7 +63,7 @@ spring:
 
   # ── Kafka ───────────────────────────────────────────────────────
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     # 모든 Kafka 클라이언트(Admin/Producer/Consumer) 공통 설정
     properties:
       "[reconnect.backoff.ms]": 3000        # 재연결 초기 대기

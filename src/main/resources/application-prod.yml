@@ -1,7 +1,36 @@
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health
+
 rag-pipeline:
-  base-url: ${RAG_PIPELINE_URL:http://rag-pipeline:8080}
+  base-url: ${RAG_PIPELINE_URL:http://rag-pipeline-svc:8080}
 
 spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  servlet:
+    session:
+      cookie:
+        domain: .timiroom.kro.kr
+        same-site: lax
+        secure: true
+        http-only: true
+
+cors:
+  allowed-origins: "https://timiroom.kro.kr"
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
