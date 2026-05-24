@@ -8,4 +8,5 @@ import java.util.Optional;
 public interface PipelineExecutionRepository extends JpaRepository<PipelineExecution, Long> {
     Optional<PipelineExecution> findByPipelineId(String pipelineId);
     List<PipelineExecution> findByMemberIdOrderByCreatedAtDesc(Long memberId);
+    List<PipelineExecution> findByRequirementIdOrderByCreatedAtDesc(Long requirementId);
 }

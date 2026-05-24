@@ -183,6 +183,16 @@ public class PipelineService {
         return artifactRepository.findByExecutionIdOrderByArtifactType(executionId);
     }
 
+    public List<PipelineArtifact> getLatestArtifactsByProject(Long projectId) {
+        return requirementService.getByProject(projectId).stream()
+                .flatMap(req -> executionRepository
+                        .findByRequirementIdOrderByCreatedAtDesc(req.getRequirementId()).stream())
+                .filter(exec -> exec.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED)
+                .findFirst()
+                .map(exec -> artifactRepository.findByExecutionIdOrderByArtifactType(exec.getExecutionId()))
+                .orElse(List.of());
+    }
+
     private void saveArtifact(Long executionId, PipelineArtifact.ArtifactType type, Object content) {
         if (content == null) return;
         try {
