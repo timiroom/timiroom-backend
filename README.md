@@ -72,36 +72,95 @@
 
 ## 로컬 개발 환경 설정
 
-### 1. 인프라 실행 (PostgreSQL + Kafka)
+### 1. 인프라 실행 (Docker)
 
 ```bash
-# IntelliJ 터미널에서 실행
+# 프로젝트 루트에서 실행 — PostgreSQL, Redis, Neo4j, Kafka 전체 기동
 docker compose up -d
 ```
 
+> **주의:** Neo4j는 초기화에 10~20초 소요됩니다. 백엔드 기동 전 `docker ps`로 `healthy` 상태 확인 후 실행하세요.
+
 ### 2. 환경변수 설정
 
-`application-local.yml` 또는 OS 환경변수에 아래 키를 설정합니다.
+`.env` 파일은 `.gitignore`에 등록되어 있어 저장소에 포함되지 않습니다.  
+**루트**와 **rag-pipeline/** 두 곳에 각각 생성해야 합니다.
 
-| 변수 | 설명 | 필수 |
-|------|------|------|
-| `OPENAI_API_KEY` | OpenAI API 키 (GPT-4o, embedding) | ✅ |
-| `ANTHROPIC_API_KEY` | Claude API 키 (AI 추천 파이프라인) | ✅ |
+---
 
-키 발급은 이연호에게 문의하세요.
+#### `.env` (프로젝트 루트 — 백엔드 8080 용)
 
-### 3. 백엔드 실행
+```dotenv
+# PostgreSQL
+DB_URL=jdbc:postgresql://localhost:5432/timiroom
+DB_USERNAME=timiroom
+DB_PASSWORD=timiroom1234
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Neo4j
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=timiroom1234
+
+# OAuth2 소셜 로그인 (Google Cloud Console / GitHub OAuth App 에서 발급)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+
+# rag-pipeline 연동 URL
+RAG_PIPELINE_URL=http://localhost:8081
+```
+
+#### `rag-pipeline/.env` (rag-pipeline 8081 용)
+
+```dotenv
+# AI API 키
+OPENAI_API_KEY=your_openai_api_key        # GPT-4o 에이전트 + text-embedding-3-large
+ANTHROPIC_API_KEY=your_anthropic_api_key  # Claude Sonnet (AI 추천 파이프라인)
+COHERE_API_KEY=your_cohere_api_key        # Reranker (선택 — 없으면 reranker 비활성화)
+
+# PostgreSQL (백엔드와 공유 DB)
+DB_URL=jdbc:postgresql://localhost:5432/timiroom
+DB_USERNAME=timiroom
+DB_PASSWORD=timiroom1234
+```
+
+> API 키 발급은 이연호에게 문의하세요.
+
+---
+
+#### `application-local.yml` (선택)
+
+`src/main/resources/application-local.yml` 및 `rag-pipeline/src/main/resources/application-local.yml`은 `.gitignore`에 등록된 로컬 전용 설정 파일입니다.  
+`.env`로 커버되지 않는 로컬 오버라이드가 필요할 때만 사용합니다.
+
+### 3. 백엔드 실행 (port 8080)
 
 ```bash
+# 프로젝트 루트에서 실행
 ./gradlew bootRun
 ```
 
-### 4. 프론트엔드 실행
+### 4. rag-pipeline 실행 (port 8081)
 
 ```bash
-# FrontEnd Repo의 feat/#3_FrontEnd_Link 브랜치에서 받은 파일 열기
+cd rag-pipeline
+./gradlew bootRun
+```
+
+### 5. 프론트엔드 실행 (port 3000)
+
+```bash
+cd timiroom-frontend
+npm install   # 최초 1회
 npm run dev
 ```
+
+브라우저에서 `http://localhost:3000` 으로 접속합니다.
 
 ---
 
