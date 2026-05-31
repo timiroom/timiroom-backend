@@ -39,6 +39,13 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.GATEWAY_TIMEOUT)  // 504
                 .body(ErrorResponse.of(ErrorCode.PIPELINE_TIMEOUT));
     }
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleBadRequest(IllegalArgumentException e) {
+        log.warn("[BAD REQUEST] {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)            // 400 ← 정확함
+                .body(ErrorResponse.of(ErrorCode.INVALID_INPUT, e.getMessage()));
+    }
 
     // 그 외 모든 예외 (최후의 안전망)
     @ExceptionHandler(Exception.class)

@@ -2,6 +2,7 @@ package com.timiroom.domain.oauth;
 
 import com.timiroom.domain.member.Member;
 import com.timiroom.domain.member.MemberRepository;
+import com.timiroom.domain.member.Provider;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -36,12 +37,14 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             providerId = oAuth2User.getAttribute("id").toString();  // GitHub는 id
         }
 
-        Member member = memberRepository.findByProviderAndProviderId(provider, providerId)
+        Provider providerEnum = Provider.valueOf(provider.toUpperCase());
+        Member member = memberRepository.findByProviderAndProviderId(providerEnum, providerId)
                 .orElseThrow(() -> new RuntimeException("회원 없음"));
 
         HttpSession session = request.getSession(true);
         session.setAttribute("memberId", member.getMemberId());
 
-        response.sendRedirect("http://localhost:3000/");
+        clearAuthenticationAttributes(request);
+        response.sendRedirect("http://localhost:3000/auth/callback");
     }
 }

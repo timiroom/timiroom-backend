@@ -1,5 +1,6 @@
 package com.rag.pipeline.phase2.agent;
 
+import com.rag.pipeline.common.skills.PmSkillsLoader;
 import com.rag.pipeline.phase2.state.PipelineState;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -7,9 +8,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * PM 에이전트 — 기능 도출 및 하위 에이전트 지시사항 생성
@@ -27,24 +26,25 @@ import java.util.stream.Collectors;
 public class PmAgent {
 
     private final ChatClient.Builder chatClientBuilder;
+    private final PmSkillsLoader pmSkillsLoader;
 
-    private static final String PM_PROMPT = """
-            당신은 시니어 소프트웨어 아키텍트입니다.
+    private static final String PM_PROMPT_BASE = """
+            당신은 시니어 소프트웨어 아키텍트이자 PM입니다.
             아래 요구사항을 분석하여 JSON 형식으로만 응답하세요.
-            
+            %s
             응답 형식:
             {
               "featureList": ["기능1", "기능2", "기능3"],
               "dbaInstruction": "DBA에게 전달할 DB 설계 지시사항",
               "apiInstruction": "API 개발자에게 전달할 API 설계 지시사항"
             }
-            
+
             규칙:
             - featureList는 서비스를 구성하는 모든 핵심·부가 기능을 빠짐없이 열거하세요 (개수 제한 없음, 최대한 상세하게)
             - dbaInstruction은 필요한 테이블, 관계, 제약조건을 명시하세요
             - apiInstruction은 필요한 엔드포인트와 인증 방식을 명시하세요
             - JSON 외 다른 텍스트는 절대 포함하지 마세요
-            
+
             요구사항:
             %s
             """;
@@ -56,6 +56,16 @@ public class PmAgent {
     public PipelineState execute(PipelineState state) {
         log.info("PM 에이전트 시작 — query: '{}'", state.getUserQuery());
 
+        String skillsSection;
+        if (pmSkillsLoader.hasSkills()) {
+            skillsSection = pmSkillsLoader.findRelevantSkills(state.getContextPrompt(), 5);
+            log.info("PM 스킬 프롬프트 주입 완료 — {} 자 추가됨", skillsSection.length());
+        } else {
+            skillsSection = "";
+            log.warn("PM 스킬 미적용 — 로드된 스킬 없음, 기본 프롬프트만 사용");
+        }
+        String prompt = String.format(PM_PROMPT_BASE, skillsSection, state.getContextPrompt());
+
         ChatClient chatClient = chatClientBuilder
                 .defaultOptions(
                         org.springframework.ai.openai.OpenAiChatOptions.builder()
@@ -66,7 +76,7 @@ public class PmAgent {
                 .build();
 
         String response = chatClient
-                .prompt(String.format(PM_PROMPT, state.getContextPrompt()))
+                .prompt(prompt)
                 .call()
                 .content();
 

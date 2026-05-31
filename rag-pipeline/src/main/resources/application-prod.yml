@@ -11,15 +11,13 @@ spring:
       ddl-auto: validate
     show-sql: false
 
-  # ── PostgreSQL (NAS) ─────────────────────────────────────────────
+  # ── PostgreSQL (timiroom 공유 DB) ────────────────────────────────
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
   # ── Kafka (NAS) ─────────────────────────────────────────────────
-  # NAS Container Station에 Kafka 배포 완료 (2026-03-23)
-  # Spring Boot 앱도 NAS 컨테이너로 배포 시 kafka_default 네트워크에 연결하여 내부 통신
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 

@@ -8,6 +8,9 @@ management:
       exposure:
         include: health
 
+rag-pipeline:
+  base-url: ${RAG_PIPELINE_URL:http://rag-pipeline-svc:8080}
+
 spring:
   jpa:
     hibernate:

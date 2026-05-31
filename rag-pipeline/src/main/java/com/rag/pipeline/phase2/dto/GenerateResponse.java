@@ -18,6 +18,7 @@ public class GenerateResponse {
     private JsonNode prdDocument;
     private JsonNode dbSchema;
     private JsonNode apiSpec;
+    private String marketResearch;
     private String status;
     private int retryCount;
 
@@ -29,6 +30,7 @@ public class GenerateResponse {
             .prdDocument(parseJson(state.getPrdDocument()))
             .dbSchema(parseJson(state.getDbSchema()))
             .apiSpec(parseJson(state.getApiSpec()))
+            .marketResearch(state.getMarketResearch())
             .status(state.getStatusMessage())
             .retryCount(state.getRetryCount())
             .build();
@@ -42,6 +44,7 @@ public class GenerateResponse {
             .prdDocument(parseJson(state.getPrdDocument()))
             .dbSchema(parseJson(state.getDbSchema()))
             .apiSpec(parseJson(state.getApiSpec()))
+            .marketResearch(state.getMarketResearch())
             .status(state.getStatusMessage())
             .retryCount(state.getRetryCount())
             .build();

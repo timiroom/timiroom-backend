@@ -2,6 +2,7 @@ package com.timiroom.domain.oauth;
 
 import com.timiroom.domain.member.Member;
 import com.timiroom.domain.member.MemberRepository;
+import com.timiroom.domain.member.Provider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -39,9 +40,11 @@ public class OAuth2MemberService extends DefaultOAuth2UserService {
                 ? oAuth2User.getAttribute("email")
                 : provider + "_" + providerId + "@timiroom.com";
 
-        memberRepository.findByProviderAndProviderId(provider, providerId)
+        Provider providerEnum = Provider.valueOf(provider.toUpperCase());
+
+        memberRepository.findByProviderAndProviderId(providerEnum, providerId)
                 .orElseGet(() -> memberRepository.save(
-                        Member.createOAuth(memberName, email, provider, providerId)
+                        Member.createOAuth(memberName, email, providerEnum, providerId)
                 ));
 
         return oAuth2User;

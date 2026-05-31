@@ -11,8 +11,6 @@ import com.rag.pipeline.phase1.RagPipelineService;
 import com.rag.pipeline.phase3.validation.ValidationService;
 import com.rag.pipeline.phase3.retry.RetryService;
 import com.rag.pipeline.phase4.kafka.KafkaProducerService;
-import com.rag.pipeline.project.ProjectResponse;
-import com.rag.pipeline.project.ProjectService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +39,6 @@ public class OrchestrationController {
     private final ValidationService       validationService;
     private final RetryService            retryService;
     private final KafkaProducerService    kafkaProducerService;
-    private final ProjectService          projectService;
     private final PipelineProgressService progressService;
     private final ObjectMapper            objectMapper;
 
@@ -144,16 +141,14 @@ public class OrchestrationController {
                 return;
             }
 
-            // Phase 4
+            // Phase 4 — Kafka 발행 (document_chunks 벡터 저장용)
             progressService.send(pipelineId, "PHASE4", "결과 저장 중...", 95);
-            String kafkaPipelineId = kafkaProducerService.publish(validatedState);
+            kafkaProducerService.publish(validatedState);
             log.info("파이프라인 완료 | pipelineId: {}, retryCount: {}",
-                kafkaPipelineId, validatedState.getRetryCount());
+                pipelineId, validatedState.getRetryCount());
 
-            ProjectResponse savedProject = projectService.saveFromPipeline(validatedState, formData);
-            GenerateResponse result = GenerateResponse.from(
-                validatedState, savedProject.getId(), savedProject.getName());
-
+            // SSE complete 이벤트 — timiroom-backend가 수신 후 pipeline_artifact에 저장
+            GenerateResponse result = GenerateResponse.from(validatedState);
             progressService.complete(pipelineId, result);
 
         } catch (Exception e) {

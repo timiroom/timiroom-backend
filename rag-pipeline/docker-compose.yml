@@ -1,23 +1,5 @@
 services:
 
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: rag-postgres
-    environment:
-      POSTGRES_DB:       ragdb
-      POSTGRES_USER:     raguser
-      POSTGRES_PASSWORD: ragpass
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U raguser -d ragdb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   zookeeper:
     image: confluentinc/cp-zookeeper:7.7.0
     container_name: rag-zookeeper
@@ -64,7 +46,6 @@ services:
       start_period: 30s
 
 volumes:
-  postgres_data:
   zookeeper_data:
   zookeeper_log:
   kafka_data:
