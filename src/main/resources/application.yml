@@ -7,9 +7,9 @@ spring:
 
   # ── Database ─────────────────────────────────────────────────────
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/timiroom}
-    username: ${DB_USERNAME:timiroom}
-    password: ${DB_PASSWORD:timiroom1234}
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:timiroom}
+    username: ${POSTGRES_USER:timiroom}
+    password: ${POSTGRES_PASSWORD:timiroom1234}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -33,6 +33,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 
   session:
     timeout: 30m
