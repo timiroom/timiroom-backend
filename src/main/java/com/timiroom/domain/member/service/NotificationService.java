@@ -4,6 +4,7 @@ import com.timiroom.domain.member.entity.Notification;
 import com.timiroom.domain.member.enums.NotificationReferenceType;
 import com.timiroom.domain.member.enums.NotificationType;
 import com.timiroom.domain.member.repository.NotificationRepository;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,12 +32,14 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public List<Notification> getMyNotifications(Long memberId) {
+    public List<Notification> getMyNotifications(HttpSession session) {
+        Long memberId = (Long) session.getAttribute("memberId");
         return notificationRepository.findByMemberIdOrderByCreatedAtDesc(memberId);
     }
 
     @Transactional(readOnly = true)
-    public long countUnread(Long memberId) {
+    public long countUnread(HttpSession session) {
+        Long memberId = (Long) session.getAttribute("memberId");
         return notificationRepository.countByMemberIdAndIsReadFalse(memberId);
     }
 
@@ -50,7 +53,8 @@ public class NotificationService {
     }
 
     @Transactional
-    public void markAllAsRead(Long memberId) {
+    public void markAllAsRead(HttpSession session) {
+        Long memberId = (Long) session.getAttribute("memberId");
         notificationRepository.findByMemberIdOrderByCreatedAtDesc(memberId)
                 .forEach(n -> {
                     if (!n.isRead()) {

@@ -1,7 +1,10 @@
 package com.timiroom.domain.member.controller;
 
 import com.timiroom.domain.member.entity.Notification;
+import com.timiroom.domain.member.exception.code.MemberSuccessCode;
 import com.timiroom.domain.member.service.NotificationService;
+import com.timiroom.global.ApiResponse;
+import com.timiroom.global.apiPayload.code.BaseSuccessCode;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,30 +22,31 @@ public class NotificationController {
 
     /** 내 알림 목록 */
     @GetMapping
-    public ResponseEntity<List<Notification>> myNotifications(HttpSession session) {
-        Long memberId = (Long) session.getAttribute("memberId");
-        return ResponseEntity.ok(notificationService.getMyNotifications(memberId));
+    public ApiResponse<List<Notification>> myNotifications(HttpSession session) {
+        BaseSuccessCode code = MemberSuccessCode.OK;
+        return ApiResponse.onSuccess(code, notificationService.getMyNotifications(session));
     }
 
     /** 안읽은 알림 수 */
     @GetMapping("/unread-count")
-    public ResponseEntity<Map<String, Long>> unreadCount(HttpSession session) {
-        Long memberId = (Long) session.getAttribute("memberId");
-        return ResponseEntity.ok(Map.of("count", notificationService.countUnread(memberId)));
+    public ApiResponse<Long> unreadCount(HttpSession session) {
+        BaseSuccessCode code = MemberSuccessCode.OK;
+        return ApiResponse.onSuccess(code, notificationService.countUnread(session));
     }
 
     /** 알림 읽음 처리 */
     @PatchMapping("/{notificationId}/read")
-    public ResponseEntity<Void> markAsRead(@PathVariable Long notificationId) {
+    public ApiResponse<Void> markAsRead(@PathVariable Long notificationId) {
         notificationService.markAsRead(notificationId);
-        return ResponseEntity.ok().build();
+        BaseSuccessCode code = MemberSuccessCode.OK;
+        return ApiResponse.onSuccess(code ,null);
     }
 
     /** 전체 읽음 처리 */
     @PatchMapping("/read-all")
-    public ResponseEntity<Void> markAllAsRead(HttpSession session) {
-        Long memberId = (Long) session.getAttribute("memberId");
-        notificationService.markAllAsRead(memberId);
-        return ResponseEntity.ok().build();
+    public ApiResponse<Void> markAllAsRead(HttpSession session) {
+        notificationService.markAllAsRead(session);
+        BaseSuccessCode code = MemberSuccessCode.OK;
+        return ApiResponse.onSuccess(code, null);
     }
 }
