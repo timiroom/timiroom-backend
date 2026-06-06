@@ -9,4 +9,6 @@ public interface PipelineExecutionRepository extends JpaRepository<PipelineExecu
     Optional<PipelineExecution> findByPipelineId(String pipelineId);
     List<PipelineExecution> findByMemberIdOrderByCreatedAtDesc(Long memberId);
     List<PipelineExecution> findByRequirementIdOrderByCreatedAtDesc(Long requirementId);
+    List<PipelineExecution> findByRequirementIdIn(List<Long> requirementIds);
+    void deleteByRequirementIdIn(List<Long> requirementIds);
 }

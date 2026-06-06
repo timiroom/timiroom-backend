@@ -50,8 +50,8 @@ spring:
       chat:
         options:
           model: claude-sonnet-4-20250514
-          max-tokens: 1024
-          temperature: 0.3
+          max-tokens: 4096
+          temperature: 0.7
     vectorstore:
       pgvector:
         schema-name: public
@@ -87,6 +87,7 @@ spring:
 
 # ── 서버 설정 ────────────────────────────────────────────────────
 server:
+  port: 8081
   servlet:
     encoding:
       charset: UTF-8

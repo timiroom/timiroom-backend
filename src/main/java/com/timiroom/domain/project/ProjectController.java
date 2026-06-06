@@ -60,4 +60,13 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.addMember(
                 projectId, Long.valueOf(body.get("memberId")), role));
     }
+
+    /** 프로젝트 삭제 */
+    @DeleteMapping("/{projectId}")
+    public ResponseEntity<Void> delete(HttpSession session,
+                                       @PathVariable Long projectId) {
+        Long memberId = (Long) session.getAttribute("memberId");
+        projectService.delete(projectId, memberId);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -1,10 +1,15 @@
 package com.timiroom.domain.project;
 
+import com.timiroom.domain.pipeline.PipelineArtifactRepository;
+import com.timiroom.domain.pipeline.PipelineExecution;
+import com.timiroom.domain.pipeline.PipelineExecutionRepository;
+import com.timiroom.domain.requirement.RequirementRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -12,6 +17,9 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final RequirementRepository requirementRepository;
+    private final PipelineExecutionRepository pipelineExecutionRepository;
+    private final PipelineArtifactRepository pipelineArtifactRepository;
 
     @Transactional
     public Project create(Long teamId, Long memberId, String projectName, String description) {
@@ -63,5 +71,30 @@ public class ProjectService {
     @Transactional(readOnly = true)
     public List<ProjectMember> getMembers(Long projectId) {
         return projectMemberRepository.findByProjectId(projectId);
+    }
+
+    @Transactional
+    public void delete(Long projectId, Long memberId) {
+        projectRepository.findById(projectId)
+                .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다: " + projectId));
+
+        if (!projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId)) {
+            throw new SecurityException("프로젝트 삭제 권한이 없습니다");
+        }
+
+        // PipelineArtifact → PipelineExecution → Requirement → ProjectMember → Project 순서로 삭제
+        List<Long> requirementIds = requirementRepository.findRequirementIdsByProjectId(projectId);
+        if (!requirementIds.isEmpty()) {
+            List<Long> executionIds = pipelineExecutionRepository.findByRequirementIdIn(requirementIds)
+                    .stream().map(PipelineExecution::getExecutionId).collect(Collectors.toList());
+            if (!executionIds.isEmpty()) {
+                pipelineArtifactRepository.deleteByExecutionIdIn(executionIds);
+            }
+            pipelineExecutionRepository.deleteByRequirementIdIn(requirementIds);
+            requirementRepository.deleteByProjectId(projectId);
+        }
+
+        projectMemberRepository.deleteByProjectId(projectId);
+        projectRepository.deleteById(projectId);
     }
 }

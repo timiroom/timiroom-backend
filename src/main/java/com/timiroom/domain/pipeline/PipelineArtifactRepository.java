@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface PipelineArtifactRepository extends JpaRepository<PipelineArtifact, Long> {
     List<PipelineArtifact> findByExecutionIdOrderByArtifactType(Long executionId);
+    void deleteByExecutionIdIn(List<Long> executionIds);
 }

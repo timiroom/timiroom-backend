@@ -72,6 +72,27 @@ public class RagPipelineClient {
     }
 
     /**
+     * 프로젝트 인테이크 채팅 메시지 전송
+     * POST /api/v1/chat/message
+     */
+    public Map<String, Object> chat(Object requestBody) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = webClient.post()
+                .uri("/api/v1/chat/message")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .block();
+
+        if (response == null) throw new RuntimeException("rag-pipeline 채팅 응답이 없습니다");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.get("data");
+        return data;
+    }
+
+    /**
      * SSE 진행 스트림 구독
      * GET /api/v1/orchestration/progress/{pipelineId}
      * - event: "progress" | "complete" | "error"
