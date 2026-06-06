@@ -38,7 +38,7 @@ spring:
           stream: false
       base-url: https://api.openai.com
       connect-timeout: 10s
-      read-timeout: 120s
+      read-timeout: 300s
 
       embedding:
         options:
