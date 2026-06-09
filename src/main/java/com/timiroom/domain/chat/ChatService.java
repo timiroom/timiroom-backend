@@ -6,6 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,7 +34,8 @@ public class ChatService {
     }
 
     @Transactional
-    public Map<String, Object> sendMessage(String sessionId, Long memberId, String userContent) {
+    public Map<String, Object> sendMessage(String sessionId, Long memberId, String userContent,
+                                           List<MultipartFile> files) {
         ChatSession session = sessionRepo.findBySessionId(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("세션을 찾을 수 없습니다: " + sessionId));
 
@@ -59,7 +62,15 @@ public class ChatService {
         List<Map<String, String>> history = existing.stream()
                 .map(m -> Map.of("role", m.getRole(), "content", m.getContent()))
                 .collect(java.util.stream.Collectors.toList());
-        history.add(Map.of("role", "user", "content", userContent));
+        // 파일 첨부 시 파일명 목록을 메시지에 포함
+        String fullContent = userContent;
+        if (files != null && !files.isEmpty()) {
+            String fileNames = files.stream()
+                    .map(MultipartFile::getOriginalFilename)
+                    .collect(java.util.stream.Collectors.joining(", "));
+            fullContent = userContent + "\n\n[첨부파일: " + fileNames + "]";
+        }
+        history.add(Map.of("role", "user", "content", fullContent));
 
         Map<String, Object> ragResponse = ragPipelineClient.chat(Map.of("messages", history));
 
@@ -128,6 +139,7 @@ public class ChatService {
                 .collect(java.util.stream.Collectors.toList());
 
         Map<String, Object> ragResponse = ragPipelineClient.chat(Map.of("messages", messages));
+
 
         String assistantMessage = (String) ragResponse.get("message");
         boolean isComplete = Boolean.TRUE.equals(ragResponse.get("isComplete"));
