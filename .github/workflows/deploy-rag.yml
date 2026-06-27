@@ -2,7 +2,7 @@ name: Rag-Pipeline CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [ develop ]
     paths:
       - 'rag-pipeline/**'
 
