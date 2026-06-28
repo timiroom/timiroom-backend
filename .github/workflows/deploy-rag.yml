@@ -53,7 +53,7 @@ jobs:
           rm -f temp-secrets.env
           echo "$ALL_SECRETS_JSON" | jq -r 'to_entries[] | select(.key | startswith("RAG_")) | "\(.key | sub("^RAG_"; ""))=\(.value)"' > temp-secrets.env
 
-          kubectl create secret generic rag-pipeline-secrets --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
+          kubectl create secret generic rag-pipeline-secrets -n timiroom --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
           kubeseal --format=yaml --cert=pub-cert.pem < plain-secret.yaml > sealed-secret.yaml
           rm -f temp-secrets.env plain-secret.yaml
 
