@@ -28,9 +28,6 @@ spring:
         secure: true
         http-only: true
 
-cors:
-  allowed-origins: "https://timiroom.kro.kr"
-
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -50,3 +47,6 @@ cors:
       password: ${REDIS_PASSWORD}
       ssl:
         enabled: ${REDIS_SSL_ENABLED}
+
+cors:
+  allowed-origins: "https://timiroom.kro.kr"

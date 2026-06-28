@@ -2,7 +2,7 @@ name: Backend CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [ develop ]
     paths-ignore:
       - 'rag-pipeline/**'
 
