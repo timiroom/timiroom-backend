@@ -49,4 +49,15 @@ public class ChatController {
         List<ChatMessage> messages = chatService.getMessages(sessionId, memberId);
         return ResponseEntity.ok(messages);
     }
+
+    /** 마지막 메시지 재시도 (오류 발생 시 재전송 버튼용) */
+    @PostMapping("/sessions/{sessionId}/retry")
+    public ResponseEntity<Map<String, Object>> retry(
+            HttpSession session,
+            @PathVariable String sessionId
+    ) {
+        Long memberId = (Long) session.getAttribute("memberId");
+        Map<String, Object> response = chatService.retryLastMessage(sessionId, memberId);
+        return ResponseEntity.ok(response);
+    }
 }

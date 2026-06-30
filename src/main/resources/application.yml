@@ -7,9 +7,9 @@ spring:
 
   # ── Database ─────────────────────────────────────────────────────
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/timiroom}
-    username: ${DB_USERNAME:timiroom}
-    password: ${DB_PASSWORD:timiroom1234}
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:alignit}
+    username: ${POSTGRES_USER:alignit}
+    password: ${POSTGRES_PASSWORD:alignit1234}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -26,18 +26,22 @@ spring:
     uri: ${NEO4J_URI:bolt://localhost:7687}
     authentication:
       username: ${NEO4J_USERNAME:neo4j}
-      password: ${NEO4J_PASSWORD:timiroom1234}
+      password: ${NEO4J_PASSWORD:alignit1234}
 
   # ── Redis ────────────────────────────────────────────────────────
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 
   session:
     timeout: 30m
     redis:
       namespace: spring:session
+    cookie:
+      same-site: lax
+      http-only: true
 
   # ── OAuth2 ───────────────────────────────────────────────────────
   security:
@@ -66,4 +70,11 @@ rag-pipeline:
   base-url: ${RAG_PIPELINE_URL:http://localhost:8081}
 
 cors:
-  allowed-origins: "http://localhost:3000"
+  allowed-origins: ${FRONTEND_URL:http://localhost:3001}
+
+frontend:
+  url: ${FRONTEND_URL:http://localhost:3001}
+
+logging:
+  level:
+    io.netty.resolver.dns.DnsServerAddressStreamProviders: "OFF"
