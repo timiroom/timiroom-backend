@@ -67,10 +67,23 @@ public class PipelineController {
     /**
      * 프로젝트의 최신 완료된 파이프라인 Artifact 조회
      * GET /api/v1/pipeline/projects/{projectId}/artifacts
-     * 새로고침 후 결과물 복원에 사용
      */
     @GetMapping("/projects/{projectId}/artifacts")
     public ResponseEntity<List<PipelineArtifact>> artifactsByProject(@PathVariable Long projectId) {
         return ResponseEntity.ok(pipelineService.getLatestArtifactsByProject(projectId));
+    }
+
+    /**
+     * 파이프라인 재시작
+     * POST /api/v1/pipeline/restart/{pipelineId}
+     * 응답: { executionId: Long, pipelineId: String(UUID) }
+     */
+    @PostMapping("/restart/{pipelineId}")
+    public ResponseEntity<Map<String, Object>> restart(
+            HttpSession session,
+            @PathVariable String pipelineId
+    ) throws Exception {
+        Long memberId = (Long) session.getAttribute("memberId");
+        return ResponseEntity.ok(pipelineService.restartPipeline(memberId, pipelineId));
     }
 }

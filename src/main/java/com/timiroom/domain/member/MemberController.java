@@ -25,15 +25,38 @@ public class MemberController {
         if (memberId == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Not logged in"));
         }
-
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("Member not found"));
+        return ResponseEntity.ok(memberToMap(member));
+    }
 
-        return ResponseEntity.ok(Map.of(
+    /** 이름 수정 — PATCH /auth/me */
+    @PatchMapping("/me")
+    public ResponseEntity<?> updateMe(
+            HttpSession session,
+            @RequestBody Map<String, String> body
+    ) {
+        Long memberId = (Long) session.getAttribute("memberId");
+        if (memberId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Not logged in"));
+        }
+        String name = body.get("name");
+        if (name == null || name.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "이름을 입력해주세요"));
+        }
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("Member not found"));
+        member.updateName(name);
+        memberRepository.save(member);
+        return ResponseEntity.ok(memberToMap(member));
+    }
+
+    private Map<String, Object> memberToMap(Member member) {
+        return Map.of(
                 "id", member.getMemberId(),
                 "name", member.getMemberName(),
                 "email", member.getEmail(),
                 "provider", member.getProvider()
-        ));
+        );
     }
 }

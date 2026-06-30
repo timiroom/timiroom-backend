@@ -183,6 +183,37 @@ public class PipelineService {
         return artifactRepository.findByExecutionIdOrderByArtifactType(executionId);
     }
 
+    /**
+     * 파이프라인 재시작
+     * - 기존 pipelineId로 execution 조회 → requirement 재사용 → rag-pipeline 재호출
+     */
+    @Transactional
+    public Map<String, Object> restartPipeline(Long memberId, String pipelineId) throws Exception {
+        PipelineExecution prev = executionRepository.findByPipelineId(pipelineId)
+                .orElseThrow(() -> new IllegalArgumentException("파이프라인을 찾을 수 없습니다: " + pipelineId));
+
+        if (!prev.getMemberId().equals(memberId)) {
+            throw new SecurityException("파이프라인 접근 권한이 없습니다");
+        }
+
+        Long requirementId = prev.getRequirementId();
+        Requirement requirement = requirementService.getById(requirementId);
+        requirementService.updateStatus(requirementId, RequirementStatus.PROCESSING);
+
+        String newPipelineId = ragPipelineClient.generate(requirement.getContent(), null);
+
+        PipelineExecution newExecution = PipelineExecution.builder()
+                .pipelineId(newPipelineId)
+                .requirementId(requirementId)
+                .memberId(memberId)
+                .startedAt(LocalDateTime.now())
+                .build();
+        PipelineExecution saved = executionRepository.save(newExecution);
+
+        log.info("파이프라인 재시작 | executionId: {}, pipelineId: {}", saved.getExecutionId(), newPipelineId.substring(0, 8));
+        return Map.of("executionId", saved.getExecutionId(), "pipelineId", newPipelineId);
+    }
+
     public List<PipelineArtifact> getLatestArtifactsByProject(Long projectId) {
         return requirementService.getByProject(projectId).stream()
                 .flatMap(req -> executionRepository

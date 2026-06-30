@@ -37,6 +37,10 @@ public class PipelineArtifact {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    public void updateContent(String content) {
+        this.content = content;
+    }
+
     public enum ArtifactType {
         PRD, DB_SCHEMA, API_SPEC, FEATURE_LIST, MARKET_RESEARCH, QA_REPORT
     }
