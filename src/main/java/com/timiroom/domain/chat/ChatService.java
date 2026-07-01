@@ -19,6 +19,11 @@ public class ChatService {
     private final ChatMessageRepository messageRepo;
     private final RagPipelineClient ragPipelineClient;
 
+    // 시스템 프롬프트의 Step 1 질문과 일치해야 함 — 변경 시 rag-pipeline SYSTEM_PROMPT도 함께 수정
+    static final String INITIAL_GREETING =
+            "안녕하세요! 프로젝트 기획을 시작해 볼게요. " +
+            "어떤 서비스를 만들고 싶으신가요? 어떤 문제를 해결하는 서비스인지 자유롭게 설명해 주세요.";
+
     @Transactional
     public String createSession(Long memberId) {
         String sessionId = UUID.randomUUID().toString();
@@ -27,6 +32,15 @@ public class ChatService {
                 .memberId(memberId)
                 .status(SessionStatus.ACTIVE)
                 .build());
+
+        // 초기 인사 메시지를 DB에 저장 — 모델이 대화 맥락(step 1 질문)을 인식하도록
+        messageRepo.save(ChatMessage.builder()
+                .sessionId(sessionId)
+                .role("assistant")
+                .content(INITIAL_GREETING)
+                .orderIndex(0)
+                .build());
+
         log.info("채팅 세션 생성 | sessionId: {}, memberId: {}", sessionId, memberId);
         return sessionId;
     }

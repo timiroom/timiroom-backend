@@ -71,30 +71,46 @@ public class PipelineService {
                 .publishOn(Schedulers.boundedElastic())
                 .subscribe(
                         sse -> {
-                            try {
-                                String eventName = sse.event() != null ? sse.event() : "message";
-                                emitter.send(SseEmitter.event().name(eventName).data(sse.data()));
+                            String eventName = sse.event() != null ? sse.event() : "message";
 
-                                if ("complete".equals(eventName)) {
-                                    handleComplete(pipelineId, sse.data());
-                                    emitter.complete();
-                                } else if ("error".equals(eventName)) {
-                                    handleError(pipelineId, extractErrorMessage(sse.data()));
-                                    emitter.complete();
-                                }
-                            } catch (IOException e) {
-                                emitter.completeWithError(e);
+                            // complete/error: 브라우저 연결 여부와 무관하게 artifact 저장 먼저 수행
+                            if ("complete".equals(eventName)) {
+                                handleComplete(pipelineId, sse.data());
+                                sendToEmitter(emitter, eventName, sse.data());
+                                completeEmitter(emitter);
+                                return;
                             }
+                            if ("error".equals(eventName)) {
+                                handleError(pipelineId, extractErrorMessage(sse.data()));
+                                sendToEmitter(emitter, eventName, sse.data());
+                                completeEmitter(emitter);
+                                return;
+                            }
+
+                            // progress 이벤트: 브라우저 끊김 시 무시 — rag-pipeline 구독은 유지
+                            sendToEmitter(emitter, eventName, sse.data());
                         },
                         error -> {
                             log.error("SSE 오류 | pipelineId: {}", pipelineId, error);
                             handleError(pipelineId, error.getMessage());
-                            emitter.completeWithError(error);
+                            completeEmitter(emitter);
                         },
-                        emitter::complete
+                        () -> completeEmitter(emitter)
                 );
 
         return emitter;
+    }
+
+    private void sendToEmitter(SseEmitter emitter, String eventName, String data) {
+        try {
+            emitter.send(SseEmitter.event().name(eventName).data(data));
+        } catch (Exception e) {
+            log.debug("브라우저 SSE 전송 실패 (연결 끊김) — rag-pipeline 구독 유지: {}", e.getMessage());
+        }
+    }
+
+    private void completeEmitter(SseEmitter emitter) {
+        try { emitter.complete(); } catch (Exception ignored) {}
     }
 
     /**
@@ -181,6 +197,15 @@ public class PipelineService {
 
     public List<PipelineArtifact> getArtifactsByExecution(Long executionId) {
         return artifactRepository.findByExecutionIdOrderByArtifactType(executionId);
+    }
+
+    @Transactional
+    public void updateArtifact(Long artifactId, String content) {
+        PipelineArtifact artifact = artifactRepository.findById(artifactId)
+                .orElseThrow(() -> new IllegalArgumentException("Artifact not found: " + artifactId));
+        artifact.updateContent(content);
+        artifactRepository.save(artifact);
+        log.info("Artifact 수정 | artifactId: {}", artifactId);
     }
 
     public List<PipelineArtifact> getLatestArtifactsByProject(Long projectId) {

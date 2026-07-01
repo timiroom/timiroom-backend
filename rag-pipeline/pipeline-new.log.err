@@ -1,0 +1,13 @@
+
+========== ? extractText 직후 ==========
+응답 길이: 2802
+응답 처음 500자: 
+{"featureList":["독서모임 생성 및 초대 관리","책 추천 및 투표 기반 도서 선정","모임 일정 생성 및 참석 여부 조율","실시간 채팅 및 공지 공유","모임 게시판 및 파일/링크 첨부","사용자 회원가입 및 로그인","프로필 관리 및 관심사 설정","모임 검색 및 참여 신청","읽고 있는 책/읽은 책 관리","알림(모임 일정, 채팅, 투표, 공지)"],"dbaInstruction":"PostgreSQL 기준으로 users, profiles, book_clubs, club_members, books, book_recommendations, recommendation_votes, club_meetings, meeting_attendances, chat_rooms, chat_messages, notices, notifications, user_interests 테이블을 설계한다. users와 profiles는 1:1, book_clubs와 club_members는 1:N
+
+응답 마지막 500자: 
+es, GET /notifications, PATCH /notifications/{notificationId}/read, GET /books/search, GET /books/{bookId} 형태로 구성한다. 요청/응답은 공통적으로 data, message, meta, error 구조를 사용하고, 목록 API는 페이지네이션(page, size, totalElements, totalPages)을 포함한다. 클럽/모임/채팅 관련 API는 사용자 권한(leader/member/guest) 검사를 수행하고, 실시간 채팅은 WebSocket 또는 SSE를 보조 채널로 제공한다. 책 검색은 title, author, category, keyword 파라미터를 지원하며, 추천안과 투표 결과는 각 추천안의 voteCount, isVotedByMe, status를 포함해 반환한다. 알림 API는 읽지 않은 알림 우선 정렬을 기본으로 하고, 모든 주요 응답은 ISO-8601 날짜 형식을 사용한다."}
+
+JSON 시작: true
+JSON 끝: true
+==========================================
+

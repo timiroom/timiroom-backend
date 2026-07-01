@@ -33,4 +33,12 @@ public class DocumentChunk {
      * - Reranker 단계 이후에는 Cohere relevance score
      */
     private Double relevanceScore;
+
+    /**
+     * 청크 임베딩 벡터 (세션 PDF 청크 전용)
+     * - SemanticChunkingService가 청크 조립 시 문장 임베딩 평균으로 생성
+     * - pgvector 저장 청크는 null (DB에서 검색하므로 불필요)
+     * - HybridSearchService의 세션 벡터 검색에서 cosine similarity 계산에 사용
+     */
+    private float[] embedding;
 }

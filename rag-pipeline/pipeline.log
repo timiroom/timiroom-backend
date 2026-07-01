@@ -1,0 +1,1168 @@
+> Task :compileJava
+> Task :processResources UP-TO-DATE
+> Task :classes
+> Task :resolveMainClassName
+
+> Task :bootRun
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.4)
+
+21:06:58 [NO_PIPE] [NO_REQ] INFO  c.r.pipeline.RagPipelineApplication - Starting RagPipelineApplication using Java 21.0.8 with PID 29092 (C:\Users\jsh68\Desktop\timiroom-backend\rag-pipeline\build\classes\java\main started by jsh68 in C:\Users\jsh68\Desktop\timiroom-backend\rag-pipeline)
+21:06:58 [NO_PIPE] [NO_REQ] DEBUG c.r.pipeline.RagPipelineApplication - Running with Spring Boot v3.3.4, Spring v6.1.13
+21:06:58 [NO_PIPE] [NO_REQ] INFO  c.r.pipeline.RagPipelineApplication - The following 1 profile is active: "local"
+21:06:59 [NO_PIPE] [NO_REQ] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+21:06:59 [NO_PIPE] [NO_REQ] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 24 ms. Found 0 JPA repository interfaces.
+21:07:00 [NO_PIPE] [NO_REQ] INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat initialized with port 8081 (http)
+21:07:00 [NO_PIPE] [NO_REQ] INFO  o.a.catalina.core.StandardService - Starting service [Tomcat]
+21:07:00 [NO_PIPE] [NO_REQ] INFO  o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/10.1.30]
+21:07:00 [NO_PIPE] [NO_REQ] INFO  o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring embedded WebApplicationContext
+21:07:00 [NO_PIPE] [NO_REQ] INFO  o.s.b.w.s.c.ServletWebServerApplicationContext - Root WebApplicationContext: initialization completed in 2095 ms
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+21:07:01 [NO_PIPE] [NO_REQ] INFO  o.h.jpa.internal.util.LogHelper - HHH000204: Processing PersistenceUnitInfo [name: default]
+21:07:01 [NO_PIPE] [NO_REQ] INFO  org.hibernate.Version - HHH000412: Hibernate ORM core version 6.5.3.Final
+21:07:01 [NO_PIPE] [NO_REQ] INFO  o.h.c.i.RegionFactoryInitiator - HHH000026: Second-level cache disabled
+21:07:01 [NO_PIPE] [NO_REQ] INFO  o.s.o.j.p.SpringPersistenceUnitInfo - No LoadTimeWeaver setup: ignoring JPA class transformer
+21:07:01 [NO_PIPE] [NO_REQ] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+21:07:02 [NO_PIPE] [NO_REQ] INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@372f7bc
+21:07:02 [NO_PIPE] [NO_REQ] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.
+21:07:02 [NO_PIPE] [NO_REQ] WARN  org.hibernate.orm.deprecation - HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+21:07:02 [NO_PIPE] [NO_REQ] INFO  o.h.e.t.j.p.i.JtaPlatformInitiator - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+21:07:02 [NO_PIPE] [NO_REQ] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+21:07:03 [NO_PIPE] [NO_REQ] INFO  c.r.p.common.skills.PmSkillsLoader - PM 스킬 로드 시작 — classpath:pm-skills/*.md
+21:07:03 [NO_PIPE] [NO_REQ] INFO  c.r.p.common.skills.PmSkillsLoader - PM 스킬 파일 로드 완료 — 17개
+21:07:15 [NO_PIPE] [NO_REQ] INFO  c.r.p.common.skills.PmSkillsLoader - PM 스킬 임베딩 완료 — 17개 메모리에 저장
+21:07:16 [NO_PIPE] [NO_REQ] INFO  o.s.ai.vectorstore.PgVectorStore - Using the vector table name: document_chunks. Is empty: false
+21:07:16 [NO_PIPE] [NO_REQ] INFO  o.s.ai.vectorstore.PgVectorStore - Initializing PGVectorStore schema for table: document_chunks in schema: public
+21:07:16 [NO_PIPE] [NO_REQ] INFO  o.s.ai.vectorstore.PgVectorStore - vectorTableValidationsEnabled false
+21:07:17 [NO_PIPE] [NO_REQ] INFO  o.s.b.a.e.web.EndpointLinksResolver - Exposing 1 endpoint beneath base path '/actuator'
+21:07:17 [NO_PIPE] [NO_REQ] INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat started on port 8081 (http) with context path '/'
+21:07:17 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.consumer.ConsumerConfig - ConsumerConfig values: 
+	allow.auto.create.topics = true
+	auto.commit.interval.ms = 5000
+	auto.include.jmx.reporter = true
+	auto.offset.reset = earliest
+	bootstrap.servers = [localhost:9092]
+	check.crcs = true
+	client.dns.lookup = use_all_dns_ips
+	client.id = consumer-rag-pipeline-group.DLT-1
+	client.rack = 
+	connections.max.idle.ms = 540000
+	default.api.timeout.ms = 60000
+	enable.auto.commit = false
+	enable.metrics.push = true
+	exclude.internal.topics = true
+	fetch.max.bytes = 52428800
+	fetch.max.wait.ms = 500
+	fetch.min.bytes = 1
+	group.id = rag-pipeline-group.DLT
+	group.instance.id = null
+	group.protocol = classic
+	group.remote.assignor = null
+	heartbeat.interval.ms = 3000
+	interceptor.classes = []
+	internal.leave.group.on.close = true
+	internal.throw.on.fetch.stable.offset.unsupported = false
+	isolation.level = read_uncommitted
+	key.deserializer = class org.apache.kafka.common.serialization.StringDeserializer
+	max.partition.fetch.bytes = 1048576
+	max.poll.interval.ms = 300000
+	max.poll.records = 500
+	metadata.max.age.ms = 30000
+	metric.reporters = []
+	metrics.num.samples = 2
+	metrics.recording.level = INFO
+	metrics.sample.window.ms = 30000
+	partition.assignment.strategy = [class org.apache.kafka.clients.consumer.RangeAssignor, class org.apache.kafka.clients.consumer.CooperativeStickyAssignor]
+	receive.buffer.bytes = 65536
+	reconnect.backoff.max.ms = 30000
+	reconnect.backoff.ms = 3000
+	request.timeout.ms = 5000
+	retry.backoff.max.ms = 1000
+	retry.backoff.ms = 100
+	sasl.client.callback.handler.class = null
+	sasl.jaas.config = null
+	sasl.kerberos.kinit.cmd = /usr/bin/kinit
+	sasl.kerberos.min.time.before.relogin = 60000
+	sasl.kerberos.service.name = null
+	sasl.kerberos.ticket.renew.jitter = 0.05
+	sasl.kerberos.ticket.renew.window.factor = 0.8
+	sasl.login.callback.handler.class = null
+	sasl.login.class = null
+	sasl.login.connect.timeout.ms = null
+	sasl.login.read.timeout.ms = null
+	sasl.login.refresh.buffer.seconds = 300
+	sasl.login.refresh.min.period.seconds = 60
+	sasl.login.refresh.window.factor = 0.8
+	sasl.login.refresh.window.jitter = 0.05
+	sasl.login.retry.backoff.max.ms = 10000
+	sasl.login.retry.backoff.ms = 100
+	sasl.mechanism = GSSAPI
+	sasl.oauthbearer.clock.skew.seconds = 30
+	sasl.oauthbearer.expected.audience = null
+	sasl.oauthbearer.expected.issuer = null
+	sasl.oauthbearer.jwks.endpoint.refresh.ms = 3600000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.max.ms = 10000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.ms = 100
+	sasl.oauthbearer.jwks.endpoint.url = null
+	sasl.oauthbearer.scope.claim.name = scope
+	sasl.oauthbearer.sub.claim.name = sub
+	sasl.oauthbearer.token.endpoint.url = null
+	security.protocol = PLAINTEXT
+	security.providers = null
+	send.buffer.bytes = 131072
+	session.timeout.ms = 45000
+	socket.connection.setup.timeout.max.ms = 30000
+	socket.connection.setup.timeout.ms = 10000
+	ssl.cipher.suites = null
+	ssl.enabled.protocols = [TLSv1.2, TLSv1.3]
+	ssl.endpoint.identification.algorithm = https
+	ssl.engine.factory.class = null
+	ssl.key.password = null
+	ssl.keymanager.algorithm = SunX509
+	ssl.keystore.certificate.chain = null
+	ssl.keystore.key = null
+	ssl.keystore.location = null
+	ssl.keystore.password = null
+	ssl.keystore.type = JKS
+	ssl.protocol = TLSv1.3
+	ssl.provider = null
+	ssl.secure.random.implementation = null
+	ssl.trustmanager.algorithm = PKIX
+	ssl.truststore.certificates = null
+	ssl.truststore.location = null
+	ssl.truststore.password = null
+	ssl.truststore.type = JKS
+	value.deserializer = class org.springframework.kafka.support.serializer.JsonDeserializer
+
+21:07:17 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.t.i.KafkaMetricsCollector - initializing Kafka metrics collector
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka version: 3.7.1
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka commitId: e2494e6ffb89f828
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka startTimeMs: 1782562038183
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.LegacyKafkaConsumer - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Subscribed to topic(s): rag.pipeline.result.DLT
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.consumer.ConsumerConfig - ConsumerConfig values: 
+	allow.auto.create.topics = true
+	auto.commit.interval.ms = 5000
+	auto.include.jmx.reporter = true
+	auto.offset.reset = earliest
+	bootstrap.servers = [localhost:9092]
+	check.crcs = true
+	client.dns.lookup = use_all_dns_ips
+	client.id = consumer-rag-pipeline-group-2
+	client.rack = 
+	connections.max.idle.ms = 540000
+	default.api.timeout.ms = 60000
+	enable.auto.commit = false
+	enable.metrics.push = true
+	exclude.internal.topics = true
+	fetch.max.bytes = 52428800
+	fetch.max.wait.ms = 500
+	fetch.min.bytes = 1
+	group.id = rag-pipeline-group
+	group.instance.id = null
+	group.protocol = classic
+	group.remote.assignor = null
+	heartbeat.interval.ms = 3000
+	interceptor.classes = []
+	internal.leave.group.on.close = true
+	internal.throw.on.fetch.stable.offset.unsupported = false
+	isolation.level = read_uncommitted
+	key.deserializer = class org.apache.kafka.common.serialization.StringDeserializer
+	max.partition.fetch.bytes = 1048576
+	max.poll.interval.ms = 300000
+	max.poll.records = 500
+	metadata.max.age.ms = 30000
+	metric.reporters = []
+	metrics.num.samples = 2
+	metrics.recording.level = INFO
+	metrics.sample.window.ms = 30000
+	partition.assignment.strategy = [class org.apache.kafka.clients.consumer.RangeAssignor, class org.apache.kafka.clients.consumer.CooperativeStickyAssignor]
+	receive.buffer.bytes = 65536
+	reconnect.backoff.max.ms = 30000
+	reconnect.backoff.ms = 3000
+	request.timeout.ms = 5000
+	retry.backoff.max.ms = 1000
+	retry.backoff.ms = 100
+	sasl.client.callback.handler.class = null
+	sasl.jaas.config = null
+	sasl.kerberos.kinit.cmd = /usr/bin/kinit
+	sasl.kerberos.min.time.before.relogin = 60000
+	sasl.kerberos.service.name = null
+	sasl.kerberos.ticket.renew.jitter = 0.05
+	sasl.kerberos.ticket.renew.window.factor = 0.8
+	sasl.login.callback.handler.class = null
+	sasl.login.class = null
+	sasl.login.connect.timeout.ms = null
+	sasl.login.read.timeout.ms = null
+	sasl.login.refresh.buffer.seconds = 300
+	sasl.login.refresh.min.period.seconds = 60
+	sasl.login.refresh.window.factor = 0.8
+	sasl.login.refresh.window.jitter = 0.05
+	sasl.login.retry.backoff.max.ms = 10000
+	sasl.login.retry.backoff.ms = 100
+	sasl.mechanism = GSSAPI
+	sasl.oauthbearer.clock.skew.seconds = 30
+	sasl.oauthbearer.expected.audience = null
+	sasl.oauthbearer.expected.issuer = null
+	sasl.oauthbearer.jwks.endpoint.refresh.ms = 3600000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.max.ms = 10000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.ms = 100
+	sasl.oauthbearer.jwks.endpoint.url = null
+	sasl.oauthbearer.scope.claim.name = scope
+	sasl.oauthbearer.sub.claim.name = sub
+	sasl.oauthbearer.token.endpoint.url = null
+	security.protocol = PLAINTEXT
+	security.providers = null
+	send.buffer.bytes = 131072
+	session.timeout.ms = 45000
+	socket.connection.setup.timeout.max.ms = 30000
+	socket.connection.setup.timeout.ms = 10000
+	ssl.cipher.suites = null
+	ssl.enabled.protocols = [TLSv1.2, TLSv1.3]
+	ssl.endpoint.identification.algorithm = https
+	ssl.engine.factory.class = null
+	ssl.key.password = null
+	ssl.keymanager.algorithm = SunX509
+	ssl.keystore.certificate.chain = null
+	ssl.keystore.key = null
+	ssl.keystore.location = null
+	ssl.keystore.password = null
+	ssl.keystore.type = JKS
+	ssl.protocol = TLSv1.3
+	ssl.provider = null
+	ssl.secure.random.implementation = null
+	ssl.trustmanager.algorithm = PKIX
+	ssl.truststore.certificates = null
+	ssl.truststore.location = null
+	ssl.truststore.password = null
+	ssl.truststore.type = JKS
+	value.deserializer = class org.springframework.kafka.support.serializer.JsonDeserializer
+
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.t.i.KafkaMetricsCollector - initializing Kafka metrics collector
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka version: 3.7.1
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka commitId: e2494e6ffb89f828
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka startTimeMs: 1782562038214
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.LegacyKafkaConsumer - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Subscribed to topic(s): rag.pipeline.result
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.consumer.ConsumerConfig - ConsumerConfig values: 
+	allow.auto.create.topics = true
+	auto.commit.interval.ms = 5000
+	auto.include.jmx.reporter = true
+	auto.offset.reset = earliest
+	bootstrap.servers = [localhost:9092]
+	check.crcs = true
+	client.dns.lookup = use_all_dns_ips
+	client.id = consumer-rag-pipeline-group-retry-3
+	client.rack = 
+	connections.max.idle.ms = 540000
+	default.api.timeout.ms = 60000
+	enable.auto.commit = false
+	enable.metrics.push = true
+	exclude.internal.topics = true
+	fetch.max.bytes = 52428800
+	fetch.max.wait.ms = 500
+	fetch.min.bytes = 1
+	group.id = rag-pipeline-group-retry
+	group.instance.id = null
+	group.protocol = classic
+	group.remote.assignor = null
+	heartbeat.interval.ms = 3000
+	interceptor.classes = []
+	internal.leave.group.on.close = true
+	internal.throw.on.fetch.stable.offset.unsupported = false
+	isolation.level = read_uncommitted
+	key.deserializer = class org.apache.kafka.common.serialization.StringDeserializer
+	max.partition.fetch.bytes = 1048576
+	max.poll.interval.ms = 300000
+	max.poll.records = 500
+	metadata.max.age.ms = 30000
+	metric.reporters = []
+	metrics.num.samples = 2
+	metrics.recording.level = INFO
+	metrics.sample.window.ms = 30000
+	partition.assignment.strategy = [class org.apache.kafka.clients.consumer.RangeAssignor, class org.apache.kafka.clients.consumer.CooperativeStickyAssignor]
+	receive.buffer.bytes = 65536
+	reconnect.backoff.max.ms = 30000
+	reconnect.backoff.ms = 3000
+	request.timeout.ms = 5000
+	retry.backoff.max.ms = 1000
+	retry.backoff.ms = 100
+	sasl.client.callback.handler.class = null
+	sasl.jaas.config = null
+	sasl.kerberos.kinit.cmd = /usr/bin/kinit
+	sasl.kerberos.min.time.before.relogin = 60000
+	sasl.kerberos.service.name = null
+	sasl.kerberos.ticket.renew.jitter = 0.05
+	sasl.kerberos.ticket.renew.window.factor = 0.8
+	sasl.login.callback.handler.class = null
+	sasl.login.class = null
+	sasl.login.connect.timeout.ms = null
+	sasl.login.read.timeout.ms = null
+	sasl.login.refresh.buffer.seconds = 300
+	sasl.login.refresh.min.period.seconds = 60
+	sasl.login.refresh.window.factor = 0.8
+	sasl.login.refresh.window.jitter = 0.05
+	sasl.login.retry.backoff.max.ms = 10000
+	sasl.login.retry.backoff.ms = 100
+	sasl.mechanism = GSSAPI
+	sasl.oauthbearer.clock.skew.seconds = 30
+	sasl.oauthbearer.expected.audience = null
+	sasl.oauthbearer.expected.issuer = null
+	sasl.oauthbearer.jwks.endpoint.refresh.ms = 3600000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.max.ms = 10000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.ms = 100
+	sasl.oauthbearer.jwks.endpoint.url = null
+	sasl.oauthbearer.scope.claim.name = scope
+	sasl.oauthbearer.sub.claim.name = sub
+	sasl.oauthbearer.token.endpoint.url = null
+	security.protocol = PLAINTEXT
+	security.providers = null
+	send.buffer.bytes = 131072
+	session.timeout.ms = 45000
+	socket.connection.setup.timeout.max.ms = 30000
+	socket.connection.setup.timeout.ms = 10000
+	ssl.cipher.suites = null
+	ssl.enabled.protocols = [TLSv1.2, TLSv1.3]
+	ssl.endpoint.identification.algorithm = https
+	ssl.engine.factory.class = null
+	ssl.key.password = null
+	ssl.keymanager.algorithm = SunX509
+	ssl.keystore.certificate.chain = null
+	ssl.keystore.key = null
+	ssl.keystore.location = null
+	ssl.keystore.password = null
+	ssl.keystore.type = JKS
+	ssl.protocol = TLSv1.3
+	ssl.provider = null
+	ssl.secure.random.implementation = null
+	ssl.trustmanager.algorithm = PKIX
+	ssl.truststore.certificates = null
+	ssl.truststore.location = null
+	ssl.truststore.password = null
+	ssl.truststore.type = JKS
+	value.deserializer = class org.springframework.kafka.support.serializer.JsonDeserializer
+
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.t.i.KafkaMetricsCollector - initializing Kafka metrics collector
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka version: 3.7.1
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka commitId: e2494e6ffb89f828
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka startTimeMs: 1782562038237
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.LegacyKafkaConsumer - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Subscribed to topic(s): rag.pipeline.result-retry
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.consumer.ConsumerConfig - ConsumerConfig values: 
+	allow.auto.create.topics = true
+	auto.commit.interval.ms = 5000
+	auto.include.jmx.reporter = true
+	auto.offset.reset = earliest
+	bootstrap.servers = [localhost:9092]
+	check.crcs = true
+	client.dns.lookup = use_all_dns_ips
+	client.id = consumer-rag-pipeline-group-dlq-4
+	client.rack = 
+	connections.max.idle.ms = 540000
+	default.api.timeout.ms = 60000
+	enable.auto.commit = false
+	enable.metrics.push = true
+	exclude.internal.topics = true
+	fetch.max.bytes = 52428800
+	fetch.max.wait.ms = 500
+	fetch.min.bytes = 1
+	group.id = rag-pipeline-group-dlq
+	group.instance.id = null
+	group.protocol = classic
+	group.remote.assignor = null
+	heartbeat.interval.ms = 3000
+	interceptor.classes = []
+	internal.leave.group.on.close = true
+	internal.throw.on.fetch.stable.offset.unsupported = false
+	isolation.level = read_uncommitted
+	key.deserializer = class org.apache.kafka.common.serialization.StringDeserializer
+	max.partition.fetch.bytes = 1048576
+	max.poll.interval.ms = 300000
+	max.poll.records = 500
+	metadata.max.age.ms = 30000
+	metric.reporters = []
+	metrics.num.samples = 2
+	metrics.recording.level = INFO
+	metrics.sample.window.ms = 30000
+	partition.assignment.strategy = [class org.apache.kafka.clients.consumer.RangeAssignor, class org.apache.kafka.clients.consumer.CooperativeStickyAssignor]
+	receive.buffer.bytes = 65536
+	reconnect.backoff.max.ms = 30000
+	reconnect.backoff.ms = 3000
+	request.timeout.ms = 5000
+	retry.backoff.max.ms = 1000
+	retry.backoff.ms = 100
+	sasl.client.callback.handler.class = null
+	sasl.jaas.config = null
+	sasl.kerberos.kinit.cmd = /usr/bin/kinit
+	sasl.kerberos.min.time.before.relogin = 60000
+	sasl.kerberos.service.name = null
+	sasl.kerberos.ticket.renew.jitter = 0.05
+	sasl.kerberos.ticket.renew.window.factor = 0.8
+	sasl.login.callback.handler.class = null
+	sasl.login.class = null
+	sasl.login.connect.timeout.ms = null
+	sasl.login.read.timeout.ms = null
+	sasl.login.refresh.buffer.seconds = 300
+	sasl.login.refresh.min.period.seconds = 60
+	sasl.login.refresh.window.factor = 0.8
+	sasl.login.refresh.window.jitter = 0.05
+	sasl.login.retry.backoff.max.ms = 10000
+	sasl.login.retry.backoff.ms = 100
+	sasl.mechanism = GSSAPI
+	sasl.oauthbearer.clock.skew.seconds = 30
+	sasl.oauthbearer.expected.audience = null
+	sasl.oauthbearer.expected.issuer = null
+	sasl.oauthbearer.jwks.endpoint.refresh.ms = 3600000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.max.ms = 10000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.ms = 100
+	sasl.oauthbearer.jwks.endpoint.url = null
+	sasl.oauthbearer.scope.claim.name = scope
+	sasl.oauthbearer.sub.claim.name = sub
+	sasl.oauthbearer.token.endpoint.url = null
+	security.protocol = PLAINTEXT
+	security.providers = null
+	send.buffer.bytes = 131072
+	session.timeout.ms = 45000
+	socket.connection.setup.timeout.max.ms = 30000
+	socket.connection.setup.timeout.ms = 10000
+	ssl.cipher.suites = null
+	ssl.enabled.protocols = [TLSv1.2, TLSv1.3]
+	ssl.endpoint.identification.algorithm = https
+	ssl.engine.factory.class = null
+	ssl.key.password = null
+	ssl.keymanager.algorithm = SunX509
+	ssl.keystore.certificate.chain = null
+	ssl.keystore.key = null
+	ssl.keystore.location = null
+	ssl.keystore.password = null
+	ssl.keystore.type = JKS
+	ssl.protocol = TLSv1.3
+	ssl.provider = null
+	ssl.secure.random.implementation = null
+	ssl.trustmanager.algorithm = PKIX
+	ssl.truststore.certificates = null
+	ssl.truststore.location = null
+	ssl.truststore.password = null
+	ssl.truststore.type = JKS
+	value.deserializer = class org.springframework.kafka.support.serializer.JsonDeserializer
+
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.t.i.KafkaMetricsCollector - initializing Kafka metrics collector
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka version: 3.7.1
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka commitId: e2494e6ffb89f828
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka startTimeMs: 1782562038258
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.LegacyKafkaConsumer - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Subscribed to topic(s): rag.pipeline.result.DLT
+21:07:18 [NO_PIPE] [NO_REQ] INFO  c.r.pipeline.RagPipelineApplication - Started RagPipelineApplication in 20.28 seconds (process running for 20.726)
+21:07:18 [NO_PIPE] [NO_REQ] INFO  org.apache.kafka.clients.Metadata - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Cluster ID: r7QD5mzMRfu1b5OZyxzSnQ
+21:07:18 [NO_PIPE] [NO_REQ] INFO  org.apache.kafka.clients.Metadata - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Cluster ID: r7QD5mzMRfu1b5OZyxzSnQ
+21:07:18 [NO_PIPE] [NO_REQ] INFO  org.apache.kafka.clients.Metadata - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Cluster ID: r7QD5mzMRfu1b5OZyxzSnQ
+21:07:18 [NO_PIPE] [NO_REQ] INFO  org.apache.kafka.clients.Metadata - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Cluster ID: r7QD5mzMRfu1b5OZyxzSnQ
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] (Re-)joining group
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] (Re-)joining group
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] (Re-)joining group
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] (Re-)joining group
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Request joining group due to: need to re-join with the given member-id: consumer-rag-pipeline-group-2-46763ac1-b7a4-4790-b49f-d0514e1e7479
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Request joining group due to: need to re-join with the given member-id: consumer-rag-pipeline-group.DLT-1-afb05dc6-c5fd-4f9d-a851-93d24d967c25
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Request joining group due to: need to re-join with the given member-id: consumer-rag-pipeline-group-dlq-4-26d980e3-bb9a-4e68-aa03-60e377c84659
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Request joining group due to: need to re-join with the given member-id: consumer-rag-pipeline-group-retry-3-89c0bdcc-c5cf-4cdb-9197-7751bfb6a84f
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] (Re-)joining group
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] (Re-)joining group
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] (Re-)joining group
+21:07:18 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] (Re-)joining group
+21:07:25 [NO_PIPE] [NO_REQ] INFO  o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring DispatcherServlet 'dispatcherServlet'
+21:07:25 [NO_PIPE] [NO_REQ] INFO  o.s.web.servlet.DispatcherServlet - Initializing Servlet 'dispatcherServlet'
+21:07:25 [NO_PIPE] [NO_REQ] INFO  o.s.web.servlet.DispatcherServlet - Completed initialization in 1 ms
+21:07:25 [NO_PIPE] [2bb9720f] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 1
+21:07:26 [NO_PIPE] [2bb9720f] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: {"isComplete":false,"message":"좋아요! 먼저 서비스 이름부터 알려주세요. 앱/서비스 이름이 정해져 있나요?","suggestions":["서비스 이름은 아직 정하지 않았고, 나중에 정할 예정이에요.","서비스 이름은 \"미팅노트\"예요.","서비스 이름은 \"회의요약\"이에요."]}
+21:07:26 [NO_PIPE] [2bb9720f] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 응답 | isComplete: false, suggestions: 3개
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Successfully joined group with generation Generation{generationId=9, memberId='consumer-rag-pipeline-group-retry-3-89c0bdcc-c5cf-4cdb-9197-7751bfb6a84f', protocol='range'}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Finished assignment for group at generation 9: {consumer-rag-pipeline-group-retry-3-89c0bdcc-c5cf-4cdb-9197-7751bfb6a84f=Assignment(partitions=[rag.pipeline.result-retry-0])}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Successfully joined group with generation Generation{generationId=246, memberId='consumer-rag-pipeline-group-2-46763ac1-b7a4-4790-b49f-d0514e1e7479', protocol='range'}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Successfully joined group with generation Generation{generationId=9, memberId='consumer-rag-pipeline-group-dlq-4-26d980e3-bb9a-4e68-aa03-60e377c84659', protocol='range'}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Finished assignment for group at generation 246: {consumer-rag-pipeline-group-2-46763ac1-b7a4-4790-b49f-d0514e1e7479=Assignment(partitions=[rag.pipeline.result-0])}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Finished assignment for group at generation 9: {consumer-rag-pipeline-group-dlq-4-26d980e3-bb9a-4e68-aa03-60e377c84659=Assignment(partitions=[rag.pipeline.result.DLT-0])}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Successfully synced group in generation Generation{generationId=9, memberId='consumer-rag-pipeline-group-retry-3-89c0bdcc-c5cf-4cdb-9197-7751bfb6a84f', protocol='range'}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Successfully synced group in generation Generation{generationId=246, memberId='consumer-rag-pipeline-group-2-46763ac1-b7a4-4790-b49f-d0514e1e7479', protocol='range'}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Successfully synced group in generation Generation{generationId=9, memberId='consumer-rag-pipeline-group-dlq-4-26d980e3-bb9a-4e68-aa03-60e377c84659', protocol='range'}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Notifying assignor about the new Assignment(partitions=[rag.pipeline.result-retry-0])
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Notifying assignor about the new Assignment(partitions=[rag.pipeline.result-0])
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Notifying assignor about the new Assignment(partitions=[rag.pipeline.result.DLT-0])
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerRebalanceListenerInvoker - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Adding newly assigned partitions: rag.pipeline.result.DLT-0
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerRebalanceListenerInvoker - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Adding newly assigned partitions: rag.pipeline.result-0
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerRebalanceListenerInvoker - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Adding newly assigned partitions: rag.pipeline.result-retry-0
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Successfully joined group with generation Generation{generationId=9, memberId='consumer-rag-pipeline-group.DLT-1-afb05dc6-c5fd-4f9d-a851-93d24d967c25', protocol='range'}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Finished assignment for group at generation 9: {consumer-rag-pipeline-group.DLT-1-afb05dc6-c5fd-4f9d-a851-93d24d967c25=Assignment(partitions=[rag.pipeline.result.DLT-0])}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Found no committed offset for partition rag.pipeline.result-retry-0
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Found no committed offset for partition rag.pipeline.result.DLT-0
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Successfully synced group in generation Generation{generationId=9, memberId='consumer-rag-pipeline-group.DLT-1-afb05dc6-c5fd-4f9d-a851-93d24d967c25', protocol='range'}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Notifying assignor about the new Assignment(partitions=[rag.pipeline.result.DLT-0])
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerRebalanceListenerInvoker - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Adding newly assigned partitions: rag.pipeline.result.DLT-0
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.internals.ConsumerUtils - Setting offset for partition rag.pipeline.result-0 to the committed offset FetchPosition{offset=24, offsetEpoch=Optional.empty, currentLeader=LeaderAndEpoch{leader=Optional[localhost:9092 (id: 1 rack: null)], epoch=0}}
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.s.k.l.KafkaMessageListenerContainer - rag-pipeline-group: partitions assigned: [rag.pipeline.result-0]
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Found no committed offset for partition rag.pipeline.result.DLT-0
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.SubscriptionState - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Resetting offset for partition rag.pipeline.result-retry-0 to position FetchPosition{offset=0, offsetEpoch=Optional.empty, currentLeader=LeaderAndEpoch{leader=Optional[localhost:9092 (id: 1 rack: null)], epoch=0}}.
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.SubscriptionState - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Resetting offset for partition rag.pipeline.result.DLT-0 to position FetchPosition{offset=0, offsetEpoch=Optional.empty, currentLeader=LeaderAndEpoch{leader=Optional[localhost:9092 (id: 1 rack: null)], epoch=0}}.
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.s.k.l.KafkaMessageListenerContainer - rag-pipeline-group-retry: partitions assigned: [rag.pipeline.result-retry-0]
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.s.k.l.KafkaMessageListenerContainer - rag-pipeline-group-dlq: partitions assigned: [rag.pipeline.result.DLT-0]
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.SubscriptionState - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Resetting offset for partition rag.pipeline.result.DLT-0 to position FetchPosition{offset=0, offsetEpoch=Optional.empty, currentLeader=LeaderAndEpoch{leader=Optional[localhost:9092 (id: 1 rack: null)], epoch=0}}.
+21:07:36 [NO_PIPE] [NO_REQ] INFO  o.s.k.l.KafkaMessageListenerContainer - rag-pipeline-group.DLT: partitions assigned: [rag.pipeline.result.DLT-0]
+21:07:53 [NO_PIPE] [164c6ff8] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 1
+21:07:55 [NO_PIPE] [164c6ff8] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: {"isComplete":false,"message":"좋아요! 그 서비스의 이름은 무엇으로 생각하고 계신가요?","suggestions":["서비스 이름은 아직 정하지 않았고, 먼저 기능부터 정리하고 싶어요.","서비스 이름은 '트립플랜'처럼 여행 계획 느낌의 이름을 생각하고 있어요.","서비스 이름은 '국내여행 플래너'처럼 직관적인 이름이면 좋겠어요."]}
+21:07:55 [NO_PIPE] [164c6ff8] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 응답 | isComplete: false, suggestions: 3개
+21:07:58 [NO_PIPE] [19c6bc0d] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 3
+21:07:59 [NO_PIPE] [19c6bc0d] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: {"isComplete":false,"message":"좋아요, 이름 방향은 여행 계획 느낌이네요. 그럼 이 서비스가 어떤 서비스인지 1~2문장으로 간단히 설명해주실 수 있을까요?","suggestions":["국내여행 일정을 자동으로 추천하고, 이동 동선과 맛집까지 한 번에 계획해주는 서비스예요.","사용자가 여행 목적지와 날짜를 입력하면 맞춤형 국내여행 일정을 만들어주는 서비스예요.","여행 초보도 쉽게 국내여행 계획을 세울 수 있도록 일정, 장소, 동선, 예산을 정리해주는 서비스예요."]}
+21:07:59 [NO_PIPE] [19c6bc0d] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 응답 | isComplete: false, suggestions: 3개
+21:08:01 [NO_PIPE] [d9694777] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 5
+21:08:02 [NO_PIPE] [d9694777] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: {"isComplete":false,"message":"좋아요, 꽤 선명해졌어요. 이 서비스는 어떤 플랫폼으로 만들고 싶으신가요?","suggestions":["웹사이트로 먼저 만들고 싶어요.","모바일 앱으로 만들고 싶어요.","웹과 앱 모두 지원하는 서비스로 만들고 싶어요."]}
+21:08:02 [NO_PIPE] [d9694777] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 응답 | isComplete: false, suggestions: 3개
+21:08:02 [NO_PIPE] [4fe544a4] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 7
+21:08:04 [NO_PIPE] [4fe544a4] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: 좋습니다. 그럼 이 서비스가 해결하려는 가장 큰 불편함은 무엇인가요?  
+예를 들면, 여행 일정 짜는 데 시간이 너무 오래 걸린다거나, 이동 동선이 비효율적이라서요.
+
+["국내여행 일정을 짤 때 정보가 너무 흩어져 있어서 계획하는 데 시간이 많이 걸린다는 문제를 해결하고 싶어요.", "장소, 이동 동선, 맛집을 따로 찾아야 해서 여행 계획이 번거롭다는 불편함을 해결하고 싶어요.", "여행 초보자도 쉽게 최적화된 일정을 만들 수 없다는 점이 가장 큰 문제예요."]
+21:08:04 [NO_PIPE] [4fe544a4] WARN  c.r.pipeline.chat.IntakeChatService - JSON 파싱 실패 — 텍스트 폴백: 좋습니다. 그럼 이 서비스가 해결하려는 가장 큰 불편함은 무엇인가요?  
+예를 들면, 여행 일정 짜는 데 시간이 너무 오래 걸린다거나, 이동 동선이 비효율적이라서요.
+
+["국내여행...
+21:08:04 [NO_PIPE] [175a0ddd] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 9
+21:08:05 [NO_PIPE] [175a0ddd] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: {"isComplete":false,"message":"좋아요, 그럼 지금은 그 문제를 어떻게 해결하고 계신가요? 예를 들어 직접 검색해서 메모로 정리한다든지, 지도 앱을 따로 쓰는 방식인지 궁금해요.","suggestions":["지금은 블로그, 지도 앱, 맛집 검색을 따로 하면서 수동으로 일정을 짜고 있어요.", "엑셀이나 메모장에 장소를 하나씩 정리하면서 여행 계획을 만들고 있어요.", "아직 괜찮은 방법이 없어서, 여러 사이트를 돌아다니며 직접 비교하고 있어요."]}
+21:08:05 [NO_PIPE] [175a0ddd] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 응답 | isComplete: false, suggestions: 3개
+21:08:06 [NO_PIPE] [95d9d7e8] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 11
+21:08:08 [NO_PIPE] [95d9d7e8] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: 좋아요. 이 서비스가 잘 되면 어떤 모습이 가장 이상적일까요? 예를 들어 “몇 번의 클릭만으로 하루 일정이 완성된다” 같은 형태로요.
+
+["몇 번의 클릭만으로 국내여행 하루 일정이 자동으로 완성되는 모습이면 좋겠어요.", "이동 동선과 맛집까지 한 번에 최적화된 여행 계획이 바로 나오는 상태가 이상적이에요.", "여행 초보자도 검색 없이 쉽게 맞춤형 일정을 만들 수 있으면 좋겠어요."]
+21:08:08 [NO_PIPE] [95d9d7e8] WARN  c.r.pipeline.chat.IntakeChatService - JSON 파싱 실패 — 텍스트 폴백: 좋아요. 이 서비스가 잘 되면 어떤 모습이 가장 이상적일까요? 예를 들어 “몇 번의 클릭만으로 하루 일정이 완성된다” 같은 형태로요.
+
+["몇 번의 클릭만으로 국내여행 하루 일정이...
+21:08:14 [NO_PIPE] [2608b096] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 13
+21:08:16 [NO_PIPE] [2608b096] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: {"isComplete":false,"message":"좋아요. 그럼 이 서비스를 주로 누가 쓰게 될지 알려주세요. 예를 들어 여행을 자주 가는 20~30대 직장인, 커플, 가족 여행객처럼요.","suggestions":["국내여행을 자주 가는 20~30대 직장인이나 커플이 주로 사용할 것 같아요.","여행 계획 세우는 데 익숙하지 않은 여행 초보자나 친구들과 떠나는 소규모 여행객이 사용할 것 같아요.","주말마다 짧은 국내여행을 자주 가는 사람들, 특히 일정 짜는 시간을 줄이고 싶은 사람들이 사용할 것 같아요."]}
+21:08:16 [NO_PIPE] [2608b096] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 응답 | isComplete: false, suggestions: 3개
+21:08:16 [NO_PIPE] [bdfcc4af] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 15
+21:08:18 [NO_PIPE] [bdfcc4af] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: 좋아요. 그분들은 주로 어디에서 이 서비스를 사용할까요? 예를 들면 집에서 여행 계획을 짤 때, 이동 중에 모바일로 볼 때, 회사에서 잠깐 틈날 때처럼요.
+21:08:18 [NO_PIPE] [bdfcc4af] WARN  c.r.pipeline.chat.IntakeChatService - JSON 파싱 실패 — 텍스트 폴백: 좋아요. 그분들은 주로 어디에서 이 서비스를 사용할까요? 예를 들면 집에서 여행 계획을 짤 때, 이동 중에 모바일로 볼 때, 회사에서 잠깐 틈날 때처럼요.
+21:08:21 [NO_PIPE] [11b88c00] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 17
+21:08:22 [NO_PIPE] [11b88c00] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: 좋아요. 그 사용자들이 여행 계획을 짤 때 가장 크게 느끼는 불편함은 무엇인가요? 예를 들면 “정보가 너무 많아 선택이 어렵다”, “동선 맞추기가 어렵다”, “맛집과 일정 조합이 번거롭다” 같은 것들이요.
+21:08:22 [NO_PIPE] [11b88c00] WARN  c.r.pipeline.chat.IntakeChatService - JSON 파싱 실패 — 텍스트 폴백: 좋아요. 그 사용자들이 여행 계획을 짤 때 가장 크게 느끼는 불편함은 무엇인가요? 예를 들면 “정보가 너무 많아 선택이 어렵다”, “동선 맞추기가 어렵다”, “맛집과 일정 조합이 ...
+21:08:23 [NO_PIPE] [770261fd] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 처리 시작 | 메시지 수: 19
+21:08:25 [NO_PIPE] [770261fd] DEBUG c.r.pipeline.chat.IntakeChatService - 모델 응답 raw: {"isComplete":true,"message":"좋아요! 충분한 정보가 모였어요. 지금 바로 프로젝트를 시작할게요!","suggestions":[],"formData":{"projectName":"트립플랜","projectDescription":"국내여행 일정을 자동으로 추천하고, 이동 동선과 맛집까지 한 번에 계획해주는 웹 서비스예요.","platform":"WEB","techStack":[],"problemDefinition":{"currentPainPoint":"국내여행 일정을 짤 때 정보가 너무 흩어져 있어서 계획하는 데 시간이 많이 걸리고, 이동 동선과 맛집까지 함께 고려하기 어렵다.","currentSolution":"지금은 블로그, 지도 앱, 맛집 검색을 따로 하면서 수동으로 일정을 짜고 있다.","idealState":"몇 번의 클릭만으로 이동 동선과 맛집까지 최적화된 국내여행 일정이 자동으로 완성되는 상태다.","businessImpact":null,"motivation":null,"competitorGap":null},"targetUsers":[{"persona":"국내여행을 자주 가는 20~30대 직장인이나 커플","usageEnvironment":"여행 계획을 세우는 집이나 회사, 또는 이동 중에도 웹으로 확인하는 환경","biggestPainPoint":"정보가 너무 많아 선택이 어렵고, 일정과 동선을 맞추는 일이 번거롭다"}],"featureDefinition":{"commonFeatures":[],"customFeatures":[]}}}
+21:08:25 [NO_PIPE] [770261fd] INFO  c.r.pipeline.chat.IntakeChatService - 채팅 응답 | isComplete: true, suggestions: 0개
+21:08:26 [NO_PIPE] [79451c49] INFO  c.r.p.phase2.OrchestrationController - 파이프라인 시작 | pipelineId: 5a9235b0, project: 트립플랜
+21:08:26 [5a9235b0] [NO_REQ] INFO  c.r.p.phase1.RagPipelineService - [7200e702-cc91-4474-ba78-fe5c128ac574] Phase 1 시작 — 프로젝트: 트립플랜
+21:08:26 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.parsing.PDFParsingService - [7200e702-cc91-4474-ba78-fe5c128ac574] 업로드된 PDF 없음, 스킵
+21:08:26 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.QueryExpansionService - Query Expansion 시작 — 원본: '트립플랜 서비스를 WEB 플랫폼으로 개발합니다.
+국내여행 일정을 자동으로 추천하고, 이동 동선과 맛집까지 한 번에 계획해주는 웹 서비스예요.
+
+[문제 정의]
+핵심 문제: 국내여행 일정을 짤 때 정보가 너무 흩어져 있어서 계획하는 데 시간이 많이 걸리고, 이동 동선과 맛집까지 함께 고려하기 어렵다.
+현재 해결 방식: 지금은 블로그, 지도 앱, 맛집 검색을 따로 하면서 수동으로 일정을 짜고 있다.
+이상적인 상태: 몇 번의 클릭만으로 이동 동선과 맛집까지 최적화된 국내여행 일정이 자동으로 완성되는 상태다.
+
+[타겟 유저]
+유저1: 국내여행을 자주 가는 20~30대 직장인이나 커플 / 여행 계획을 세우는 집이나 회사, 또는 이동 중에도 웹으로 확인하는 환경 / 정보가 너무 많아 선택이 어렵고, 일정과 동선을 맞추는 일이 번거롭다
+
+[기능 정의]'
+21:08:26 [NO_PIPE] [0f3a7c1f] DEBUG c.r.p.phase2.OrchestrationController - SSE 구독 | pipelineId: 5a9235b0
+21:08:30 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.QueryExpansionService - Query Expansion 완료 — 6 queries: [트립플랜 서비스를 WEB 플랫폼으로 개발합니다.
+국내여행 일정을 자동으로 추천하고, 이동 동선과 맛집까지 한 번에 계획해주는 웹 서비스예요.
+
+[문제 정의]
+핵심 문제: 국내여행 일정을 짤 때 정보가 너무 흩어져 있어서 계획하는 데 시간이 많이 걸리고, 이동 동선과 맛집까지 함께 고려하기 어렵다.
+현재 해결 방식: 지금은 블로그, 지도 앱, 맛집 검색을 따로 하면서 수동으로 일정을 짜고 있다.
+이상적인 상태: 몇 번의 클릭만으로 이동 동선과 맛집까지 최적화된 국내여행 일정이 자동으로 완성되는 상태다.
+
+[타겟 유저]
+유저1: 국내여행을 자주 가는 20~30대 직장인이나 커플 / 여행 계획을 세우는 집이나 회사, 또는 이동 중에도 웹으로 확인하는 환경 / 정보가 너무 많아 선택이 어렵고, 일정과 동선을 맞추는 일이 번거롭다
+
+[기능 정의], 국내여행 일정 추천 웹 서비스 아키텍처, 여행 동선 최적화 경로 추천 알고리즘, 맛집 추천과 관광지 연계 일정 생성, 여행 일정 자동 생성 RAG 시스템, 지도 API 기반 국내여행 플래너 웹앱]
+21:08:30 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 시작 — query: '트립플랜 서비스를 WEB 플랫폼으로 개발합니다.
+국내여행 일정을 자동으로 추천하고, 이동 동선과 맛집까지 한 번에 계획해주는 웹 서비스예요.
+
+[문제 정의]
+핵심 문제: 국내여행 일정을 짤 때 정보가 너무 흩어져 있어서 계획하는 데 시간이 많이 걸리고, 이동 동선과 맛집까지 함께 고려하기 어렵다.
+현재 해결 방식: 지금은 블로그, 지도 앱, 맛집 검색을 따로 하면서 수동으로 일정을 짜고 있다.
+이상적인 상태: 몇 번의 클릭만으로 이동 동선과 맛집까지 최적화된 국내여행 일정이 자동으로 완성되는 상태다.
+
+[타겟 유저]
+유저1: 국내여행을 자주 가는 20~30대 직장인이나 커플 / 여행 계획을 세우는 집이나 회사, 또는 이동 중에도 웹으로 확인하는 환경 / 정보가 너무 많아 선택이 어렵고, 일정과 동선을 맞추는 일이 번거롭다
+
+[기능 정의]', topK: 20
+21:08:30 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 완료 — 0 docs 반환 (vector: 0, keyword: 0)
+21:08:30 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 시작 — query: '국내여행 일정 추천 웹 서비스 아키텍처', topK: 20
+21:08:31 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - 한국어 쿼리 — FTS 스킵, 벡터 검색만 사용: '국내여행 일정 추천 웹 서비스 아키텍처'
+21:08:31 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 완료 — 0 docs 반환 (vector: 0, keyword: 0)
+21:08:31 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 시작 — query: '여행 동선 최적화 경로 추천 알고리즘', topK: 20
+21:08:31 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - 한국어 쿼리 — FTS 스킵, 벡터 검색만 사용: '여행 동선 최적화 경로 추천 알고리즘'
+21:08:31 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 완료 — 0 docs 반환 (vector: 0, keyword: 0)
+21:08:31 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 시작 — query: '맛집 추천과 관광지 연계 일정 생성', topK: 20
+21:08:32 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - 한국어 쿼리 — FTS 스킵, 벡터 검색만 사용: '맛집 추천과 관광지 연계 일정 생성'
+21:08:32 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 완료 — 0 docs 반환 (vector: 0, keyword: 0)
+21:08:32 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 시작 — query: '여행 일정 자동 생성 RAG 시스템', topK: 20
+21:08:32 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - 한국어 쿼리 — FTS 스킵, 벡터 검색만 사용: '여행 일정 자동 생성 RAG 시스템'
+21:08:32 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 완료 — 0 docs 반환 (vector: 0, keyword: 0)
+21:08:32 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 시작 — query: '지도 API 기반 국내여행 플래너 웹앱', topK: 20
+21:08:33 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - 한국어 쿼리 — FTS 스킵, 벡터 검색만 사용: '지도 API 기반 국내여행 플래너 웹앱'
+21:08:33 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.search.HybridSearchService - Hybrid Search 완료 — 0 docs 반환 (vector: 0, keyword: 0)
+21:08:33 [5a9235b0] [NO_REQ] DEBUG c.r.p.p.reranker.RerankerService - Reranker 비활성화 — 후보 그대로 반환
+21:08:33 [5a9235b0] [NO_REQ] INFO  c.r.p.p.graph.OrchestrationGraph - === Phase 2 오케스트레이션 시작 ===
+21:08:33 [5a9235b0] [NO_REQ] INFO  c.r.p.phase2.agent.SearchAgent - Search 에이전트 시작 — 시장 데이터 수집
+21:08:34 [5a9235b0] [NO_REQ] INFO  c.r.p.phase2.agent.SearchAgent - 도메인 추출 결과: [여행 일정 추천]
+21:08:34 [NO_PIPE] [NO_REQ] INFO  c.r.p.phase2.agent.SearchAgent -   웹 검색 1/5: 시장규모/경쟁사...
+21:08:34 [NO_PIPE] [NO_REQ] INFO  c.r.p.phase2.agent.SearchAgent -   웹 검색 2/5: Pain Point...
+21:08:34 [NO_PIPE] [NO_REQ] INFO  c.r.p.phase2.agent.SearchAgent -   웹 검색 3/5: 법규...
+21:08:34 [NO_PIPE] [NO_REQ] INFO  c.r.p.phase2.agent.SearchAgent -   웹 검색 4/5: 기술트렌드...
+21:08:34 [NO_PIPE] [NO_REQ] INFO  c.r.p.phase2.agent.SearchAgent -   웹 검색 5/5: 사용자통계...
+21:09:38 [5a9235b0] [NO_REQ] INFO  c.r.p.phase2.agent.SearchAgent - Search 에이전트 완료 — 83자 수집
+21:09:38 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PmAgent - PM 에이전트 시작 — query: '트립플랜 서비스를 WEB 플랫폼으로 개발합니다.
+국내여행 일정을 자동으로 추천하고, 이동 동선과 맛집까지 한 번에 계획해주는 웹 서비스예요.
+
+[문제 정의]
+핵심 문제: 국내여행 일정을 짤 때 정보가 너무 흩어져 있어서 계획하는 데 시간이 많이 걸리고, 이동 동선과 맛집까지 함께 고려하기 어렵다.
+현재 해결 방식: 지금은 블로그, 지도 앱, 맛집 검색을 따로 하면서 수동으로 일정을 짜고 있다.
+이상적인 상태: 몇 번의 클릭만으로 이동 동선과 맛집까지 최적화된 국내여행 일정이 자동으로 완성되는 상태다.
+
+[타겟 유저]
+유저1: 국내여행을 자주 가는 20~30대 직장인이나 커플 / 여행 계획을 세우는 집이나 회사, 또는 이동 중에도 웹으로 확인하는 환경 / 정보가 너무 많아 선택이 어렵고, 일정과 동선을 맞추는 일이 번거롭다
+
+[기능 정의]'
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.r.p.common.skills.PmSkillsLoader - PM 스킬 RAG 선택 결과 (상위 5/17)
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.r.p.common.skills.PmSkillsLoader -   1위. discover-journey-map (유사도: 0.5373)
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.r.p.common.skills.PmSkillsLoader -   2위. deliver-prd (유사도: 0.3985)
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.r.p.common.skills.PmSkillsLoader -   3위. define-problem-statement (유사도: 0.3940)
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.r.p.common.skills.PmSkillsLoader -   4위. define-jtbd-canvas (유사도: 0.3923)
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.r.p.common.skills.PmSkillsLoader -   5위. define-opportunity-tree (유사도: 0.3839)
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PmAgent - PM 스킬 프롬프트 주입 완료 — 3411 자 추가됨
+21:09:39 [5a9235b0] [NO_REQ] ERROR c.rag.pipeline.phase2.agent.PmAgent - PM 에이전트 실패: 400 - {
+  "error": {
+    "message": "Unsupported parameter: 'temperature' is not supported with this model.",
+    "type": "invalid_request_error",
+    "param": "temperature",
+    "code": null
+  }
+}
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.r.p.p.graph.OrchestrationGraph - PRD 에이전트 실행 중... (시도 1)
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - PRD 에이전트 시작
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2A: PRD 앞부분 생성 중...
+21:09:39 [5a9235b0] [NO_REQ] ERROR c.rag.pipeline.phase2.agent.PrdAgent - Responses API 호출 실패: 400 - {
+  "error": {
+    "message": "Unsupported parameter: 'temperature' is not supported with this model.",
+    "type": "invalid_request_error",
+    "param": "temperature",
+    "code": null
+  }
+}
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2A 완료
+21:09:39 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2B: PRD 뒷부분 생성 중...
+21:09:40 [5a9235b0] [NO_REQ] ERROR c.rag.pipeline.phase2.agent.PrdAgent - Responses API 호출 실패: 400 - {
+  "error": {
+    "message": "Unsupported parameter: 'temperature' is not supported with this model.",
+    "type": "invalid_request_error",
+    "param": "temperature",
+    "code": null
+  }
+}
+21:09:40 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2B 완료
+21:09:40 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - PRD 에이전트 완료 — 2chars
+21:09:40 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.DbaAgent - DBA 에이전트 시작
+21:09:40 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.ApiAgent - API 에이전트 시작
+21:09:41 [NO_PIPE] [NO_REQ] WARN  c.rag.pipeline.phase2.agent.ApiAgent - API → PRD 피드백 발생: 기능 목록이 비어 있어 파싱 실패 외에 설계할 REST API를 특정할 수 없습니다. DB 스키마 테이블 정보도 제공되지 않아 테이블 일치 여부를 검증할 수 없습니다.
+21:09:41 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.ApiAgent - API 에이전트 완료 — API 스펙 생성
+21:09:50 [NO_PIPE] [NO_REQ] WARN  c.rag.pipeline.phase2.agent.DbaAgent - DBA → PRD 피드백 발생: 기능 목록이 '파싱 실패'로만 제공되어 실제 기능 요구사항이 식별되지 않았습니다. 따라서 추천 생성, 일정 자동화, 동선 최적화, 맛집 추천, 검색/필터, 공유/저장, 지도 연동, 알림 등 세부 API 요구사항은 추정 기반으로만 반영되었습니다.
+21:09:50 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.DbaAgent - DBA 에이전트 완료 — DB 스키마 생성
+21:09:50 [5a9235b0] [NO_REQ] WARN  c.r.p.p.graph.OrchestrationGraph - PRD rollback #1
+21:09:50 [5a9235b0] [NO_REQ] INFO  c.r.p.p.graph.OrchestrationGraph - PRD 에이전트 실행 중... (시도 2)
+21:09:50 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - PRD 에이전트 시작
+21:09:50 [5a9235b0] [NO_REQ] WARN  c.rag.pipeline.phase2.agent.PrdAgent - PRD rollback 모드 — DBA/API 피드백 반영하여 재생성 (1회째)
+21:09:50 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2A: PRD 앞부분 생성 중...
+21:09:50 [5a9235b0] [NO_REQ] ERROR c.rag.pipeline.phase2.agent.PrdAgent - Responses API 호출 실패: 400 - {
+  "error": {
+    "message": "Unsupported parameter: 'temperature' is not supported with this model.",
+    "type": "invalid_request_error",
+    "param": "temperature",
+    "code": null
+  }
+}
+21:09:50 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2A 완료
+21:09:50 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2B: PRD 뒷부분 생성 중...
+21:09:50 [5a9235b0] [NO_REQ] ERROR c.rag.pipeline.phase2.agent.PrdAgent - Responses API 호출 실패: 400 - {
+  "error": {
+    "message": "Unsupported parameter: 'temperature' is not supported with this model.",
+    "type": "invalid_request_error",
+    "param": "temperature",
+    "code": null
+  }
+}
+21:09:50 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2B 완료
+21:09:50 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - PRD 에이전트 완료 — 2chars
+21:09:50 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.DbaAgent - DBA 에이전트 시작
+21:09:50 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.ApiAgent - API 에이전트 시작
+21:09:52 [NO_PIPE] [NO_REQ] WARN  c.rag.pipeline.phase2.agent.ApiAgent - API → PRD 피드백 발생: 기능 목록이 비어 있어 파싱 실패 외의 구체 기능을 식별할 수 없습니다. DB 스키마 정보도 제공되지 않아 테이블과 일치하는 REST API를 설계할 수 없습니다. 또한 인증 방식과 필요한 리소스 범위가 불명확합니다.
+21:09:52 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.ApiAgent - API 에이전트 완료 — API 스펙 생성
+21:10:01 [NO_PIPE] [NO_REQ] WARN  c.rag.pipeline.phase2.agent.DbaAgent - DBA → PRD 피드백 발생: 기능 목록이 '파싱 실패'만 제공되어 실제 요구 기능이 식별되지 않았습니다. 따라서 자동 일정 추천, 동선 최적화, 맛집 추천, 검색/필터, 공유, 저장, 즐겨찾기 등 세부 API 요구사항은 추정으로 설계되었습니다.
+21:10:01 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.DbaAgent - DBA 에이전트 완료 — DB 스키마 생성
+21:10:01 [5a9235b0] [NO_REQ] WARN  c.r.p.p.graph.OrchestrationGraph - PRD rollback #2
+21:10:01 [5a9235b0] [NO_REQ] INFO  c.r.p.p.graph.OrchestrationGraph - PRD 에이전트 실행 중... (시도 3)
+21:10:01 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - PRD 에이전트 시작
+21:10:01 [5a9235b0] [NO_REQ] WARN  c.rag.pipeline.phase2.agent.PrdAgent - PRD rollback 모드 — DBA/API 피드백 반영하여 재생성 (2회째)
+21:10:01 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2A: PRD 앞부분 생성 중...
+21:10:01 [5a9235b0] [NO_REQ] ERROR c.rag.pipeline.phase2.agent.PrdAgent - Responses API 호출 실패: 400 - {
+  "error": {
+    "message": "Unsupported parameter: 'temperature' is not supported with this model.",
+    "type": "invalid_request_error",
+    "param": "temperature",
+    "code": null
+  }
+}
+21:10:01 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2A 완료
+21:10:01 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2B: PRD 뒷부분 생성 중...
+21:10:02 [5a9235b0] [NO_REQ] ERROR c.rag.pipeline.phase2.agent.PrdAgent - Responses API 호출 실패: 400 - {
+  "error": {
+    "message": "Unsupported parameter: 'temperature' is not supported with this model.",
+    "type": "invalid_request_error",
+    "param": "temperature",
+    "code": null
+  }
+}
+21:10:02 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - STEP 2B 완료
+21:10:02 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.PrdAgent - PRD 에이전트 완료 — 2chars
+21:10:02 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.DbaAgent - DBA 에이전트 시작
+21:10:02 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.ApiAgent - API 에이전트 시작
+21:10:03 [NO_PIPE] [NO_REQ] WARN  c.rag.pipeline.phase2.agent.ApiAgent - API → PRD 피드백 발생: 기능 목록에 '파싱 실패'만 존재하여 실제 제품 기능을 식별할 수 없습니다. 따라서 DB 스키마와 일치하는 REST API 엔드포인트를 설계할 수 없습니다. 기능 목록의 원문 또는 파싱 가능한 형태의 요구사항이 필요합니다.
+21:10:03 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.ApiAgent - API 에이전트 완료 — API 스펙 생성
+21:10:13 [NO_PIPE] [NO_REQ] WARN  c.rag.pipeline.phase2.agent.DbaAgent - DBA → PRD 피드백 발생: 기능 목록이 '파싱 실패'로만 제공되어 실제 기능 요구사항을 식별할 수 없습니다. 따라서 여행 일정 자동 추천, 동선 최적화, 맛집 추천, 공유, 즐겨찾기, 리뷰, 통계 등 프로젝트 컨텍스트 기반의 핵심 기능을 반영해 스키마를 추정 설계했습니다. API에서 필요한 상세 기능 목록(예: 검색, 필터, 지도 연동, 알림, 결제, 관리자 기능)이 추가로 필요할 수 있습니다.
+21:10:13 [NO_PIPE] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.DbaAgent - DBA 에이전트 완료 — DB 스키마 생성
+21:10:13 [5a9235b0] [NO_REQ] WARN  c.r.p.p.graph.OrchestrationGraph - PRD rollback 최대 횟수 초과 — 현재 결과로 진행
+21:10:13 [5a9235b0] [NO_REQ] INFO  c.r.p.p.graph.OrchestrationGraph - QA 에이전트 실행 중... (시도 1)
+21:10:13 [5a9235b0] [NO_REQ] INFO  c.rag.pipeline.phase2.agent.QaAgent - QA 에이전트 시작 — 논리적 정합성 검수
+21:10:14 [5a9235b0] [NO_REQ] ERROR c.rag.pipeline.phase2.agent.QaAgent - QA 에이전트 실패: 400 - {
+  "error": {
+    "message": "Unsupported parameter: 'temperature' is not supported with this model.",
+    "type": "invalid_request_error",
+    "param": "temperature",
+    "code": null
+  }
+}
+21:10:14 [5a9235b0] [NO_REQ] INFO  c.r.p.p.graph.OrchestrationGraph - QA 검수 통과 (시도 1)
+21:10:14 [5a9235b0] [NO_REQ] INFO  c.r.p.p.graph.OrchestrationGraph - === Phase 2 완료 ===
+21:10:14 [5a9235b0] [NO_REQ] DEBUG c.r.p.phase2.OrchestrationController - Phase 2 완료 | retryCount: 0
+21:10:14 [5a9235b0] [NO_REQ] INFO  c.r.p.p.validation.ValidationService - === Phase 3 검증 시작 === (retry: 0)
+21:10:14 [5a9235b0] [NO_REQ] INFO  c.r.p.p.validation.SchemaValidator - 검증 통과
+21:10:14 [5a9235b0] [NO_REQ] INFO  c.r.p.p.validation.ValidationService - === Phase 3 검증 통과 ===
+21:10:14 [5a9235b0] [NO_REQ] INFO  o.a.k.c.producer.ProducerConfig - ProducerConfig values: 
+	acks = -1
+	auto.include.jmx.reporter = true
+	batch.size = 16384
+	bootstrap.servers = [localhost:9092]
+	buffer.memory = 33554432
+	client.dns.lookup = use_all_dns_ips
+	client.id = rag-pipeline-producer-1
+	compression.type = none
+	connections.max.idle.ms = 540000
+	delivery.timeout.ms = 120000
+	enable.idempotence = true
+	enable.metrics.push = true
+	interceptor.classes = []
+	key.serializer = class org.apache.kafka.common.serialization.StringSerializer
+	linger.ms = 0
+	max.block.ms = 60000
+	max.in.flight.requests.per.connection = 5
+	max.request.size = 1048576
+	metadata.max.age.ms = 30000
+	metadata.max.idle.ms = 300000
+	metric.reporters = []
+	metrics.num.samples = 2
+	metrics.recording.level = INFO
+	metrics.sample.window.ms = 30000
+	partitioner.adaptive.partitioning.enable = true
+	partitioner.availability.timeout.ms = 0
+	partitioner.class = null
+	partitioner.ignore.keys = false
+	receive.buffer.bytes = 32768
+	reconnect.backoff.max.ms = 30000
+	reconnect.backoff.ms = 3000
+	request.timeout.ms = 5000
+	retries = 2147483647
+	retry.backoff.max.ms = 1000
+	retry.backoff.ms = 100
+	sasl.client.callback.handler.class = null
+	sasl.jaas.config = null
+	sasl.kerberos.kinit.cmd = /usr/bin/kinit
+	sasl.kerberos.min.time.before.relogin = 60000
+	sasl.kerberos.service.name = null
+	sasl.kerberos.ticket.renew.jitter = 0.05
+	sasl.kerberos.ticket.renew.window.factor = 0.8
+	sasl.login.callback.handler.class = null
+	sasl.login.class = null
+	sasl.login.connect.timeout.ms = null
+	sasl.login.read.timeout.ms = null
+	sasl.login.refresh.buffer.seconds = 300
+	sasl.login.refresh.min.period.seconds = 60
+	sasl.login.refresh.window.factor = 0.8
+	sasl.login.refresh.window.jitter = 0.05
+	sasl.login.retry.backoff.max.ms = 10000
+	sasl.login.retry.backoff.ms = 100
+	sasl.mechanism = GSSAPI
+	sasl.oauthbearer.clock.skew.seconds = 30
+	sasl.oauthbearer.expected.audience = null
+	sasl.oauthbearer.expected.issuer = null
+	sasl.oauthbearer.jwks.endpoint.refresh.ms = 3600000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.max.ms = 10000
+	sasl.oauthbearer.jwks.endpoint.retry.backoff.ms = 100
+	sasl.oauthbearer.jwks.endpoint.url = null
+	sasl.oauthbearer.scope.claim.name = scope
+	sasl.oauthbearer.sub.claim.name = sub
+	sasl.oauthbearer.token.endpoint.url = null
+	security.protocol = PLAINTEXT
+	security.providers = null
+	send.buffer.bytes = 131072
+	socket.connection.setup.timeout.max.ms = 30000
+	socket.connection.setup.timeout.ms = 10000
+	ssl.cipher.suites = null
+	ssl.enabled.protocols = [TLSv1.2, TLSv1.3]
+	ssl.endpoint.identification.algorithm = https
+	ssl.engine.factory.class = null
+	ssl.key.password = null
+	ssl.keymanager.algorithm = SunX509
+	ssl.keystore.certificate.chain = null
+	ssl.keystore.key = null
+	ssl.keystore.location = null
+	ssl.keystore.password = null
+	ssl.keystore.type = JKS
+	ssl.protocol = TLSv1.3
+	ssl.provider = null
+	ssl.secure.random.implementation = null
+	ssl.trustmanager.algorithm = PKIX
+	ssl.truststore.certificates = null
+	ssl.truststore.location = null
+	ssl.truststore.password = null
+	ssl.truststore.type = JKS
+	transaction.timeout.ms = 60000
+	transactional.id = null
+	value.serializer = class org.springframework.kafka.support.serializer.JsonSerializer
+
+21:10:14 [5a9235b0] [NO_REQ] INFO  o.a.k.c.t.i.KafkaMetricsCollector - initializing Kafka metrics collector
+21:10:14 [5a9235b0] [NO_REQ] INFO  o.a.k.clients.producer.KafkaProducer - [Producer clientId=rag-pipeline-producer-1] Instantiated an idempotent producer.
+21:10:14 [5a9235b0] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka version: 3.7.1
+21:10:14 [5a9235b0] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka commitId: e2494e6ffb89f828
+21:10:14 [5a9235b0] [NO_REQ] INFO  o.a.kafka.common.utils.AppInfoParser - Kafka startTimeMs: 1782562214850
+21:10:14 [NO_PIPE] [NO_REQ] INFO  org.apache.kafka.clients.Metadata - [Producer clientId=rag-pipeline-producer-1] Cluster ID: r7QD5mzMRfu1b5OZyxzSnQ
+21:10:14 [5a9235b0] [NO_REQ] INFO  c.r.p.p.kafka.KafkaProducerService - Kafka 발행 요청 완료 — pipelineId: b8a41f81-4cc8-40b8-82ac-1833dd9a0556
+21:10:14 [5a9235b0] [NO_REQ] INFO  c.r.p.phase2.OrchestrationController - 파이프라인 완료 | pipelineId: 5a9235b0-7b5e-4552-bf42-d318c1676010, retryCount: 0
+21:10:15 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.p.i.TransactionManager - [Producer clientId=rag-pipeline-producer-1] ProducerId set to 3000 with epoch 0
+21:10:15 [NO_PIPE] [NO_REQ] INFO  c.r.p.p.kafka.KafkaProducerService - Kafka 발행 성공 — pipelineId: b8a41f81-4cc8-40b8-82ac-1833dd9a0556, offset: 24
+21:10:15 [NO_PIPE] [NO_REQ] INFO  c.r.p.p.kafka.KafkaConsumerService - Kafka 메시지 수신 — pipelineId: b8a41f81-4cc8-40b8-82ac-1833dd9a0556, query: '트립플랜 서비스를 WEB 플랫폼으로 개발합니다.
+국내여행 일정을 자동으로 추천하고, 이동 동선과 맛집까지 한 번에 계획해주는 웹 서비스예요.
+
+[문제 정의]
+핵심 문제: 국내여행 일정을 짤 때 정보가 너무 흩어져 있어서 계획하는 데 시간이 많이 걸리고, 이동 동선과 맛집까지 함께 고려하기 어렵다.
+현재 해결 방식: 지금은 블로그, 지도 앱, 맛집 검색을 따로 하면서 수동으로 일정을 짜고 있다.
+이상적인 상태: 몇 번의 클릭만으로 이동 동선과 맛집까지 최적화된 국내여행 일정이 자동으로 완성되는 상태다.
+
+[타겟 유저]
+유저1: 국내여행을 자주 가는 20~30대 직장인이나 커플 / 여행 계획을 세우는 집이나 회사, 또는 이동 중에도 웹으로 확인하는 환경 / 정보가 너무 많아 선택이 어렵고, 일정과 동선을 맞추는 일이 번거롭다
+
+[기능 정의]'
+21:10:15 [NO_PIPE] [NO_REQ] INFO  c.r.p.p.kafka.KafkaConsumerService - 저장 처리 시작 — pipelineId: b8a41f81-4cc8-40b8-82ac-1833dd9a0556
+21:10:15 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: prd, index: 0, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:15 [NO_PIPE] [NO_REQ] INFO  c.r.p.p.kafka.KafkaConsumerService -   PRD 저장 완료 — 0개 청크
+21:10:17 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: market_research, index: 0, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:17 [NO_PIPE] [NO_REQ] INFO  c.r.p.p.kafka.KafkaConsumerService -   시장 데이터 저장 완료 — 0개 청크
+21:10:17 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 0, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:18 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 1, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:18 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 2, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:19 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 3, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:19 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 4, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:20 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 5, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:20 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 6, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:21 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 7, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:22 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 8, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:22 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 9, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:23 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 10, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:24 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: erd, index: 11, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:24 [NO_PIPE] [NO_REQ] INFO  c.r.p.p.kafka.KafkaConsumerService -   ERD 저장 완료 — 0개 청크
+21:10:24 [NO_PIPE] [NO_REQ] WARN  c.r.p.p.kafka.KafkaConsumerService - 청크 저장 실패 — type: api, index: 0, 원인: PreparedStatementCallback; SQL [INSERT INTO document_chunks (content, metadata, embedding)
+VALUES (?, ?::jsonb, ?::vector)
+]; ERROR: invalid input syntax for type json
+  Detail: Character with value 0x0a must be escaped.
+  Where: JSON data, line 1: ...서비스를 WEB 플랫폼으로 개발합니다.
+21:10:24 [NO_PIPE] [NO_REQ] INFO  c.r.p.p.kafka.KafkaConsumerService -   API 저장 완료 — 0개 청크
+21:10:24 [NO_PIPE] [NO_REQ] INFO  c.r.p.p.kafka.KafkaConsumerService - 저장 처리 완료 — pipelineId: b8a41f81-4cc8-40b8-82ac-1833dd9a0556, 총 0개 청크 저장
+21:10:24 [NO_PIPE] [NO_REQ] INFO  c.r.p.p.kafka.KafkaConsumerService - 메시지 처리 완료 — pipelineId: b8a41f81-4cc8-40b8-82ac-1833dd9a0556
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Disconnecting from node 1 due to request timeout.
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Cancelled in-flight FETCH request with correlation id 695 due to node 1 being disconnected (elapsed time since creation: 145872ms, elapsed time since send: 145872ms, request timeout: 5000ms)
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Client requested disconnect from node 2147483646
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Client requested disconnect from node 2147483646
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Client requested disconnect from node 2147483646
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Disconnecting from node 1 due to request timeout.
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Cancelled in-flight FETCH request with correlation id 695 due to node 1 being disconnected (elapsed time since creation: 145999ms, elapsed time since send: 145999ms, request timeout: 5000ms)
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Client requested disconnect from node 2147483646
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.a.k.clients.FetchSessionHandler - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Error sending fetch request (sessionId=1239618939, epoch=577) to node 1:
+org.apache.kafka.common.errors.DisconnectException: null
+21:14:52 [NO_PIPE] [NO_REQ] INFO  o.a.k.clients.FetchSessionHandler - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Error sending fetch request (sessionId=57917915, epoch=577) to node 1:
+org.apache.kafka.common.errors.DisconnectException: null
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:53 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:54 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:54 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:54 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:54 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:54 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:54 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:54 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:54 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:54 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:55 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:55 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:55 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:55 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:55 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:55 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:55 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:55 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:55 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:55 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:56 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:56 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:14:56 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:56 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:56 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:57 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:14:57 [NO_PIPE] [NO_REQ] WARN  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=2m54s919ms791µs800ns).
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Client requested disconnect from node 2147483646
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Disconnecting from node 1 due to request timeout.
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Cancelled in-flight FETCH request with correlation id 691 due to node 1 being disconnected (elapsed time since creation: 48509ms, elapsed time since send: 48509ms, request timeout: 5000ms)
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.clients.FetchSessionHandler - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Error sending fetch request (sessionId=844243316, epoch=564) to node 1:
+org.apache.kafka.common.errors.DisconnectException: null
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Client requested disconnect from node 2147483646
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Disconnecting from node 1 due to request timeout.
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Cancelled in-flight FETCH request with correlation id 707 due to node 1 being disconnected (elapsed time since creation: 48517ms, elapsed time since send: 48517ms, request timeout: 5000ms)
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.clients.FetchSessionHandler - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Error sending fetch request (sessionId=1207877848, epoch=579) to node 1:
+org.apache.kafka.common.errors.DisconnectException: null
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Client requested disconnect from node 2147483646
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:15:45 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:46 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Disconnecting from node 1 due to request timeout.
+21:15:46 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Cancelled in-flight FETCH request with correlation id 704 due to node 1 being disconnected (elapsed time since creation: 48894ms, elapsed time since send: 48894ms, request timeout: 5000ms)
+21:15:46 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:15:46 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:46 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Client requested disconnect from node 2147483646
+21:15:46 [NO_PIPE] [NO_REQ] INFO  o.a.k.clients.FetchSessionHandler - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Error sending fetch request (sessionId=57917915, epoch=INITIAL) to node 1:
+org.apache.kafka.common.errors.DisconnectException: null
+21:15:46 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:46 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:15:46 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:47 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:47 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:15:47 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:48 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:48 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:15:48 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:48 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:48 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:15:48 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:48 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:48 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:15:48 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:48 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:49 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:49 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:15:49 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:49 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:49 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:15:49 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Node -1 disconnected.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Node -1 disconnected.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Client requested disconnect from node 2147483646
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Client requested disconnect from node 2147483646
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Node -1 disconnected.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Disconnecting from node 1 due to request timeout.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Cancelled in-flight FETCH request with correlation id 731 due to node 1 being disconnected (elapsed time since creation: 182065ms, elapsed time since send: 182065ms, request timeout: 5000ms)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Client requested disconnect from node 2147483646
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.clients.FetchSessionHandler - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Error sending fetch request (sessionId=156592809, epoch=19) to node 1:
+org.apache.kafka.common.errors.DisconnectException: null
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Node -1 disconnected.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: session timed out without receiving a heartbeat response. isDisconnected: false. Rediscovery will be attempted.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Client requested disconnect from node 2147483646
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:00 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:01 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:02 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:02 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:02 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:02 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:02 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:02 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:02 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:02 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:02 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:03 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:03 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Group coordinator localhost:9092 (id: 2147483646 rack: null) is unavailable or invalid due to cause: coordinator unavailable. isDisconnected: false. Rediscovery will be attempted.
+21:19:03 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Requesting disconnect from last known coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:03 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group.DLT-1, groupId=rag-pipeline-group.DLT] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:03 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-retry-3, groupId=rag-pipeline-group-retry] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:03 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-dlq-4, groupId=rag-pipeline-group-dlq] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:04 [NO_PIPE] [NO_REQ] INFO  o.a.k.c.c.i.ConsumerCoordinator - [Consumer clientId=consumer-rag-pipeline-group-2, groupId=rag-pipeline-group] Discovered group coordinator localhost:9092 (id: 2147483646 rack: null)
+21:19:16 [NO_PIPE] [NO_REQ] WARN  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=4m19s546ms398µs).
+21:19:19 [NO_PIPE] [NO_REQ] INFO  o.apache.kafka.clients.NetworkClient - [Producer clientId=rag-pipeline-producer-1] Node -1 disconnected.
+
+> Task :bootRun FAILED
+
+[Incubating] Problems report is available at: file:///C:/Users/jsh68/Desktop/timiroom-backend/rag-pipeline/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':bootRun'.
+> Process 'command 'C:\Program Files\Java\jdk-21\bin\java.exe'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 12m 42s
+4 actionable tasks: 3 executed, 1 up-to-date

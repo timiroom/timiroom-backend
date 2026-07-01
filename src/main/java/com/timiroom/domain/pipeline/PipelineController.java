@@ -73,4 +73,18 @@ public class PipelineController {
     public ResponseEntity<List<PipelineArtifact>> artifactsByProject(@PathVariable Long projectId) {
         return ResponseEntity.ok(pipelineService.getLatestArtifactsByProject(projectId));
     }
+
+    /**
+     * Artifact 내용 수정
+     * PATCH /api/v1/pipeline/artifacts/{artifactId}
+     * Body: { "content": "..." }
+     */
+    @PatchMapping("/artifacts/{artifactId}")
+    public ResponseEntity<Void> updateArtifact(
+            @PathVariable Long artifactId,
+            @RequestBody Map<String, String> body
+    ) {
+        pipelineService.updateArtifact(artifactId, body.get("content"));
+        return ResponseEntity.ok().build();
+    }
 }

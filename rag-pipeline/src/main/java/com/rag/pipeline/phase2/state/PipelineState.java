@@ -86,6 +86,11 @@ public class PipelineState {
     @Builder.Default
     private final int rollbackCount = 0;
 
+    // ── RL 관련 ─────────────────────────────────────────────────
+    /** QaAgent가 계산한 품질 점수 (0.0~1.0) — AgentRLService에서 baseline 계산에 사용 */
+    @Builder.Default
+    private final double qaQualityScore = 0.0;
+
     // ── 상태 메시지 (SSE 전송용) ─────────────────────────────────
     private final String statusMessage;
 

@@ -45,9 +45,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-    // ── Spring AI (OpenAI + Anthropic + pgvector)
+    // ── Spring AI (OpenAI + pgvector)
     implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
-    implementation 'org.springframework.ai:spring-ai-anthropic-spring-boot-starter'
     implementation 'org.springframework.ai:spring-ai-pgvector-store-spring-boot-starter'
 
     // ── PostgreSQL

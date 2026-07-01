@@ -1,6 +1,7 @@
 package com.rag.pipeline.phase2.graph;
 
 import com.rag.pipeline.phase2.agent.*;
+import com.rag.pipeline.phase2.rl.AgentRLService;
 import com.rag.pipeline.phase2.sse.PipelineProgressService;
 import com.rag.pipeline.phase2.state.PipelineState;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class OrchestrationGraph {
     private final QaAgent                  qaAgent;
     private final PrdAgent                 prdAgent;
     private final PipelineProgressService  progressService;
+    private final AgentRLService           agentRLService;
 
     private static final int MAX_QA_RETRY = 5;
 
@@ -50,6 +52,16 @@ public class OrchestrationGraph {
 
         progressService.send(pipelineId, "QA", "QA 검수 중...", 75);
         PipelineState finalState = runQaRetryOnly(afterPrdDbaApi, 0, pipelineId);
+
+        // RL: QA 결과를 보상으로 변환 → DBA/API temperature 업데이트
+        // retryCount 패널티: 재시도할수록 원점수에서 0.15씩 차감
+        double rawScore  = finalState.getQaQualityScore();
+        int    retries   = finalState.getRetryCount();
+        double finalScore = Math.max(0.05, rawScore - 0.15 * retries);
+        String rlKey = finalState.getSessionId() != null ? finalState.getSessionId() : pipelineId;
+        agentRLService.applyQaFeedback(rlKey, finalScore);
+        log.info("Agent RL 피드백 적용 — rawScore:{}, retries:{}, finalScore:{}",
+                String.format("%.2f", rawScore), retries, String.format("%.2f", finalScore));
 
         log.info("=== Phase 2 완료 ===");
         return finalState;

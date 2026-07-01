@@ -162,12 +162,12 @@ public class SearchAgent {
     }
 
     /**
-     * OpenAI responses API + web_search_preview 호출
+     * OpenAI responses API — 시장 데이터 생성 (모델 지식 기반)
      */
     private String searchWeb(String query) {
         Map<String, Object> requestBody = Map.of(
-                "model", "gpt-4o",
-                "tools", List.of(Map.of("type", "web_search_preview")),
+                "model", "gpt-5.4-mini",
+                "instructions", "당신은 한국 IT 스타트업 시장 조사 전문가입니다. 아래 질문에 대해 훈련 데이터 기반으로 구체적이고 상세하게 답변하세요. 수치는 추정값이더라도 최대한 구체적으로 작성하고, 출처 형식(기관명, YYYY년)을 반드시 포함하세요. JSON이 아닌 자연어로 답변하세요.",
                 "max_output_tokens", 2000,
                 "input", List.of(Map.of("role", "user", "content", query))
         );
@@ -175,7 +175,7 @@ public class SearchAgent {
         try {
             String response = restClientBuilder.build()
                     .post()
-                    .uri("https://api.openai.com/v1/responses")
+                    .uri("https://align-it-resource.services.ai.azure.com/openai/v1/responses")
                     .header("Authorization", "Bearer " + openAiApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)
@@ -206,25 +206,22 @@ public class SearchAgent {
      */
     private String extractDomain(String userQuery) {
         Map<String, Object> requestBody = Map.of(
-                "model", "gpt-4o-mini",
-                "max_tokens", 50,
+                "model", "gpt-5.4-mini",
+                "max_output_tokens", 50,
                 "temperature", 0,
-                "messages", List.of(
-                        Map.of("role", "system", "content",
-                                """
-                                사용자의 서비스 설명을 읽고 해당 서비스의 업종/도메인을 한국어 2~4단어로만 답하세요.
-                                예시) 이커머스 전자상거래, 음식 배달, 숙박 예약, 의료 헬스케어,
-                                      부동산 중개, 방탈출 예약, 피트니스 헬스, 반려동물 케어
-                                다른 설명 없이 도메인 단어만 출력하세요.
-                                """),
-                        Map.of("role", "user", "content", userQuery)
-                )
+                "instructions", """
+                        사용자의 서비스 설명을 읽고 해당 서비스의 업종/도메인을 한국어 2~4단어로만 답하세요.
+                        예시) 이커머스 전자상거래, 음식 배달, 숙박 예약, 의료 헬스케어,
+                              부동산 중개, 방탈출 예약, 피트니스 헬스, 반려동물 케어
+                        다른 설명 없이 도메인 단어만 출력하세요.
+                        """,
+                "input", List.of(Map.of("role", "user", "content", userQuery))
         );
 
         try {
             String response = restClientBuilder.build()
                     .post()
-                    .uri("https://api.openai.com/v1/chat/completions")
+                    .uri("https://align-it-resource.services.ai.azure.com/openai/v1/responses")
                     .header("Authorization", "Bearer " + openAiApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)
@@ -232,8 +229,16 @@ public class SearchAgent {
                     .body(String.class);
 
             JsonNode root = objectMapper.readTree(response);
-            String domain = root.path("choices").get(0)
-                    .path("message").path("content").asText().trim();
+            String domain = "";
+            for (JsonNode item : root.path("output")) {
+                if ("message".equals(item.path("type").asText())) {
+                    for (JsonNode block : item.path("content")) {
+                        if ("output_text".equals(block.path("type").asText())) {
+                            domain = block.path("text").asText().trim();
+                        }
+                    }
+                }
+            }
 
             log.info("도메인 추출 결과: [{}]", domain);
             return domain;
