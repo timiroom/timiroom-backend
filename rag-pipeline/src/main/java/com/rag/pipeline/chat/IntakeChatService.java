@@ -28,8 +28,8 @@ public class IntakeChatService {
     private String foundryApiKey;
 
     private static final String MODEL = "gpt-5.4-mini";
-    private static final String FOUNDRY_URL =
-            "https://align-it-resource.services.ai.azure.com/openai/v1/responses";
+    @Value("${app.ai.foundry.responses-url}")
+    private String foundryUrl;
 
     private static final String SYSTEM_PROMPT = """
             당신은 스타트업 프로젝트 기획 인터뷰어 AI입니다.
@@ -157,7 +157,7 @@ public class IntakeChatService {
         try {
             byte[] rawBytes = restClientBuilder.build()
                     .post()
-                    .uri(FOUNDRY_URL)
+                    .uri(foundryUrl)
                     .header("Authorization", "Bearer " + foundryApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)

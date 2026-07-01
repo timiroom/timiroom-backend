@@ -41,6 +41,9 @@ public class SearchAgent {
     @Value("${spring.ai.openai.api-key}")
     private String openAiApiKey;
 
+    @Value("${app.ai.foundry.responses-url}")
+    private String foundryUrl;
+
     public PipelineState execute(PipelineState state) {
         log.info("Search 에이전트 시작 — 시장 데이터 수집");
 
@@ -175,7 +178,7 @@ public class SearchAgent {
         try {
             String response = restClientBuilder.build()
                     .post()
-                    .uri("https://align-it-resource.services.ai.azure.com/openai/v1/responses")
+                    .uri(foundryUrl)
                     .header("Authorization", "Bearer " + openAiApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)
@@ -221,7 +224,7 @@ public class SearchAgent {
         try {
             String response = restClientBuilder.build()
                     .post()
-                    .uri("https://align-it-resource.services.ai.azure.com/openai/v1/responses")
+                    .uri(foundryUrl)
                     .header("Authorization", "Bearer " + openAiApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)

@@ -415,8 +415,8 @@ public class PrdAgent {
         return sb.toString();
     }
 
-    private static final String FOUNDRY_URL =
-            "https://align-it-resource.services.ai.azure.com/openai/v1/responses";
+    @Value("${app.ai.foundry.responses-url}")
+    private String foundryUrl;
 
     private String callChatCompletions(String userPrompt, int maxTokens) {
         Map<String, Object> requestBody = Map.of(
@@ -429,7 +429,7 @@ public class PrdAgent {
         try {
             String response = restClientBuilder.build()
                     .post()
-                    .uri(FOUNDRY_URL)
+                    .uri(foundryUrl)
                     .header("Authorization", "Bearer " + openAiApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)

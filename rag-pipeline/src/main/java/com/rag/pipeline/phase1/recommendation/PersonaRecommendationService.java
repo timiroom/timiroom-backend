@@ -23,8 +23,8 @@ public class PersonaRecommendationService {
     @Value("${spring.ai.openai.api-key}")
     private String foundryApiKey;
 
-    private static final String FOUNDRY_URL =
-            "https://align-it-resource.services.ai.azure.com/openai/v1/responses";
+    @Value("${app.ai.foundry.responses-url}")
+    private String foundryUrl;
 
     public PersonaRecommendationResponse recommend(PersonaRecommendationRequest req) {
         try {
@@ -57,7 +57,7 @@ public class PersonaRecommendationService {
 
             String raw = restClientBuilder.build()
                     .post()
-                    .uri(FOUNDRY_URL)
+                    .uri(foundryUrl)
                     .header("Authorization", "Bearer " + foundryApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)

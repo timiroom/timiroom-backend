@@ -40,11 +40,11 @@ public class RerankerService {
     @Value("${app.rag.top-k-final:5}")
     private int topKFinal;
 
-    private static final String FOUNDRY_RESPONSES_URL =
-            "https://align-it-resource.services.ai.azure.com/openai/v1/responses";
+    @Value("${app.ai.foundry.responses-url}")
+    private String foundryResponsesUrl;
 
-    private static final String COHERE_RERANK_URL =
-            "https://align-it-resource.services.ai.azure.com/providers/cohere/v2/rerank";
+    @Value("${app.ai.foundry.rerank-url}")
+    private String cohereRerankUrl;
 
     private static final String RERANK_INSTRUCTIONS =
             "당신은 검색 결과 관련도 평가 전문가입니다.\n" +
@@ -101,7 +101,7 @@ public class RerankerService {
 
             String raw = restClientBuilder.build()
                     .post()
-                    .uri(FOUNDRY_RESPONSES_URL)
+                    .uri(foundryResponsesUrl)
                     .header("Authorization", "Bearer " + foundryApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
@@ -152,7 +152,7 @@ public class RerankerService {
 
             CohereRerankResponse response = restClientBuilder.build()
                     .post()
-                    .uri(COHERE_RERANK_URL)
+                    .uri(cohereRerankUrl)
                     .header("api-key", cohereApiKey)
                     .header("Content-Length", String.valueOf(bodyBytes.length))
                     .contentType(MediaType.APPLICATION_JSON)

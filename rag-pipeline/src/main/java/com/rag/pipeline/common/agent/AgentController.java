@@ -47,8 +47,8 @@ public class AgentController {
     @Value("${spring.ai.openai.api-key:}")
     private String foundryApiKey;
 
-    private static final String FOUNDRY_URL =
-            "https://align-it-resource.services.ai.azure.com/openai/v1/responses";
+    @Value("${app.ai.foundry.responses-url}")
+    private String foundryUrl;
 
     @Value("${app.agent.timeout.stream:90}")
     private int streamTimeoutSec;
@@ -114,7 +114,7 @@ public class AgentController {
     private HttpRequest buildOpenAiRequest(String apiKey, String model,
                                             AgentRequest req, boolean stream) throws Exception {
         return HttpRequest.newBuilder()
-            .uri(URI.create(FOUNDRY_URL))
+            .uri(URI.create(foundryUrl))
             .header("Authorization", "Bearer " + apiKey)
             .header("content-type", "application/json")
             .timeout(Duration.ofSeconds(stream ? streamTimeoutSec : syncTimeoutSec))

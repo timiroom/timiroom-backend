@@ -33,8 +33,8 @@ public class DbaAgent {
     @Value("${spring.ai.openai.api-key}")
     private String foundryApiKey;
 
-    private static final String FOUNDRY_URL =
-            "https://align-it-resource.services.ai.azure.com/openai/v1/responses";
+    @Value("${app.ai.foundry.responses-url}")
+    private String foundryUrl;
 
     private static final String DBA_SYSTEM = """
             당신은 시니어 DBA입니다.
@@ -125,7 +125,7 @@ public class DbaAgent {
         try {
             String raw = restClientBuilder.build()
                     .post()
-                    .uri(FOUNDRY_URL)
+                    .uri(foundryUrl)
                     .header("Authorization", "Bearer " + foundryApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
@@ -216,7 +216,7 @@ public class DbaAgent {
         try {
             String raw = restClientBuilder.build()
                     .post()
-                    .uri(FOUNDRY_URL)
+                    .uri(foundryUrl)
                     .header("Authorization", "Bearer " + foundryApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
@@ -269,7 +269,7 @@ public class DbaAgent {
         try {
             String raw = restClientBuilder.build()
                     .post()
-                    .uri(FOUNDRY_URL)
+                    .uri(foundryUrl)
                     .header("Authorization", "Bearer " + foundryApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
