@@ -61,6 +61,7 @@ dependencies {
 	// .env 파일 지원
 	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
+
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
@@ -70,4 +71,9 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// 실행 불가능한 plain jar 생성 비활성화 (Docker COPY build/libs/*.jar 충돌 방지)
+jar {
+	enabled = false
 }

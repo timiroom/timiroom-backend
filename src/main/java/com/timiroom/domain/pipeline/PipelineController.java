@@ -67,7 +67,6 @@ public class PipelineController {
     /**
      * 프로젝트의 최신 완료된 파이프라인 Artifact 조회
      * GET /api/v1/pipeline/projects/{projectId}/artifacts
-     * 새로고침 후 결과물 복원에 사용
      */
     @GetMapping("/projects/{projectId}/artifacts")
     public ResponseEntity<List<PipelineArtifact>> artifactsByProject(@PathVariable Long projectId) {

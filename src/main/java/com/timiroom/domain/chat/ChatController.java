@@ -23,7 +23,7 @@ public class ChatController {
         return ResponseEntity.ok(Map.of("sessionId", sessionId));
     }
 
-    /** 메시지 전송 → Claude 응답 반환 */
+    /** 메시지 전송 → Claude 응답 반환 (JSON) */
     @PostMapping("/sessions/{sessionId}/messages")
     public ResponseEntity<Map<String, Object>> sendMessage(
             HttpSession session,
@@ -35,8 +35,23 @@ public class ChatController {
         if (content == null || content.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "메시지 내용이 없습니다"));
         }
-        Map<String, Object> response = chatService.sendMessage(sessionId, memberId, content);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(chatService.sendMessage(sessionId, memberId, content, null));
+    }
+
+    /** 메시지 + 파일 첨부 전송 (multipart/form-data) */
+    @PostMapping(value = "/sessions/{sessionId}/messages/multipart",
+                 consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> sendMessageWithFiles(
+            HttpSession session,
+            @PathVariable String sessionId,
+            @RequestPart("content") String content,
+            @RequestPart(value = "files", required = false) List<org.springframework.web.multipart.MultipartFile> files
+    ) {
+        Long memberId = (Long) session.getAttribute("memberId");
+        if (content == null || content.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "메시지 내용이 없습니다"));
+        }
+        return ResponseEntity.ok(chatService.sendMessage(sessionId, memberId, content, files));
     }
 
     /** 세션 대화 히스토리 조회 */
@@ -48,5 +63,16 @@ public class ChatController {
         Long memberId = (Long) session.getAttribute("memberId");
         List<ChatMessage> messages = chatService.getMessages(sessionId, memberId);
         return ResponseEntity.ok(messages);
+    }
+
+    /** 마지막 메시지 재시도 (오류 발생 시 재전송 버튼용) */
+    @PostMapping("/sessions/{sessionId}/retry")
+    public ResponseEntity<Map<String, Object>> retry(
+            HttpSession session,
+            @PathVariable String sessionId
+    ) {
+        Long memberId = (Long) session.getAttribute("memberId");
+        Map<String, Object> response = chatService.retryLastMessage(sessionId, memberId);
+        return ResponseEntity.ok(response);
     }
 }

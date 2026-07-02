@@ -52,6 +52,10 @@ public class Member extends BaseEntity {
         return member;
     }
 
+    public void updateName(String memberName) {
+        this.memberName = memberName;
+    }
+
     // 소셜 로그인용
     public static Member createOAuth(String memberName, String email, Provider provider, String providerId) {
         Member member = new Member();

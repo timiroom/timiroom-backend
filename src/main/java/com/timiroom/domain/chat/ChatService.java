@@ -6,6 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,7 +48,8 @@ public class ChatService {
     }
 
     @Transactional
-    public Map<String, Object> sendMessage(String sessionId, Long memberId, String userContent) {
+    public Map<String, Object> sendMessage(String sessionId, Long memberId, String userContent,
+                                           List<MultipartFile> files) {
         ChatSession session = sessionRepo.findBySessionId(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("세션을 찾을 수 없습니다: " + sessionId));
 
@@ -73,7 +76,15 @@ public class ChatService {
         List<Map<String, String>> history = existing.stream()
                 .map(m -> Map.of("role", m.getRole(), "content", m.getContent()))
                 .collect(java.util.stream.Collectors.toList());
-        history.add(Map.of("role", "user", "content", userContent));
+        // 파일 첨부 시 파일명 목록을 메시지에 포함
+        String fullContent = userContent;
+        if (files != null && !files.isEmpty()) {
+            String fileNames = files.stream()
+                    .map(MultipartFile::getOriginalFilename)
+                    .collect(java.util.stream.Collectors.joining(", "));
+            fullContent = userContent + "\n\n[첨부파일: " + fileNames + "]";
+        }
+        history.add(Map.of("role", "user", "content", fullContent));
 
         Map<String, Object> ragResponse = ragPipelineClient.chat(Map.of("messages", history));
 
@@ -107,5 +118,58 @@ public class ChatService {
         }
 
         return messageRepo.findBySessionIdOrderByOrderIndex(sessionId);
+    }
+
+    /**
+     * 마지막 user 메시지를 rag-pipeline에 재전송
+     * - 마지막 메시지가 user인 경우(assistant 응답 실패 상태)에만 동작
+     */
+    @Transactional
+    public Map<String, Object> retryLastMessage(String sessionId, Long memberId) {
+        ChatSession session = sessionRepo.findBySessionId(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("세션을 찾을 수 없습니다: " + sessionId));
+
+        if (!session.getMemberId().equals(memberId)) {
+            throw new SecurityException("세션 접근 권한이 없습니다");
+        }
+        if (session.getStatus() == SessionStatus.COMPLETED) {
+            throw new IllegalStateException("이미 완료된 세션은 재시도할 수 없습니다");
+        }
+
+        // 마지막 메시지 확인 — user여야 재시도 가능
+        ChatMessage lastMessage = messageRepo.findTopBySessionIdOrderByOrderIndexDesc(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("재시도할 메시지가 없습니다"));
+
+        if (!"user".equals(lastMessage.getRole())) {
+            throw new IllegalStateException("마지막 메시지에 이미 응답이 있습니다");
+        }
+
+        log.info("메시지 재시도 | sessionId: {}, orderIndex: {}", sessionId, lastMessage.getOrderIndex());
+
+        // 전체 히스토리 재구성 후 rag-pipeline 호출
+        List<ChatMessage> history = messageRepo.findBySessionIdOrderByOrderIndex(sessionId);
+        List<Map<String, String>> messages = history.stream()
+                .map(m -> Map.of("role", m.getRole(), "content", m.getContent()))
+                .collect(java.util.stream.Collectors.toList());
+
+        Map<String, Object> ragResponse = ragPipelineClient.chat(Map.of("messages", messages));
+
+
+        String assistantMessage = (String) ragResponse.get("message");
+        boolean isComplete = Boolean.TRUE.equals(ragResponse.get("isComplete"));
+
+        messageRepo.save(ChatMessage.builder()
+                .sessionId(sessionId)
+                .role("assistant")
+                .content(assistantMessage)
+                .orderIndex(lastMessage.getOrderIndex() + 1)
+                .build());
+
+        if (isComplete) {
+            session.complete();
+            log.info("재시도 후 채팅 세션 완료 | sessionId: {}", sessionId);
+        }
+
+        return ragResponse;
     }
 }

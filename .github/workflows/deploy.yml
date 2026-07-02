@@ -2,7 +2,7 @@ name: Backend CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [ develop ]
     paths-ignore:
       - 'rag-pipeline/**'
 
@@ -55,7 +55,7 @@ jobs:
           rm -f temp-secrets.env
           echo "$ALL_SECRETS_JSON" | jq -r 'to_entries[] | select(.key | startswith("APP_")) | "\(.key | sub("^APP_"; ""))=\(.value)"' > temp-secrets.env
           
-          kubectl create secret generic backend-secrets --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
+          kubectl create secret generic backend-secrets -n timiroom --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
           
           kubeseal --format=yaml --cert=pub-cert.pem < plain-secret.yaml > sealed-secret.yaml
           

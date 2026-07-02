@@ -74,3 +74,8 @@ dependencies {
 test {
     useJUnitPlatform()
 }
+
+// 실행 불가능한 plain jar 생성 비활성화 (Docker COPY build/libs/*.jar 충돌 방지)
+jar {
+    enabled = false
+}

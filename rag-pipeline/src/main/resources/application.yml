@@ -33,7 +33,7 @@ spring:
       api-key: ${FOUNDRY_API_KEY}
       base-url: ${FOUNDRY_BASE_URL:https://align-it-resource.services.ai.azure.com/openai}
       connect-timeout: 10s
-      read-timeout: 120s
+      read-timeout: 300s
 
       embedding:
         options:
