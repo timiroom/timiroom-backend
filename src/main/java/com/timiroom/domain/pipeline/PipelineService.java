@@ -71,30 +71,46 @@ public class PipelineService {
                 .publishOn(Schedulers.boundedElastic())
                 .subscribe(
                         sse -> {
-                            try {
-                                String eventName = sse.event() != null ? sse.event() : "message";
-                                emitter.send(SseEmitter.event().name(eventName).data(sse.data()));
+                            String eventName = sse.event() != null ? sse.event() : "message";
 
-                                if ("complete".equals(eventName)) {
-                                    handleComplete(pipelineId, sse.data());
-                                    emitter.complete();
-                                } else if ("error".equals(eventName)) {
-                                    handleError(pipelineId, extractErrorMessage(sse.data()));
-                                    emitter.complete();
-                                }
-                            } catch (IOException e) {
-                                emitter.completeWithError(e);
+                            // complete/error: 브라우저 연결 여부와 무관하게 artifact 저장 먼저 수행
+                            if ("complete".equals(eventName)) {
+                                handleComplete(pipelineId, sse.data());
+                                sendToEmitter(emitter, eventName, sse.data());
+                                completeEmitter(emitter);
+                                return;
                             }
+                            if ("error".equals(eventName)) {
+                                handleError(pipelineId, extractErrorMessage(sse.data()));
+                                sendToEmitter(emitter, eventName, sse.data());
+                                completeEmitter(emitter);
+                                return;
+                            }
+
+                            // progress 이벤트: 브라우저 끊김 시 무시 — rag-pipeline 구독은 유지
+                            sendToEmitter(emitter, eventName, sse.data());
                         },
                         error -> {
                             log.error("SSE 오류 | pipelineId: {}", pipelineId, error);
                             handleError(pipelineId, error.getMessage());
-                            emitter.completeWithError(error);
+                            completeEmitter(emitter);
                         },
-                        emitter::complete
+                        () -> completeEmitter(emitter)
                 );
 
         return emitter;
+    }
+
+    private void sendToEmitter(SseEmitter emitter, String eventName, String data) {
+        try {
+            emitter.send(SseEmitter.event().name(eventName).data(data));
+        } catch (Exception e) {
+            log.debug("브라우저 SSE 전송 실패 (연결 끊김) — rag-pipeline 구독 유지: {}", e.getMessage());
+        }
+    }
+
+    private void completeEmitter(SseEmitter emitter) {
+        try { emitter.complete(); } catch (Exception ignored) {}
     }
 
     /**
@@ -183,35 +199,13 @@ public class PipelineService {
         return artifactRepository.findByExecutionIdOrderByArtifactType(executionId);
     }
 
-    /**
-     * 파이프라인 재시작
-     * - 기존 pipelineId로 execution 조회 → requirement 재사용 → rag-pipeline 재호출
-     */
     @Transactional
-    public Map<String, Object> restartPipeline(Long memberId, String pipelineId) throws Exception {
-        PipelineExecution prev = executionRepository.findByPipelineId(pipelineId)
-                .orElseThrow(() -> new IllegalArgumentException("파이프라인을 찾을 수 없습니다: " + pipelineId));
-
-        if (!prev.getMemberId().equals(memberId)) {
-            throw new SecurityException("파이프라인 접근 권한이 없습니다");
-        }
-
-        Long requirementId = prev.getRequirementId();
-        Requirement requirement = requirementService.getById(requirementId);
-        requirementService.updateStatus(requirementId, RequirementStatus.PROCESSING);
-
-        String newPipelineId = ragPipelineClient.generate(requirement.getContent(), null);
-
-        PipelineExecution newExecution = PipelineExecution.builder()
-                .pipelineId(newPipelineId)
-                .requirementId(requirementId)
-                .memberId(memberId)
-                .startedAt(LocalDateTime.now())
-                .build();
-        PipelineExecution saved = executionRepository.save(newExecution);
-
-        log.info("파이프라인 재시작 | executionId: {}, pipelineId: {}", saved.getExecutionId(), newPipelineId.substring(0, 8));
-        return Map.of("executionId", saved.getExecutionId(), "pipelineId", newPipelineId);
+    public void updateArtifact(Long artifactId, String content) {
+        PipelineArtifact artifact = artifactRepository.findById(artifactId)
+                .orElseThrow(() -> new IllegalArgumentException("Artifact not found: " + artifactId));
+        artifact.updateContent(content);
+        artifactRepository.save(artifact);
+        log.info("Artifact 수정 | artifactId: {}", artifactId);
     }
 
     public List<PipelineArtifact> getLatestArtifactsByProject(Long projectId) {

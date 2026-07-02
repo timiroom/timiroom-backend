@@ -3,8 +3,11 @@ package com.rag.pipeline.phase1;
 import com.rag.pipeline.common.dto.DocumentChunk;
 import com.rag.pipeline.phase1.form.FormData;
 import com.rag.pipeline.phase1.form.FormToQueryService;
+import com.rag.pipeline.phase1.form.ProblemDefinition;
+import com.rag.pipeline.phase1.form.TargetUser;
 import com.rag.pipeline.phase1.parsing.PDFParsingService;
 import com.rag.pipeline.phase1.reranker.RerankerService;
+import com.rag.pipeline.phase1.rl.SearchRLService;
 import com.rag.pipeline.phase1.search.HybridSearchService;
 import com.rag.pipeline.phase1.search.QueryExpansionService;
 import com.rag.pipeline.phase1.session.SessionVectorStore;
@@ -15,8 +18,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Phase 1 — 전체 RAG 파이프라인 오케스트레이터
@@ -35,6 +40,7 @@ public class RagPipelineService {
     private final QueryExpansionService queryExpansionService;
     private final HybridSearchService   hybridSearchService;
     private final RerankerService       rerankerService;
+    private final SearchRLService       searchRLService;
     private final FormToQueryService    formToQueryService;
     private final PDFParsingService     pdfParsingService;
     private final SessionVectorStore    sessionVectorStore;
@@ -109,16 +115,26 @@ public class RagPipelineService {
 
             // Step 2: 폼 → 구조화 쿼리
             String synthesizedQuery = formToQueryService.synthesize(formData);
+            List<String> mustFeatures = formToQueryService.extractMustFeatures(formData);
 
-            // Step 3: 쿼리 확장
-            List<String> expandedQueries = queryExpansionService.expand(synthesizedQuery);
+            // Step 3: 폼 데이터 섹션에서 검색 쿼리 직접 추출 (GPT 호출 없음)
+            List<String> queries = buildQueriesFromForm(formData, synthesizedQuery, mustFeatures);
+            log.info("STEP 3 완료 — {} queries 추출 (폼 데이터 직접)", queries.size());
 
             // Step 4: Hybrid Search (글로벌 + 세션)
             List<DocumentChunk> retrieved =
-                hybridSearchService.searchWithSession(expandedQueries, sessionId);
+                hybridSearchService.searchWithSession(queries, sessionId);
 
             // Step 5: Reranking
             List<DocumentChunk> reranked = rerankerService.rerank(synthesizedQuery, retrieved);
+
+            // Step 5-1: Cohere 점수 평균 → Phase1 RL 피드백
+            double avgCohereScore = reranked.stream()
+                    .mapToDouble(c -> c.getRelevanceScore() != null ? c.getRelevanceScore() : 0.0)
+                    .average()
+                    .orElse(0.0);
+            searchRLService.applyRerankScore(sessionId, avgCohereScore);
+            log.info("Phase1 RL 피드백 적용 — avgCohereScore:{}", String.format("%.3f", avgCohereScore));
 
             // Step 6: PipelineState 조립
             String contextPrompt = assembleContext(reranked, synthesizedQuery);
@@ -131,7 +147,7 @@ public class RagPipelineService {
                 .techStack(formData.techStack())
                 .problemDefinition(formData.problemDefinition())
                 .targetUsers(formData.targetUsers())
-                .mustFeatures(formToQueryService.extractMustFeatures(formData))
+                .mustFeatures(mustFeatures)
                 .excludedFeatures(formToQueryService.extractExcludedFeatures(formData))
                 .featureList(formToQueryService.extractAllIncludedFeatures(formData))
                 .contextPrompt(contextPrompt)
@@ -141,6 +157,54 @@ public class RagPipelineService {
         } finally {
             sessionVectorStore.clear(sessionId);
         }
+    }
+
+    /**
+     * 폼 데이터 섹션을 검색 쿼리 목록으로 변환 — GPT 호출 없음
+     *
+     * 1. 합성 쿼리  — 전체 맥락
+     * 2. 서비스 개요 — 프로젝트명 + 설명
+     * 3. 문제 정의  — 핵심 페인포인트 + 이상적 상태
+     * 4. 타겟 유저  — 페르소나 + 불편함
+     * 5. 기능 목록  — Must 기능 키워드
+     */
+    private List<String> buildQueriesFromForm(FormData formData,
+                                              String synthesizedQuery,
+                                              List<String> mustFeatures) {
+        List<String> queries = new ArrayList<>();
+
+        // 1. 전체 합성 쿼리
+        queries.add(synthesizedQuery);
+
+        // 2. 서비스 개요
+        queries.add(formData.projectName() + " " + formData.projectDescription());
+
+        // 3. 문제 정의
+        ProblemDefinition pd = formData.problemDefinition();
+        String problemQuery = pd.currentPainPoint() + " " + pd.idealState();
+        if (pd.competitorGap() != null && !pd.competitorGap().isBlank()) {
+            problemQuery += " " + pd.competitorGap();
+        }
+        queries.add(problemQuery);
+
+        // 4. 타겟 유저
+        if (formData.targetUsers() != null && !formData.targetUsers().isEmpty()) {
+            String targetQuery = formData.targetUsers().stream()
+                    .map(u -> u.persona() + " " + u.biggestPainPoint())
+                    .collect(Collectors.joining(" "));
+            queries.add(targetQuery);
+        }
+
+        // 5. 기능 목록 (null 값 필터링 후 추가)
+        List<String> validFeatures = mustFeatures.stream()
+                .filter(f -> f != null && !f.isBlank())
+                .collect(Collectors.toList());
+        if (!validFeatures.isEmpty()) {
+            queries.add(String.join(" ", validFeatures));
+        }
+
+        log.debug("폼 쿼리 추출 — {}개: {}", queries.size(), queries);
+        return queries;
     }
 
     private String assembleContext(List<DocumentChunk> chunks, String query) {
