@@ -4,6 +4,7 @@ import com.rag.pipeline.common.response.ApiResponse;
 import com.rag.pipeline.common.util.InMemoryMultipartFile;
 import com.rag.pipeline.phase1.form.FormData;
 import com.rag.pipeline.phase2.dto.GenerateResponse;
+import com.rag.pipeline.phase2.graph.CollaborativeOrchestrationGraph;
 import com.rag.pipeline.phase2.graph.OrchestrationGraph;
 import com.rag.pipeline.phase2.sse.PipelineProgressService;
 import com.rag.pipeline.phase2.state.PipelineState;
@@ -34,8 +35,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class OrchestrationController {
 
-    private final RagPipelineService      ragPipelineService;
-    private final OrchestrationGraph      orchestrationGraph;
+    private final RagPipelineService              ragPipelineService;
+    private final OrchestrationGraph              orchestrationGraph;
+    private final CollaborativeOrchestrationGraph collaborativeGraph;
     private final ValidationService       validationService;
     private final RetryService            retryService;
     private final KafkaProducerService    kafkaProducerService;
@@ -62,7 +64,8 @@ public class OrchestrationController {
     )
     public ApiResponse<Map<String, String>> generate(
         @RequestPart("request") String requestJson,
-        @RequestPart(value = "files", required = false) List<MultipartFile> files
+        @RequestPart(value = "files", required = false) List<MultipartFile> files,
+        @RequestParam(value = "mode", defaultValue = "sequential") String mode
     ) throws Exception {
 
         FormData formData = objectMapper.readValue(requestJson, FormData.class);
@@ -85,11 +88,14 @@ public class OrchestrationController {
         }
 
         String pipelineId = UUID.randomUUID().toString();
-        log.info("파이프라인 시작 | pipelineId: {}, project: {}",
-            pipelineId.substring(0, 8), formData.projectName());
+        boolean collaborative = "collaborative".equalsIgnoreCase(mode);
+        log.info("파이프라인 시작 | pipelineId: {}, project: {}, mode: {}",
+            pipelineId.substring(0, 8), formData.projectName(),
+            collaborative ? "collaborative" : "sequential");
 
         List<MultipartFile> finalFiles = safeFiles;
-        pipelineExecutor.execute(() -> runPipeline(pipelineId, formData, finalFiles));
+        pipelineExecutor.execute(() ->
+            runPipeline(pipelineId, formData, finalFiles, collaborative));
 
         return ApiResponse.ok(Map.of("pipelineId", pipelineId));
     }
@@ -113,7 +119,8 @@ public class OrchestrationController {
 
     // ── 파이프라인 실행 (백그라운드 스레드) ──────────────────────────
 
-    private void runPipeline(String pipelineId, FormData formData, List<MultipartFile> files) {
+    private void runPipeline(String pipelineId, FormData formData,
+                             List<MultipartFile> files, boolean collaborative) {
         MDC.put("pipelineId", pipelineId.substring(0, 8));
         try {
             // Phase 1
@@ -123,8 +130,10 @@ public class OrchestrationController {
             progressService.send(pipelineId, "PHASE1_DONE",
                 "검색 컨텍스트 구성 완료", 25);
 
-            // Phase 2
-            PipelineState phase2State = orchestrationGraph.run(state, pipelineId);
+            // Phase 2 — sequential 또는 collaborative
+            PipelineState phase2State = collaborative
+                    ? collaborativeGraph.run(state, pipelineId)
+                    : orchestrationGraph.run(state, pipelineId);
             log.debug("Phase 2 완료 | retryCount: {}", phase2State.getRetryCount());
 
             // Phase 3
@@ -136,8 +145,9 @@ public class OrchestrationController {
             }
 
             if (!validatedState.isValidated()) {
-                log.warn("HITL 요청 | 자동 검증 실패");
-                progressService.error(pipelineId, "자동 검증 실패 — 관리자 검토가 필요합니다");
+                log.warn("HITL 요청 | 자동 검증 실패 — PRD 등 유효한 결과물은 클라이언트에 전송");
+                GenerateResponse partialResult = GenerateResponse.from(validatedState);
+                progressService.complete(pipelineId, partialResult);
                 return;
             }
 

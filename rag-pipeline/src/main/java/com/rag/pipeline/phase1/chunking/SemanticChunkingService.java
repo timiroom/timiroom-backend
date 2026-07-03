@@ -50,17 +50,18 @@ public class SemanticChunkingService {
         // 1. 문장 분리
         List<String> sentences = splitSentences(text);
         if (sentences.size() <= 1) {
-            return List.of(buildChunk(text, metadata));
+            float[] emb = embeddingModel.embed(text);
+            return List.of(buildChunk(text, metadata, emb));
         }
 
-        // 2. 각 문장 임베딩 계산
+        // 2. 각 문장 임베딩 계산 (경계 탐지 + 청크 임베딩 평균에 재사용)
         List<float[]> embeddings = embedSentences(sentences);
 
         // 3. 인접 문장 similarity 기반 경계 탐지
         List<Integer> boundaries = detectBoundaries(embeddings);
 
-        // 4. 경계에 따라 청크 조립
-        List<DocumentChunk> chunks = assembleChunks(sentences, boundaries, metadata);
+        // 4. 경계에 따라 청크 조립 (임베딩을 넘겨 평균 계산, 재호출 없음)
+        List<DocumentChunk> chunks = assembleChunks(sentences, embeddings, boundaries, metadata);
 
         log.debug("Semantic Chunking 완료 — {} chunks 생성", chunks.size());
         return chunks;
@@ -105,9 +106,10 @@ public class SemanticChunkingService {
         return boundaries;
     }
 
-    /** 경계 기준으로 문장들을 청크로 조립 */
+    /** 경계 기준으로 문장들을 청크로 조립 (임베딩 평균 포함) */
     private List<DocumentChunk> assembleChunks(
             List<String> sentences,
+            List<float[]> embeddings,
             List<Integer> boundaries,
             Map<String, Object> metadata) {
 
@@ -124,16 +126,28 @@ public class SemanticChunkingService {
             }
 
             String chunkText = sb.toString();
+            float[] chunkEmbedding = averageEmbeddings(embeddings.subList(start, end));
 
-            // 최대 크기 초과 시 강제 분할
             if (chunkText.length() > maxChunkSize) {
                 chunks.addAll(splitBySize(chunkText, metadata));
             } else {
-                chunks.add(buildChunk(chunkText, metadata));
+                chunks.add(buildChunk(chunkText, metadata, chunkEmbedding));
             }
         }
 
         return chunks;
+    }
+
+    /** 여러 임베딩 벡터의 평균 계산 */
+    private float[] averageEmbeddings(List<float[]> embeddings) {
+        if (embeddings.isEmpty()) return new float[0];
+        int dim = embeddings.get(0).length;
+        float[] avg = new float[dim];
+        for (float[] e : embeddings) {
+            for (int i = 0; i < dim; i++) avg[i] += e[i];
+        }
+        for (int i = 0; i < dim; i++) avg[i] /= embeddings.size();
+        return avg;
     }
 
     /** 최대 크기 초과 시 강제 분할 (fallback) */
@@ -149,13 +163,19 @@ public class SemanticChunkingService {
         return result;
     }
 
-    /** DocumentChunk 객체 생성 */
-    private DocumentChunk buildChunk(String content, Map<String, Object> metadata) {
+    /** DocumentChunk 객체 생성 (임베딩 포함) */
+    private DocumentChunk buildChunk(String content, Map<String, Object> metadata, float[] embedding) {
         return DocumentChunk.builder()
                 .id(UUID.randomUUID())
                 .content(content)
                 .metadata(new HashMap<>(metadata))
+                .embedding(embedding)
                 .build();
+    }
+
+    /** DocumentChunk 객체 생성 (임베딩 없음 — splitBySize 폴백용) */
+    private DocumentChunk buildChunk(String content, Map<String, Object> metadata) {
+        return buildChunk(content, metadata, new float[0]);
     }
 
     /** 두 벡터의 cosine similarity 계산 */

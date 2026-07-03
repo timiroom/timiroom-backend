@@ -27,8 +27,7 @@ import java.util.concurrent.Executor;
 /**
  * 프론트엔드 AgentPanel ↔ LLM 프록시.
  *
- * 서버에 설정된 API 키(application.yml)를 사용하여
- * Anthropic / OpenAI 에 요청을 전달합니다.
+ * Azure AI Foundry (align-it-resource) 엔드포인트로 요청을 전달합니다.
  *
  * POST /api/agent/chat         — 단일 응답
  * POST /api/agent/chat/stream  — SSE 스트리밍
@@ -45,11 +44,11 @@ public class AgentController {
     @Qualifier("pipelineExecutor")
     private final Executor pipelineExecutor;
 
-    @Value("${spring.ai.anthropic.api-key:}")
-    private String anthropicApiKey;
-
     @Value("${spring.ai.openai.api-key:}")
-    private String openAiApiKey;
+    private String foundryApiKey;
+
+    @Value("${app.ai.foundry.responses-url}")
+    private String foundryUrl;
 
     @Value("${app.agent.timeout.stream:90}")
     private int streamTimeoutSec;
@@ -69,16 +68,11 @@ public class AgentController {
         @RequestHeader("X-LLM-Model")    String model,
         @RequestBody AgentRequest request
     ) {
-        String apiKey = "anthropic".equalsIgnoreCase(provider) ? anthropicApiKey : openAiApiKey;
         SseEmitter emitter = new SseEmitter(120_000L);
 
         CompletableFuture.runAsync(() -> {
             try {
-                if ("anthropic".equalsIgnoreCase(provider)) {
-                    streamAnthropic(emitter, apiKey, model, request);
-                } else {
-                    streamOpenAi(emitter, apiKey, model, request);
-                }
+                streamOpenAi(emitter, foundryApiKey, model, request);
             } catch (Exception e) {
                 log.error("스트리밍 오류: {}", e.getMessage());
                 try { emitter.completeWithError(e); } catch (Exception ignored) {}
@@ -96,10 +90,7 @@ public class AgentController {
         @RequestHeader("X-LLM-Model")    String model,
         @RequestBody AgentRequest request
     ) throws Exception {
-        String apiKey = "anthropic".equalsIgnoreCase(provider) ? anthropicApiKey : openAiApiKey;
-        return "anthropic".equalsIgnoreCase(provider)
-            ? callAnthropic(apiKey, model, request)
-            : callOpenAi(apiKey, model, request);
+        return callOpenAi(foundryApiKey, model, request);
     }
 
     // ── API 연결 유효성 검증 ──────────────────────────────────────
@@ -110,90 +101,20 @@ public class AgentController {
         @RequestHeader("X-LLM-Model")    String model,
         @RequestBody Map<String, String> body
     ) throws Exception {
-        String apiKey = "anthropic".equalsIgnoreCase(provider) ? anthropicApiKey : openAiApiKey;
         AgentRequest ping = new AgentRequest(
             List.of(Map.of("role", "user", "content", "Hello")),
             "Reply with 'OK' only.", null
         );
-        if ("anthropic".equalsIgnoreCase(provider)) callAnthropic(apiKey, model, ping);
-        else callOpenAi(apiKey, model, ping);
+        callOpenAi(foundryApiKey, model, ping);
         return Map.of("ok", true);
     }
 
-    // ── Anthropic 구현 ────────────────────────────────────────────
-
-    private HttpRequest buildAnthropicRequest(String apiKey, String model,
-                                               AgentRequest req, boolean stream) throws Exception {
-        return HttpRequest.newBuilder()
-            .uri(URI.create("https://api.anthropic.com/v1/messages"))
-            .header("x-api-key", apiKey)
-            .header("anthropic-version", "2023-06-01")
-            .header("content-type", "application/json")
-            .timeout(Duration.ofSeconds(stream ? streamTimeoutSec : syncTimeoutSec))
-            .POST(HttpRequest.BodyPublishers.ofString(buildAnthropicBody(model, req, stream)))
-            .build();
-    }
-
-    private void streamAnthropic(SseEmitter emitter, String apiKey, String model, AgentRequest req) throws Exception {
-        HttpRequest httpReq = buildAnthropicRequest(apiKey, model, req, true);
-        HttpResponse<java.io.InputStream> resp =
-            httpClient.send(httpReq, HttpResponse.BodyHandlers.ofInputStream());
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(resp.body()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!line.startsWith("data:")) continue;
-                String data = line.substring(5).trim();
-                if (data.isBlank()) continue;
-                try {
-                    JsonNode node = objectMapper.readTree(data);
-                    if ("content_block_delta".equals(node.path("type").asText())) {
-                        String text = node.path("delta").path("text").asText("");
-                        if (!text.isEmpty()) {
-                            emitter.send(SseEmitter.event()
-                                .data("{\"delta\":" + objectMapper.writeValueAsString(text) + "}"));
-                        }
-                    } else if ("message_stop".equals(node.path("type").asText())) {
-                        break;
-                    }
-                } catch (Exception ignored) {}
-            }
-        }
-        emitter.send(SseEmitter.event().data("[DONE]"));
-        emitter.complete();
-    }
-
-    private AgentResponse callAnthropic(String apiKey, String model, AgentRequest req) throws Exception {
-        HttpRequest httpReq = buildAnthropicRequest(apiKey, model, req, false);
-        HttpResponse<String> resp = httpClient.send(httpReq, HttpResponse.BodyHandlers.ofString());
-        JsonNode node = objectMapper.readTree(resp.body());
-        String content = node.path("content").get(0).path("text").asText();
-        return new AgentResponse(content, Map.of());
-    }
-
-    private String buildAnthropicBody(String model, AgentRequest req, boolean stream) throws Exception {
-        List<Map<String, String>> rawMessages = req.messages() == null ? List.of() : req.messages();
-        List<Map<String, String>> messages = rawMessages.stream()
-            .filter(m -> !"system".equals(m.get("role")))
-            .toList();
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("model", model);
-        payload.put("max_tokens", 4096);
-        payload.put("stream", stream);
-        if (req.systemPrompt() != null && !req.systemPrompt().isBlank()) {
-            payload.put("system", req.systemPrompt());
-        }
-        payload.put("messages", messages);
-        return objectMapper.writeValueAsString(payload);
-    }
-
-    // ── OpenAI 구현 ───────────────────────────────────────────────
+    // ── OpenAI / Azure AI Foundry 구현 ───────────────────────────
 
     private HttpRequest buildOpenAiRequest(String apiKey, String model,
                                             AgentRequest req, boolean stream) throws Exception {
         return HttpRequest.newBuilder()
-            .uri(URI.create("https://api.openai.com/v1/chat/completions"))
+            .uri(URI.create(foundryUrl))
             .header("Authorization", "Bearer " + apiKey)
             .header("content-type", "application/json")
             .timeout(Duration.ofSeconds(stream ? streamTimeoutSec : syncTimeoutSec))
@@ -215,11 +136,15 @@ public class AgentController {
                 if (data.isBlank()) continue;
                 try {
                     JsonNode node = objectMapper.readTree(data);
-                    String text = node.path("choices").get(0)
-                        .path("delta").path("content").asText("");
-                    if (!text.isEmpty()) {
-                        emitter.send(SseEmitter.event()
-                            .data("{\"delta\":" + objectMapper.writeValueAsString(text) + "}"));
+                    String type = node.path("type").asText();
+                    if ("response.output_text.delta".equals(type)) {
+                        String text = node.path("delta").asText("");
+                        if (!text.isEmpty()) {
+                            emitter.send(SseEmitter.event()
+                                .data("{\"delta\":" + objectMapper.writeValueAsString(text) + "}"));
+                        }
+                    } else if ("response.completed".equals(type) || "response.failed".equals(type)) {
+                        break;
                     }
                 } catch (Exception ignored) {}
             }
@@ -232,21 +157,34 @@ public class AgentController {
         HttpRequest httpReq = buildOpenAiRequest(apiKey, model, req, false);
         HttpResponse<String> resp = httpClient.send(httpReq, HttpResponse.BodyHandlers.ofString());
         JsonNode node = objectMapper.readTree(resp.body());
-        String content = node.path("choices").get(0).path("message").path("content").asText();
-        return new AgentResponse(content, Map.of());
+        StringBuilder content = new StringBuilder();
+        for (JsonNode item : node.path("output")) {
+            if ("message".equals(item.path("type").asText())) {
+                for (JsonNode block : item.path("content")) {
+                    if ("output_text".equals(block.path("type").asText())) {
+                        content.append(block.path("text").asText());
+                    }
+                }
+            }
+        }
+        return new AgentResponse(content.toString(), Map.of());
     }
 
     private String buildOpenAiBody(String model, AgentRequest req, boolean stream) throws Exception {
-        List<Map<String, String>> messages = new ArrayList<>();
-        if (req.systemPrompt() != null && !req.systemPrompt().isBlank()) {
-            messages.add(Map.of("role", "system", "content", req.systemPrompt()));
+        List<Map<String, String>> input = new ArrayList<>();
+        if (req.messages() != null) {
+            req.messages().stream()
+                .filter(m -> !"system".equals(m.get("role")))
+                .forEach(input::add);
         }
-        if (req.messages() != null) messages.addAll(req.messages());
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", model);
         payload.put("stream", stream);
-        payload.put("messages", messages);
+        payload.put("input", input);
+        if (req.systemPrompt() != null && !req.systemPrompt().isBlank()) {
+            payload.put("instructions", req.systemPrompt());
+        }
         return objectMapper.writeValueAsString(payload);
     }
 }

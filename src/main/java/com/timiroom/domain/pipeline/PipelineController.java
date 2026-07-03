@@ -74,16 +74,16 @@ public class PipelineController {
     }
 
     /**
-     * 파이프라인 재시작
-     * POST /api/v1/pipeline/restart/{pipelineId}
-     * 응답: { executionId: Long, pipelineId: String(UUID) }
+     * Artifact 내용 수정
+     * PATCH /api/v1/pipeline/artifacts/{artifactId}
+     * Body: { "content": "..." }
      */
-    @PostMapping("/restart/{pipelineId}")
-    public ResponseEntity<Map<String, Object>> restart(
-            HttpSession session,
-            @PathVariable String pipelineId
-    ) throws Exception {
-        Long memberId = (Long) session.getAttribute("memberId");
-        return ResponseEntity.ok(pipelineService.restartPipeline(memberId, pipelineId));
+    @PatchMapping("/artifacts/{artifactId}")
+    public ResponseEntity<Void> updateArtifact(
+            @PathVariable Long artifactId,
+            @RequestBody Map<String, String> body
+    ) {
+        pipelineService.updateArtifact(artifactId, body.get("content"));
+        return ResponseEntity.ok().build();
     }
 }

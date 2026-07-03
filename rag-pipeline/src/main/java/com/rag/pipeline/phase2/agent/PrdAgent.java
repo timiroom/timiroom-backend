@@ -63,6 +63,99 @@ public class PrdAgent {
         반드시 JSON만 출력하고 다른 텍스트는 절대 포함하지 마세요.
         """;
 
+    // ── Collaborative API ───────────────────────────────────────
+
+    /**
+     * Round 1: featureList 없이 Phase1 컨텍스트만으로 PRD 초안 빠르게 생성.
+     * PM이 동시에 실행 중이므로 featureList 없이 contextPrompt에서 직접 요구사항 도출.
+     * 단일 패스(Part A만), 약 4000 tokens 분량.
+     */
+    public PipelineState executeDraft(PipelineState state) {
+        log.info("PRD 에이전트 초안 작성 시작 — Phase1 컨텍스트 직접 해석");
+
+        String marketData = state.getMarketResearch() != null
+                ? state.getMarketResearch() : "시장 데이터 없음";
+        String context = state.getContextPrompt() != null
+                ? state.getContextPrompt() : state.getUserQuery();
+
+        String draftPrompt = """
+                수집된 시장 데이터:
+                === 시장 데이터 ===
+                {MARKET_DATA}
+                =================
+
+                사용자 요구사항:
+                {CONTEXT}
+
+                위 정보를 바탕으로 PRD 핵심 구조를 작성하세요.
+                PM 에이전트의 기능 목록 없이 요구사항에서 직접 주요 기능을 도출하세요.
+
+                아래 JSON 형식으로 응답하세요. 다른 텍스트는 절대 포함하지 마세요.
+
+                {
+                  "projectOverview": "서비스 한 줄 개요 (50자 이상)",
+                  "background": "시장 현황 → 문제점 → 기회 서술 (300자 이상, 수치마다 출처 표기)",
+                  "goals": ["목표 4개 — 각 60자 이상"],
+                  "coreFeatures": [
+                    {
+                      "name": "기능명",
+                      "description": "사용자 시나리오 기반 설명 (80자 이상)",
+                      "priority": "P0/P1/P2",
+                      "requirements": ["요구사항 3개 이상"]
+                    }
+                  ],
+                  "userFlow": ["사용자 흐름 6단계 이상 — 각 단계 60자 이상"],
+                  "techStack": {
+                    "backend": "Spring Boot + 이유",
+                    "frontend": "기술명 + 이유",
+                    "database": "PostgreSQL + 이유",
+                    "auth": "인증 방식 + 이유"
+                  }
+                }
+                """
+                .replace("{MARKET_DATA}", marketData.substring(0, Math.min(3000, marketData.length())))
+                .replace("{CONTEXT}", context);
+
+        String prdDraft = callChatCompletions(draftPrompt, 4000);
+        log.info("PRD 에이전트 초안 완료 — {}chars", prdDraft.length());
+
+        return state.toBuilder()
+                .prdDocument(prdDraft)
+                .prdFeedbackFromDba("")
+                .prdFeedbackFromApi("")
+                .build();
+    }
+
+    /**
+     * Round 2: PM featureList + DBA 스키마 + API 스펙 초안을 반영하여 전체 PRD 생성.
+     * Round 1 결과를 바탕으로 DBA/API 설계 결과와 정렬된 고품질 PRD를 Part A + Part B로 생성.
+     */
+    public PipelineState refine(PipelineState state) {
+        log.info("PRD 에이전트 최종 문서 작성 — PM 기능 목록 + DBA/API 초안 정렬");
+
+        // DBA/API 설계 결과를 context에 추가하여 PRD가 이를 반영하도록
+        String alignmentContext = "";
+        if (state.getDbSchema() != null && !state.getDbSchema().equals("{}")) {
+            alignmentContext += "\n\n=== DBA 에이전트가 설계한 DB 스키마 (PRD 요구사항이 이와 정렬되어야 함) ===\n"
+                    + state.getDbSchema().substring(0, Math.min(1500, state.getDbSchema().length()));
+        }
+        if (state.getApiSpec() != null && !state.getApiSpec().equals("{}")) {
+            alignmentContext += "\n\n=== API 에이전트가 설계한 API 스펙 (PRD 요구사항이 이와 정렬되어야 함) ===\n"
+                    + state.getApiSpec().substring(0, Math.min(1500, state.getApiSpec().length()));
+        }
+
+        PipelineState enrichedState = state.toBuilder()
+                .contextPrompt((state.getContextPrompt() != null ? state.getContextPrompt() : "") + alignmentContext)
+                .prdFeedbackFromDba("")
+                .prdFeedbackFromApi("")
+                .rollbackCount(0)
+                .build();
+
+        return execute(enrichedState);
+    }
+
+    // ── 기존 Sequential API ──────────────────────────────────────
+
     public PipelineState execute(PipelineState state) {
         log.info("PRD 에이전트 시작");
 
@@ -215,7 +308,7 @@ public class PrdAgent {
                 .replace("{FEATURE_STR}", featureStr);
 
 
-        return callChatCompletions(prompt, 8000);
+        return callChatCompletions(prompt, 16000);
     }
 
     private String generatePartB(PipelineState state, String marketData, boolean isRollback, String partA) {
@@ -285,7 +378,7 @@ public class PrdAgent {
                 .replace("{USER_QUERY}", state.getUserQuery())
                 .replace("{FEATURE_STR}", featureStr);
 
-        return callChatCompletions(prompt, 6000);
+        return callChatCompletions(prompt, 16000);
     }
 
     private String extractKpiSummary(String partA) {
@@ -322,22 +415,21 @@ public class PrdAgent {
         return sb.toString();
     }
 
+    @Value("${app.ai.foundry.responses-url}")
+    private String foundryUrl;
+
     private String callChatCompletions(String userPrompt, int maxTokens) {
         Map<String, Object> requestBody = Map.of(
-                "model", "gpt-4o",
-                "temperature", 0.1,
-                "max_tokens", maxTokens,
-                "response_format", Map.of("type", "json_object"),
-                "messages", List.of(
-                        Map.of("role", "system", "content", SYSTEM_PROMPT),
-                        Map.of("role", "user", "content", userPrompt)
-                )
+                "model", "gpt-5.4-mini",
+                "instructions", SYSTEM_PROMPT,
+                "input", List.of(Map.of("role", "user", "content", userPrompt)),
+                "max_output_tokens", maxTokens
         );
 
         try {
             String response = restClientBuilder.build()
                     .post()
-                    .uri("https://api.openai.com/v1/chat/completions")
+                    .uri(foundryUrl)
                     .header("Authorization", "Bearer " + openAiApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)
@@ -345,25 +437,52 @@ public class PrdAgent {
                     .body(String.class);
 
             JsonNode root = objectMapper.readTree(response);
-            return root.path("choices").get(0).path("message").path("content").asText();
+            for (JsonNode item : root.path("output")) {
+                if ("message".equals(item.path("type").asText())) {
+                    for (JsonNode block : item.path("content")) {
+                        if ("output_text".equals(block.path("type").asText())) {
+                            String text = block.path("text").asText().trim()
+                                    .replaceAll("(?s)^```[a-zA-Z]*\\n?", "")
+                                    .replaceAll("(?s)```\\s*$", "")
+                                    .trim();
+                            int start = text.indexOf("{");
+                            int end = text.lastIndexOf("}");
+                            if (start >= 0 && end > start) return text.substring(start, end + 1);
+                            return text;
+                        }
+                    }
+                }
+            }
+            return "{}";
 
         } catch (Exception e) {
-            log.error("Chat Completions 호출 실패: {}", e.getMessage());
+            log.error("Responses API 호출 실패: {}", e.getMessage());
             return "{}";
         }
     }
 
     private String mergeJsonParts(String partA, String partB) {
+        JsonNode nodeA;
         try {
-            JsonNode nodeA = objectMapper.readTree(partA);
+            nodeA = objectMapper.readTree(partA);
+        } catch (Exception e) {
+            log.error("Part A JSON 파싱 실패 — PRD 생성 불가: {}", e.getMessage());
+            return "{}";
+        }
+
+        try {
             JsonNode nodeB = objectMapper.readTree(partB);
             com.fasterxml.jackson.databind.node.ObjectNode merged =
                     (com.fasterxml.jackson.databind.node.ObjectNode) nodeA;
-            nodeB.fields().forEachRemaining(e -> merged.set(e.getKey(), e.getValue()));
+            nodeB.fields().forEachRemaining(entry -> merged.set(entry.getKey(), entry.getValue()));
             return objectMapper.writeValueAsString(merged);
         } catch (Exception e) {
-            log.error("JSON 합치기 실패: {}", e.getMessage());
-            return partA;
+            log.warn("Part B JSON 합치기 실패 — Part A만 반환 (유효한 JSON): {}", e.getMessage());
+            try {
+                return objectMapper.writeValueAsString(nodeA);
+            } catch (Exception e2) {
+                return "{}";
+            }
         }
     }
 }

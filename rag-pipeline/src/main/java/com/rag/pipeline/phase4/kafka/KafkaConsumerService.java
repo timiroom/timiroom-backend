@@ -1,9 +1,12 @@
 package com.rag.pipeline.phase4.kafka;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.jdbc.core.JdbcTemplate;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.retrytopic.TopicSuffixingStrategy;
@@ -12,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Phase 4 — Kafka 메시지 소비 서비스
@@ -25,7 +29,8 @@ import java.util.List;
 public class KafkaConsumerService {
 
     private final JdbcTemplate jdbcTemplate;
-    private final EmbeddingModel embeddingModel;  // Spring AI 임베딩 모델
+    private final EmbeddingModel embeddingModel;
+    private final ObjectMapper objectMapper;
 
     // 청크 최대 글자수 (너무 크면 임베딩 품질 저하)
     private static final int CHUNK_SIZE = 800;
@@ -104,6 +109,15 @@ public class KafkaConsumerService {
             totalSaved += saved;
         }
 
+        // 5. 기능 명세 저장
+        if (event.getFeatureList() != null && !event.getFeatureList().isEmpty()) {
+            String featureText = String.join("\n", event.getFeatureList());
+            int saved = saveChunks(featureText, "features",
+                    event.getPipelineId(), event.getUserQuery());
+            log.info("  기능 명세 저장 완료 — {}개 청크", saved);
+            totalSaved += saved;
+        }
+
         log.info("저장 처리 완료 — pipelineId: {}, 총 {}개 청크 저장",
                 event.getPipelineId(), totalSaved);
     }
@@ -119,28 +133,30 @@ public class KafkaConsumerService {
         for (int i = 0; i < chunks.size(); i++) {
             String chunk = chunks.get(i);
             try {
-                // 임베딩 생성 (vector(3072) — text-embedding-3-large)
+                // 임베딩 생성 (vector(1024) — text-embedding-3-large, dimensions: 1024)
                 float[] embeddingArr = embeddingModel.embed(chunk);
                 String embeddingStr = toVectorString(embeddingArr);
 
-                // metadata JSON 구성
-                String metadata = String.format(
-                        "{\"type\":\"%s\",\"pipeline_id\":\"%s\"," +
-                                "\"query\":\"%s\",\"chunk_index\":%d}",
-                        type,
-                        pipelineId,
-                        userQuery.replace("\"", "\\\""),
-                        i
-                );
+                // metadata JSON 구성 — ObjectMapper로 직렬화하여 특수문자/개행 안전하게 처리
+                String metadata = objectMapper.writeValueAsString(Map.of(
+                        "type", type,
+                        "pipeline_id", pipelineId,
+                        "query", userQuery,
+                        "chunk_index", i
+                ));
 
-                // document_chunks 테이블에 INSERT
+                String contentHash = sha256(chunk);
+
+                // content_hash 중복이면 SKIP (ON CONFLICT DO NOTHING)
                 jdbcTemplate.update("""
-                    INSERT INTO document_chunks (content, metadata, embedding)
-                    VALUES (?, ?::jsonb, ?::vector)
+                    INSERT INTO document_chunks (content, metadata, embedding, content_hash)
+                    VALUES (?, ?::jsonb, ?::vector, ?)
+                    ON CONFLICT (content_hash) DO NOTHING
                     """,
                         chunk,
                         metadata,
-                        embeddingStr
+                        embeddingStr,
+                        contentHash
                 );
                 saved++;
 
@@ -162,6 +178,18 @@ public class KafkaConsumerService {
             chunks.add(text.substring(i, Math.min(i + size, len)));
         }
         return chunks;
+    }
+
+    private String sha256(String text) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hash) hex.append(String.format("%02x", b));
+            return hex.toString();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
