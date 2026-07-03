@@ -61,6 +61,7 @@ public class Member extends BaseEntity {
         Member member = new Member();
         member.memberName = memberName;
         member.email = email;
+        member.password = "";
         member.role = Role.USER;
         member.provider = provider;
         member.providerId = providerId;

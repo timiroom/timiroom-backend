@@ -66,8 +66,10 @@ public class HybridSearchService {
 
 
     // Phase1 검색 대상 타입 — ERD·API는 JSON 구조라 의미 벡터 품질이 낮고 노이즈가 됨
-    private static final String SEARCH_TYPE_FILTER =
-            "type in ['prd', 'market_research', 'features']";
+    // Spring AI 1.0.0-M3 PgVectorStore가 in 필터를 잘못된 jsonpath로 변환하므로
+    // vectorSearch는 필터 없이 조회 후 Java에서 후처리 필터링 사용
+    private static final Set<String> SEARCH_TYPE_SET =
+            Set.of("prd", "market_research", "features");
     private static final String SEARCH_TYPE_SQL =
             "metadata->>'type' IN ('prd', 'market_research', 'features')";
 
@@ -168,9 +170,11 @@ public class HybridSearchService {
         while (current >= minThreshold) {
             SearchRequest request = SearchRequest.query(query)
                     .withTopK(topKVector)
-                    .withSimilarityThreshold(current)
-                    .withFilterExpression(SEARCH_TYPE_FILTER);
-            docs = vectorStore.similaritySearch(request);
+                    .withSimilarityThreshold(current);
+            docs = vectorStore.similaritySearch(request).stream()
+                    .filter(d -> SEARCH_TYPE_SET.contains(
+                            String.valueOf(d.getMetadata().get("type"))))
+                    .collect(Collectors.toList());
 
             if (docs.size() >= minVectorResults || current - thresholdStep < minThreshold) break;
             log.debug("벡터 검색 결과 {}개 부족 — 임계값 {} → {} 하향 조정",

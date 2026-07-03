@@ -7,9 +7,9 @@ spring:
 
   # ── Database ─────────────────────────────────────────────────────
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:alignit}
-    username: ${POSTGRES_USER:alignit}
-    password: ${POSTGRES_PASSWORD:alignit1234}
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:timiroom}
+    username: ${POSTGRES_USER:timiroom}
+    password: ${POSTGRES_PASSWORD:timiroom1234}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -26,7 +26,7 @@ spring:
     uri: ${NEO4J_URI:bolt://localhost:7687}
     authentication:
       username: ${NEO4J_USERNAME:neo4j}
-      password: ${NEO4J_PASSWORD:alignit1234}
+      password: ${NEO4J_PASSWORD:timiroom1234}
 
   # ── Redis ────────────────────────────────────────────────────────
   data:
@@ -70,10 +70,10 @@ rag-pipeline:
   base-url: ${RAG_PIPELINE_URL:http://localhost:8081}
 
 cors:
-  allowed-origins: ${FRONTEND_URL:http://localhost:3001}
+  allowed-origins: ${FRONTEND_URL:http://localhost:3000}
 
 frontend:
-  url: ${FRONTEND_URL:http://localhost:3001}
+  url: ${FRONTEND_URL:http://localhost:3000}
 
 logging:
   level:
