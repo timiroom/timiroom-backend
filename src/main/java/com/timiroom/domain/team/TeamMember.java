@@ -34,4 +34,8 @@ public class TeamMember {
     @CreationTimestamp
     @Column(name = "joined_at", updatable = false)
     private LocalDateTime joinedAt;
+
+    public void updateRole(TeamRole teamRole) {
+        this.teamRole = teamRole;
+    }
 }

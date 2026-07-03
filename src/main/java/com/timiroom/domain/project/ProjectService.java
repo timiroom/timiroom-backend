@@ -5,6 +5,7 @@ import com.timiroom.domain.pipeline.PipelineArtifactRepository;
 import com.timiroom.domain.pipeline.PipelineExecution;
 import com.timiroom.domain.pipeline.PipelineExecutionRepository;
 import com.timiroom.domain.requirement.RequirementRepository;
+import com.timiroom.domain.team.TeamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,9 +23,12 @@ public class ProjectService {
     private final RequirementRepository requirementRepository;
     private final PipelineExecutionRepository pipelineExecutionRepository;
     private final PipelineArtifactRepository pipelineArtifactRepository;
+    private final TeamService teamService;
 
     @Transactional
     public Project create(Long teamId, Long memberId, String projectName, String description) {
+        teamService.requireMemberOrAbove(teamId, memberId);
+
         Project project = Project.builder()
                 .teamId(teamId)
                 .projectName(projectName)
@@ -42,7 +46,14 @@ public class ProjectService {
     }
 
     @Transactional
-    public ProjectMember addMember(Long projectId, Long memberId, ProjectRole role) {
+    public ProjectMember addMember(Long projectId, Long actorMemberId, Long memberId, ProjectRole role) {
+        getById(projectId, actorMemberId);
+        ProjectMember actor = projectMemberRepository.findByProjectIdAndMemberId(projectId, actorMemberId)
+                .orElseThrow(() -> new SecurityException("프로젝트 멤버를 추가할 권한이 없습니다"));
+        if (actor.getProjectRole() != ProjectRole.PM) {
+            throw new SecurityException("프로젝트 멤버를 추가할 권한이 없습니다");
+        }
+
         if (projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId)) {
             throw new IllegalStateException("이미 프로젝트에 속해 있습니다");
         }
@@ -54,14 +65,17 @@ public class ProjectService {
     }
 
     @Transactional(readOnly = true)
-    public List<Project> getByTeam(Long teamId) {
+    public List<Project> getByTeam(Long teamId, Long memberId) {
+        teamService.requireMembership(teamId, memberId);
         return projectRepository.findByTeamId(teamId);
     }
 
     @Transactional(readOnly = true)
-    public Project getById(Long projectId) {
-        return projectRepository.findById(projectId)
+    public Project getById(Long projectId, Long memberId) {
+        Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다: " + projectId));
+        teamService.requireMembership(project.getTeamId(), memberId);
+        return project;
     }
 
     @Transactional(readOnly = true)
@@ -71,14 +85,14 @@ public class ProjectService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProjectMember> getMembers(Long projectId) {
+    public List<ProjectMember> getMembers(Long projectId, Long memberId) {
+        getById(projectId, memberId);
         return projectMemberRepository.findByProjectId(projectId);
     }
 
     @Transactional
     public void delete(Long projectId, Long memberId) {
-        projectRepository.findById(projectId)
-                .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다: " + projectId));
+        getById(projectId, memberId);
 
         if (!projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId)) {
             throw new SecurityException("프로젝트 삭제 권한이 없습니다");
@@ -100,10 +114,57 @@ public class ProjectService {
         projectRepository.deleteById(projectId);
     }
 
+    @Transactional
+    public Project updateProject(Long projectId, Long memberId, String projectName, String description, String status) {
+        Project project = getById(projectId, memberId);
+        requireProjectRole(projectId, memberId, ProjectRole.PM, "프로젝트를 수정하려면 PM 권한이 필요합니다");
+
+        project.updateInfo(projectName, description);
+        if (status != null && !status.isBlank()) {
+            try {
+                project.updateStatus(ProjectStatus.valueOf(status.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("올바르지 않은 상태값: " + status);
+            }
+        }
+        return projectRepository.save(project);
+    }
+
+    @Transactional
+    public void removeMember(Long projectId, Long actorId, Long targetMemberId) {
+        getById(projectId, actorId);
+        requireProjectRole(projectId, actorId, ProjectRole.PM, "멤버 제거 권한이 없습니다");
+        if (actorId.equals(targetMemberId)) {
+            throw new IllegalArgumentException("자기 자신을 제거할 수 없습니다");
+        }
+        ProjectMember target = projectMemberRepository.findByProjectIdAndMemberId(projectId, targetMemberId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 멤버가 프로젝트에 없습니다"));
+        projectMemberRepository.delete(target);
+    }
+
+    @Transactional
+    public ProjectMember updateMemberRole(Long projectId, Long actorId, Long targetMemberId, ProjectRole newRole) {
+        getById(projectId, actorId);
+        requireProjectRole(projectId, actorId, ProjectRole.PM, "역할 변경 권한이 없습니다");
+        ProjectMember target = projectMemberRepository.findByProjectIdAndMemberId(projectId, targetMemberId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 멤버가 프로젝트에 없습니다"));
+        target.updateRole(newRole);
+        return projectMemberRepository.save(target);
+    }
+
+    private void requireProjectRole(Long projectId, Long memberId, ProjectRole required, String message) {
+        ProjectMember actor = projectMemberRepository.findByProjectIdAndMemberId(projectId, memberId)
+                .orElseThrow(() -> new SecurityException(message));
+        if (actor.getProjectRole() != required) {
+            throw new SecurityException(message);
+        }
+    }
+
     /** 프로젝트의 최신 완료된 artifact 조회 */
     @Transactional(readOnly = true)
-    public Optional<PipelineArtifact> getDocument(Long projectId, PipelineArtifact.ArtifactType type) {
-        List<Long> requirementIds = requirementRepository.findRequirementIdsByProjectId(projectId);
+    public Optional<PipelineArtifact> getDocument(Long projectId, Long memberId, PipelineArtifact.ArtifactType type) {
+        Project project = getById(projectId, memberId);
+        List<Long> requirementIds = requirementRepository.findRequirementIdsByProjectId(project.getProjectId());
         if (requirementIds.isEmpty()) return Optional.empty();
 
         List<Long> executionIds = pipelineExecutionRepository
@@ -119,8 +180,10 @@ public class ProjectService {
 
     /** artifact content 수정 (없으면 신규 저장) */
     @Transactional
-    public PipelineArtifact saveDocument(Long projectId, PipelineArtifact.ArtifactType type, String content) {
-        Optional<PipelineArtifact> existing = getDocument(projectId, type);
+    public PipelineArtifact saveDocument(Long projectId, Long memberId, PipelineArtifact.ArtifactType type, String content) {
+        Project project = getById(projectId, memberId);
+
+        Optional<PipelineArtifact> existing = getDocument(project.getProjectId(), memberId, type);
         if (existing.isPresent()) {
             PipelineArtifact artifact = existing.get();
             artifact.updateContent(content);

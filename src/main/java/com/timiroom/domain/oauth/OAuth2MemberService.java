@@ -40,12 +40,25 @@ public class OAuth2MemberService extends DefaultOAuth2UserService {
                 ? oAuth2User.getAttribute("email")
                 : provider + "_" + providerId + "@timiroom.com";
 
+        // 소셜 provider의 실제 표시 이름 (Google: name, GitHub: name or login)
+        String displayName = oAuth2User.getAttribute("name");
+        if (displayName == null || displayName.isBlank()) {
+            displayName = oAuth2User.getAttribute("login"); // GitHub fallback
+        }
+        final String resolvedDisplayName = displayName;
+
         Provider providerEnum = Provider.valueOf(provider.toUpperCase());
 
-        memberRepository.findByProviderAndProviderId(providerEnum, providerId)
+        Member member = memberRepository.findByProviderAndProviderId(providerEnum, providerId)
                 .orElseGet(() -> memberRepository.save(
                         Member.createOAuth(memberName, email, providerEnum, providerId)
                 ));
+
+        // 로그인마다 nickname 동기화 (기존 유저도 자동 갱신)
+        if (resolvedDisplayName != null && !resolvedDisplayName.equals(member.getNickname())) {
+            member.updateNickname(resolvedDisplayName);
+            memberRepository.save(member);
+        }
 
         return oAuth2User;
     }

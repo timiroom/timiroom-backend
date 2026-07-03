@@ -54,7 +54,7 @@ public class MemberController {
     private Map<String, Object> memberToMap(Member member) {
         return Map.of(
                 "id", member.getMemberId(),
-                "name", member.getMemberName(),
+                "name", member.getDisplayName(),
                 "email", member.getEmail(),
                 "provider", member.getProvider()
         );

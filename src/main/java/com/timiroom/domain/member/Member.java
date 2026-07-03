@@ -25,7 +25,7 @@ public class Member extends BaseEntity {
     @Column(name = "email", nullable = false)
     private String email;
 
-    @Column(name = "nickname", length = 30)
+    @Column(name = "nickname", length = 100)
     private String nickname;
 
     @Column(name = "profile_image_url", length = 500)
@@ -54,6 +54,14 @@ public class Member extends BaseEntity {
 
     public void updateName(String memberName) {
         this.memberName = memberName;
+    }
+
+    public void updateNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    public String getDisplayName() {
+        return nickname != null && !nickname.isBlank() ? nickname : memberName;
     }
 
     // 소셜 로그인용

@@ -25,4 +25,13 @@ public class Team extends BaseEntity {
 
     @Column(name = "invite_code", length = 20, unique = true)
     private String inviteCode;
+
+    public void updateInfo(String teamName, String description) {
+        this.teamName = teamName;
+        this.description = description;
+    }
+
+    public void updateInviteCode(String inviteCode) {
+        this.inviteCode = inviteCode;
+    }
 }
