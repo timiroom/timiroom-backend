@@ -164,6 +164,14 @@ public class TeamService {
     }
 
     @Transactional
+    public Team updateTeamIcon(Long teamId, Long memberId, String iconUrl) {
+        requireOwner(teamId, memberId);
+        Team team = requireTeam(teamId);
+        team.updateIconUrl(iconUrl);
+        return teamRepository.save(team);
+    }
+
+    @Transactional
     public Team regenerateInviteCode(Long teamId, Long memberId) {
         requireOwner(teamId, memberId);
 
@@ -428,6 +436,7 @@ public class TeamService {
                 team.getTeamName(),
                 team.getDescription(),
                 viewerRole == TeamRole.OWNER ? team.getInviteCode() : null,
+                team.getIconUrl(),
                 viewerRole
         );
     }

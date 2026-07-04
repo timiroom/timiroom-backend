@@ -135,6 +135,21 @@ public class TeamController {
         }
     }
 
+    /** 워크스페이스 아이콘 URL 저장 */
+    @PatchMapping("/{teamId}/icon")
+    public ResponseEntity<?> updateIcon(HttpSession session,
+                                        @PathVariable Long teamId,
+                                        @RequestBody Map<String, String> body) {
+        Long memberId = getMemberId(session);
+        if (memberId == null) return unauthorized();
+        try {
+            teamService.updateTeamIcon(teamId, memberId, body.get("iconUrl"));
+            return ResponseEntity.ok(teamService.getTeamSummary(teamId, memberId));
+        } catch (SecurityException e) {
+            return forbidden(e.getMessage());
+        }
+    }
+
     /** 초대 코드 재발급 */
     @PatchMapping("/{teamId}/invite-code")
     public ResponseEntity<?> regenerateInviteCode(HttpSession session,

@@ -76,6 +76,13 @@ cors:
 frontend:
   url: ${FRONTEND_URL:http://localhost:3001}
 
+storage:
+  endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+  access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+  secret-key: ${STORAGE_SECRET_KEY:minioadmin1234}
+  bucket: ${STORAGE_BUCKET:timiroom}
+  public-url: ${STORAGE_PUBLIC_URL:http://localhost:9000}
+
 logging:
   level:
     io.netty.resolver.dns.DnsServerAddressStreamProviders: "OFF"

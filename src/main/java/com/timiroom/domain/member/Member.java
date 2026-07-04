@@ -60,6 +60,10 @@ public class Member extends BaseEntity {
         this.nickname = nickname;
     }
 
+    public void updateProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
+    }
+
     public String getDisplayName() {
         return nickname != null && !nickname.isBlank() ? nickname : memberName;
     }

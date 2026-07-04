@@ -50,3 +50,10 @@ spring:
 
 cors:
   allowed-origins: "https://timiroom.kro.kr"
+
+storage:
+  endpoint: ${STORAGE_ENDPOINT}
+  access-key: ${STORAGE_ACCESS_KEY}
+  secret-key: ${STORAGE_SECRET_KEY}
+  bucket: ${STORAGE_BUCKET:timiroom}
+  public-url: ${STORAGE_PUBLIC_URL}

@@ -26,9 +26,16 @@ public class Team extends BaseEntity {
     @Column(name = "invite_code", length = 20, unique = true)
     private String inviteCode;
 
+    @Column(name = "icon_url", length = 500)
+    private String iconUrl;
+
     public void updateInfo(String teamName, String description) {
         this.teamName = teamName;
         this.description = description;
+    }
+
+    public void updateIconUrl(String iconUrl) {
+        this.iconUrl = iconUrl;
     }
 
     public void updateInviteCode(String inviteCode) {
