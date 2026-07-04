@@ -1,6 +1,7 @@
 package com.timiroom.domain.project;
 
 import com.timiroom.domain.pipeline.PipelineArtifact;
+import com.timiroom.domain.pipeline.PipelineArtifact.ArtifactType;
 import com.timiroom.domain.pipeline.PipelineArtifactRepository;
 import com.timiroom.domain.pipeline.PipelineExecution;
 import com.timiroom.domain.pipeline.PipelineExecutionRepository;
@@ -10,13 +11,33 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ProjectService {
+
+    private static final Map<ProjectRole, Set<ArtifactType>> ROLE_DOCUMENT_PERMISSIONS;
+
+    static {
+        ROLE_DOCUMENT_PERMISSIONS = new EnumMap<>(ProjectRole.class);
+        ROLE_DOCUMENT_PERMISSIONS.put(ProjectRole.PM,
+                EnumSet.allOf(ArtifactType.class));
+        ROLE_DOCUMENT_PERMISSIONS.put(ProjectRole.BACKEND,
+                EnumSet.of(ArtifactType.DB_SCHEMA, ArtifactType.API_SPEC));
+        ROLE_DOCUMENT_PERMISSIONS.put(ProjectRole.FRONTEND,
+                EnumSet.of(ArtifactType.API_SPEC, ArtifactType.FEATURE_LIST));
+        ROLE_DOCUMENT_PERMISSIONS.put(ProjectRole.DESIGNER,
+                EnumSet.of(ArtifactType.PRD, ArtifactType.MARKET_RESEARCH, ArtifactType.FEATURE_LIST));
+        ROLE_DOCUMENT_PERMISSIONS.put(ProjectRole.INFRA,
+                EnumSet.of(ArtifactType.DB_SCHEMA));
+    }
 
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
@@ -92,11 +113,8 @@ public class ProjectService {
 
     @Transactional
     public void delete(Long projectId, Long memberId) {
-        getById(projectId, memberId);
-
-        if (!projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId)) {
-            throw new SecurityException("프로젝트 삭제 권한이 없습니다");
-        }
+        Project project = getById(projectId, memberId);
+        teamService.requireOwner(project.getTeamId(), memberId);
 
         // PipelineArtifact → PipelineExecution → Requirement → ProjectMember → Project 순서로 삭제
         List<Long> requirementIds = requirementRepository.findRequirementIdsByProjectId(projectId);
@@ -160,6 +178,15 @@ public class ProjectService {
         }
     }
 
+    private void requireDocumentPermission(Long projectId, Long memberId, ArtifactType type) {
+        ProjectMember pm = projectMemberRepository.findByProjectIdAndMemberId(projectId, memberId)
+                .orElseThrow(() -> new SecurityException("프로젝트 멤버만 문서를 수정할 수 있습니다"));
+        Set<ArtifactType> allowed = ROLE_DOCUMENT_PERMISSIONS.getOrDefault(pm.getProjectRole(), EnumSet.noneOf(ArtifactType.class));
+        if (!allowed.contains(type)) {
+            throw new SecurityException(pm.getProjectRole() + " 역할은 " + type + " 문서를 수정할 수 없습니다");
+        }
+    }
+
     /** 프로젝트의 최신 완료된 artifact 조회 */
     @Transactional(readOnly = true)
     public Optional<PipelineArtifact> getDocument(Long projectId, Long memberId, PipelineArtifact.ArtifactType type) {
@@ -182,6 +209,7 @@ public class ProjectService {
     @Transactional
     public PipelineArtifact saveDocument(Long projectId, Long memberId, PipelineArtifact.ArtifactType type, String content) {
         Project project = getById(projectId, memberId);
+        requireDocumentPermission(projectId, memberId, type);
 
         Optional<PipelineArtifact> existing = getDocument(project.getProjectId(), memberId, type);
         if (existing.isPresent()) {
