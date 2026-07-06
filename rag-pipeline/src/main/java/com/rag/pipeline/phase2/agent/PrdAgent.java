@@ -154,6 +154,49 @@ public class PrdAgent {
         return execute(enrichedState);
     }
 
+    /**
+     * QA 에이전트가 발견한 PRD 결함만 선택적으로 수정.
+     * 전체 재생성(2 API calls) 대신 단일 호출로 해당 필드만 패치.
+     */
+    public PipelineState patchFromQa(PipelineState state, java.util.List<String> prdIssues) {
+        log.info("PRD 에이전트 QA 결함 수정 시작 — {}개 결함", prdIssues.size());
+
+        String currentPrd = (state.getPrdDocument() != null && !state.getPrdDocument().equals("{}"))
+                ? state.getPrdDocument()
+                : "{}";
+
+        String issueList = prdIssues.stream()
+                .map(i -> "- " + i)
+                .collect(java.util.stream.Collectors.joining("\n"));
+
+        // PRD가 매우 크면 앞부분만 컨텍스트로 사용
+        String prdContext = currentPrd.substring(0, Math.min(6000, currentPrd.length()));
+
+        String prompt = """
+                현재 PRD 문서 (요약):
+                %s
+
+                QA 에이전트가 발견한 PRD 결함:
+                %s
+
+                위 결함만 수정하여 PRD 전체 JSON을 다시 출력하세요.
+                결함이 없는 섹션은 원본 그대로 유지하세요.
+                반드시 완성된 JSON만 출력하고 다른 텍스트는 포함하지 마세요.
+                """.formatted(prdContext, issueList);
+
+        String fixed = callChatCompletions(prompt, 16000);
+
+        if (fixed == null || fixed.equals("{}")) {
+            log.warn("PRD QA 패치 실패 — 원본 PRD 유지");
+            return state;
+        }
+
+        log.info("PRD QA 결함 수정 완료");
+        return state.toBuilder()
+                .prdDocument(fixed)
+                .build();
+    }
+
     // ── 기존 Sequential API ──────────────────────────────────────
 
     public PipelineState execute(PipelineState state) {

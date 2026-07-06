@@ -51,11 +51,15 @@ public class GenerateResponse {
     }
 
     private static JsonNode parseJson(String json) {
+        if (json == null || json.isBlank() || json.equals("{}") || json.equals("[]")) return null;
         try {
-            if (json == null || json.isBlank()) return MAPPER.createObjectNode();
-            return MAPPER.readTree(json);
+            JsonNode node = MAPPER.readTree(json);
+            // 파싱 성공해도 빈 오브젝트/배열이면 null 반환 (saveArtifact 스킵 방지 + 프론트 빈 상태 처리)
+            if (node.isObject() && node.isEmpty()) return null;
+            if (node.isArray() && node.isEmpty()) return null;
+            return node;
         } catch (Exception e) {
-            return MAPPER.createObjectNode();
+            return null;
         }
     }
 }

@@ -51,20 +51,20 @@ public class OrchestrationGraph {
         PipelineState afterPrdDbaApi = runPrdWithRollback(afterPm, pipelineId);
 
         progressService.send(pipelineId, "QA", "QA 검수 중...", 75);
-        PipelineState finalState = runQaRetryOnly(afterPrdDbaApi, 0, pipelineId);
+        PipelineState afterQa = runQaRetryOnly(afterPrdDbaApi, 0, pipelineId);
 
         // RL: QA 결과를 보상으로 변환 → DBA/API temperature 업데이트
         // retryCount 패널티: 재시도할수록 원점수에서 0.15씩 차감
-        double rawScore  = finalState.getQaQualityScore();
-        int    retries   = finalState.getRetryCount();
+        double rawScore  = afterQa.getQaQualityScore();
+        int    retries   = afterQa.getRetryCount();
         double finalScore = Math.max(0.05, rawScore - 0.15 * retries);
-        String rlKey = finalState.getSessionId() != null ? finalState.getSessionId() : pipelineId;
+        String rlKey = afterQa.getSessionId() != null ? afterQa.getSessionId() : pipelineId;
         agentRLService.applyQaFeedback(rlKey, finalScore);
         log.info("Agent RL 피드백 적용 — rawScore:{}, retries:{}, finalScore:{}",
                 String.format("%.2f", rawScore), retries, String.format("%.2f", finalScore));
 
         log.info("=== Phase 2 완료 ===");
-        return finalState;
+        return afterQa;
     }
 
     /** 레거시 — SSE 없이 실행 */
@@ -117,8 +117,10 @@ public class OrchestrationGraph {
 
             if (attempt < 2) {
                 log.warn("PRD rollback #{}", attempt + 1);
+                // DBA_API(60%) 이후이므로 62→64로 항상 순방향 증가
+                int rollbackPct = 62 + attempt * 2;
                 progressService.send(pipelineId, "PRD_ROLLBACK",
-                    String.format("PRD 재작성 중... (%d/2회)", attempt + 1), 52);
+                    String.format("PRD 재작성 중... (%d/2회)", attempt + 1), rollbackPct);
                 current = afterPrd.toBuilder()
                         .prdFeedbackFromDba(dbaResult.getPrdFeedbackFromDba())
                         .prdFeedbackFromApi(apiResult.getPrdFeedbackFromApi())
@@ -138,11 +140,26 @@ public class OrchestrationGraph {
 
     // ── QA 재시도 루프 ────────────────────────────────────────────────
 
+    /**
+     * QA 재시도 percent 계산
+     *
+     * QA 구간: 75% ~ 84% (PHASE3=85% 직전까지)
+     * attempt 0: 재검수 75% (run()에서 이미 전송), 수정 76%
+     * attempt 1: 재검수 77%, 수정 78%
+     * attempt 2: 재검수 79%, 수정 80%
+     * attempt 3: 재검수 81%, 수정 82%
+     * attempt 4: 재검수 83%, 수정 84%
+     * → 항상 오름차순, 역주행 없음
+     */
+    private int qaCheckPct(int attempt) { return Math.min(75 + attempt * 2, 84); }
+    private int qaFixPct(int attempt)   { return Math.min(75 + attempt * 2 + 1, 84); }
+
     private PipelineState runQaRetryOnly(PipelineState state, int attempt, String pipelineId) {
 
         if (attempt > 0) {
             progressService.send(pipelineId, "QA_RETRY",
-                String.format("QA 재검수 중... (%d/%d회)", attempt, MAX_QA_RETRY), 76);
+                String.format("QA 재검수 중... (%d/%d회)", attempt, MAX_QA_RETRY),
+                qaCheckPct(attempt));
         }
 
         log.info("QA 에이전트 실행 중... (시도 {})", attempt + 1);
@@ -164,32 +181,74 @@ public class OrchestrationGraph {
                     .build();
         }
 
-        log.warn("QA 검수 실패 — DBA/API 재실행 후 재시도 ({}/{})", attempt + 1, MAX_QA_RETRY);
+        java.util.List<String> dbIssues  = qaResult.getQaDbIssues();
+        java.util.List<String> apiIssues = qaResult.getQaApiIssues();
+        java.util.List<String> prdIssues = qaResult.getQaPrdIssues();
+        int fixPct = qaFixPct(attempt);
 
-        String retryContext = state.getContextPrompt()
-                + "\n\n=== 이전 설계의 치명적 결함 (반드시 수정) ===\n"
-                + qaResult.getLastValidationError()
-                + "\n\n위 결함을 모두 수정하여 완전한 설계를 다시 생성하세요.";
+        log.warn("QA 검수 실패 — DB:{}, API:{}, PRD:{} 결함 — 해당 에이전트만 선택적 재수정 ({}/{})",
+                dbIssues.size(), apiIssues.size(), prdIssues.size(), attempt + 1, MAX_QA_RETRY);
 
         PipelineState retryBase = state.toBuilder()
-                .contextPrompt(retryContext)
                 .lastValidationError("")
                 .retryCount(attempt + 1)
                 .build();
 
-        CompletableFuture<PipelineState> dbaFuture =
-                CompletableFuture.supplyAsync(() -> dbaAgent.execute(retryBase));
-        CompletableFuture<PipelineState> apiFuture =
-                CompletableFuture.supplyAsync(() -> apiAgent.execute(retryBase));
+        // ── PRD 수정 (prdIssues가 있을 때만) ────────────────────────
+        PipelineState afterPrd = retryBase;
+        if (!prdIssues.isEmpty()) {
+            log.info("PRD 선택적 수정 — {}개 결함", prdIssues.size());
+            progressService.send(pipelineId, "QA_RETRY",
+                String.format("PRD 결함 수정 중... (%d/%d회)", attempt + 1, MAX_QA_RETRY), fixPct);
+            afterPrd = prdAgent.patchFromQa(retryBase, prdIssues);
+        }
 
-        PipelineState dbaResult = dbaFuture.join();
-        PipelineState apiResult = apiFuture.join();
+        // ── DBA / API 선택적 수정 ────────────────────────────────────
+        boolean needDba = !dbIssues.isEmpty();
+        boolean needApi = !apiIssues.isEmpty();
 
-        PipelineState merged = retryBase.toBuilder()
+        if (!needDba && !needApi) {
+            log.info("DB/API 결함 없음 — PRD 수정 결과로 QA 재검수");
+            return runQaRetryOnly(afterPrd, attempt + 1, pipelineId);
+        }
+
+        String baseCtx = state.getContextPrompt() != null ? state.getContextPrompt() : "";
+        String dbIssueSection  = needDba ? "\n\n=== QA 지적 결함 (DB 스키마) ===\n"
+                + String.join("\n", dbIssues) : "";
+        String apiIssueSection = needApi ? "\n\n=== QA 지적 결함 (API 스펙) ===\n"
+                + String.join("\n", apiIssues) : "";
+
+        PipelineState dbaResult = afterPrd;
+        PipelineState apiResult = afterPrd;
+
+        if (needDba && needApi) {
+            progressService.send(pipelineId, "QA_RETRY",
+                String.format("DB · API 결함 수정 중... (%d/%d회)", attempt + 1, MAX_QA_RETRY), fixPct);
+            PipelineState dbaBase = afterPrd.toBuilder().contextPrompt(baseCtx + dbIssueSection).build();
+            PipelineState apiBase = afterPrd.toBuilder().contextPrompt(baseCtx + apiIssueSection).build();
+
+            CompletableFuture<PipelineState> dbaFuture = CompletableFuture.supplyAsync(() -> dbaAgent.refine(dbaBase));
+            CompletableFuture<PipelineState> apiFuture = CompletableFuture.supplyAsync(() -> apiAgent.refine(apiBase));
+
+            dbaResult = dbaFuture.join();
+            apiResult = apiFuture.join();
+
+        } else if (needDba) {
+            progressService.send(pipelineId, "QA_RETRY",
+                String.format("DB 스키마 결함 수정 중... (%d/%d회)", attempt + 1, MAX_QA_RETRY), fixPct);
+            PipelineState dbaBase = afterPrd.toBuilder().contextPrompt(baseCtx + dbIssueSection).build();
+            dbaResult = dbaAgent.refine(dbaBase);
+
+        } else {
+            progressService.send(pipelineId, "QA_RETRY",
+                String.format("API 스펙 결함 수정 중... (%d/%d회)", attempt + 1, MAX_QA_RETRY), fixPct);
+            PipelineState apiBase = afterPrd.toBuilder().contextPrompt(baseCtx + apiIssueSection).build();
+            apiResult = apiAgent.refine(apiBase);
+        }
+
+        PipelineState merged = afterPrd.toBuilder()
                 .dbSchema(dbaResult.getDbSchema())
                 .apiSpec(apiResult.getApiSpec())
-                .prdFeedbackFromDba(dbaResult.getPrdFeedbackFromDba())
-                .prdFeedbackFromApi(apiResult.getPrdFeedbackFromApi())
                 .retryCount(attempt + 1)
                 .build();
 

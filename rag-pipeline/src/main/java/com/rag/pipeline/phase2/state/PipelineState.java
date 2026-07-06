@@ -91,6 +91,18 @@ public class PipelineState {
     @Builder.Default
     private final double qaQualityScore = 0.0;
 
+    /** QA 에이전트가 분류한 DB 스키마 결함 목록 */
+    @Builder.Default
+    private final List<String> qaDbIssues = List.of();
+
+    /** QA 에이전트가 분류한 API 스펙 결함 목록 */
+    @Builder.Default
+    private final List<String> qaApiIssues = List.of();
+
+    /** QA 에이전트가 분류한 PRD 결함 목록 */
+    @Builder.Default
+    private final List<String> qaPrdIssues = List.of();
+
     // ── 상태 메시지 (SSE 전송용) ─────────────────────────────────
     private final String statusMessage;
 
@@ -121,7 +133,10 @@ public class PipelineState {
                 Map.entry("marketResearch",       orEmpty(marketResearch)),
                 Map.entry("prdFeedbackFromDba",   orEmpty(prdFeedbackFromDba)),
                 Map.entry("prdFeedbackFromApi",   orEmpty(prdFeedbackFromApi)),
-                Map.entry("rollbackCount",        String.valueOf(rollbackCount))
+                Map.entry("rollbackCount",        String.valueOf(rollbackCount)),
+                Map.entry("qaDbIssues",           qaDbIssues != null ? qaDbIssues : List.of()),
+                Map.entry("qaApiIssues",          qaApiIssues != null ? qaApiIssues : List.of()),
+                Map.entry("qaPrdIssues",          qaPrdIssues != null ? qaPrdIssues : List.of())
         );
     }
 
@@ -153,6 +168,9 @@ public class PipelineState {
                 .prdFeedbackFromApi((String) map.getOrDefault("prdFeedbackFromApi", ""))
                 .rollbackCount(Integer.parseInt(
                         String.valueOf(map.getOrDefault("rollbackCount", "0"))))
+                .qaDbIssues((List<String>) map.getOrDefault("qaDbIssues", List.of()))
+                .qaApiIssues((List<String>) map.getOrDefault("qaApiIssues", List.of()))
+                .qaPrdIssues((List<String>) map.getOrDefault("qaPrdIssues", List.of()))
                 .build();
     }
 
