@@ -34,4 +34,13 @@ public class Project extends BaseEntity {
     public void updateStatus(ProjectStatus status) {
         this.status = status;
     }
+
+    public void updateInfo(String projectName, String description) {
+        if (projectName != null && !projectName.isBlank()) {
+            this.projectName = projectName.trim();
+        }
+        if (description != null) {
+            this.description = description.trim();
+        }
+    }
 }

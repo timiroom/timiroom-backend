@@ -45,6 +45,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/auth/**", "/oauth2/**", "/login/**", "/error").permitAll()
+                        .requestMatchers("/api/v1/teams/invite/**").permitAll()
                         .requestMatchers("/api/v1/pipeline/**").authenticated()
                         .anyRequest().authenticated()
                 )

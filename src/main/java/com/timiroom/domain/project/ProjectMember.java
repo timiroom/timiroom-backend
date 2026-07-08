@@ -33,4 +33,8 @@ public class ProjectMember {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    public void updateRole(ProjectRole projectRole) {
+        this.projectRole = projectRole;
+    }
 }

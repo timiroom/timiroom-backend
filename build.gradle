@@ -61,6 +61,13 @@ dependencies {
 	// .env 파일 지원
 	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
+	// AWS S3 SDK v2 (MinIO S3 호환)
+	implementation platform('software.amazon.awssdk:bom:2.25.60')
+	implementation 'software.amazon.awssdk:s3'
+
+	// 이미지 리사이즈 / 압축 (프로필 사진 처리)
+	implementation 'net.coobird:thumbnailator:0.4.20'
+
 
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

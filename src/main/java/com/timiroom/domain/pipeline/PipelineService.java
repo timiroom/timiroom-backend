@@ -62,6 +62,16 @@ public class PipelineService {
     }
 
     /**
+     * 파이프라인 재시작: 기존 pipelineId로 실행 기록을 찾아 동일 requirementId로 재실행
+     */
+    @Transactional
+    public Map<String, Object> restartPipeline(Long memberId, String pipelineId) throws Exception {
+        PipelineExecution prev = executionRepository.findByPipelineId(pipelineId)
+                .orElseThrow(() -> new IllegalArgumentException("파이프라인을 찾을 수 없습니다: " + pipelineId));
+        return startPipeline(memberId, prev.getRequirementId(), null);
+    }
+
+    /**
      * SSE 구독: rag-pipeline 스트림 프록시 + 완료 시 Artifact 저장
      */
     public SseEmitter subscribeProgress(String pipelineId) {
