@@ -83,6 +83,15 @@ storage:
   bucket: ${STORAGE_BUCKET:timiroom}
   public-url: ${STORAGE_PUBLIC_URL:http://localhost:9000}
 
+# ── GitHub App 연동 ───────────────────────────────────────────────
+github:
+  api-base-url: https://api.github.com
+  app:
+    id: ${GITHUB_APP_ID:}
+    private-key: ${GITHUB_APP_PRIVATE_KEY:}            # PEM 내용 직접 주입 (운영 k8s)
+    private-key-path: ${GITHUB_APP_PRIVATE_KEY_PATH:}  # PEM 파일 경로 (로컬)
+  webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+
 logging:
   level:
     io.netty.resolver.dns.DnsServerAddressStreamProviders: "OFF"
