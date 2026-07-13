@@ -4,10 +4,14 @@ import com.timiroom.domain.member.enums.Provider;
 import com.timiroom.domain.member.enums.Role;
 import com.timiroom.global.BaseEntity;
 import jakarta.persistence.*;
-import lombok.Getter;
+import lombok.*;
 
 @Entity
+@Table(name = "Member")
 @Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
 public class Member extends BaseEntity {
 
     @Id

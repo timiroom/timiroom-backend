@@ -1,10 +1,12 @@
 package com.timiroom.domain.member.service;
 
+import com.timiroom.domain.member.dto.TeamReqDTO;
 import com.timiroom.domain.member.entity.Team;
 import com.timiroom.domain.member.entity.mapping.TeamMember;
 import com.timiroom.domain.member.enums.TeamRole;
 import com.timiroom.domain.member.repository.TeamMemberRepository;
 import com.timiroom.domain.member.repository.TeamRepository;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,10 +22,12 @@ public class TeamService {
     private final TeamMemberRepository teamMemberRepository;
 
     @Transactional
-    public Team create(Long memberId, String teamName, String description) {
+    public Team create(HttpSession session, TeamReqDTO.Create request) {
+        Long memberId = (Long) session.getAttribute("memberId");
+
         Team team = Team.builder()
-                .teamName(teamName)
-                .description(description)
+                .teamName(request.getTeamName())
+                .description(request.getDescription())
                 .inviteCode(generateInviteCode())
                 .build();
         Team saved = teamRepository.save(team);
@@ -38,7 +42,9 @@ public class TeamService {
     }
 
     @Transactional
-    public TeamMember joinByInviteCode(Long memberId, String inviteCode) {
+    public TeamMember joinByInviteCode(HttpSession session, String inviteCode) {
+        Long memberId = (Long) session.getAttribute("memberId");
+
         Team team = teamRepository.findByInviteCode(inviteCode)
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 초대 코드입니다"));
 
@@ -54,7 +60,9 @@ public class TeamService {
     }
 
     @Transactional(readOnly = true)
-    public List<Team> getMyTeams(Long memberId) {
+    public List<Team> getMyTeams(HttpSession session) {
+        Long memberId = (Long) session.getAttribute("memberId");
+
         List<Long> teamIds = teamMemberRepository.findTeamIdsByMemberId(memberId);
         return teamRepository.findAllById(teamIds);
     }

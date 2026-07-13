@@ -1,15 +1,17 @@
 package com.timiroom.domain.member.controller;
 
+import com.timiroom.domain.member.dto.TeamReqDTO;
 import com.timiroom.domain.member.entity.Team;
 import com.timiroom.domain.member.entity.mapping.TeamMember;
+import com.timiroom.domain.member.exception.code.MemberSuccessCode;
 import com.timiroom.domain.member.service.TeamService;
+import com.timiroom.global.ApiResponse;
+import com.timiroom.global.apiPayload.code.BaseSuccessCode;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/teams")
@@ -20,31 +22,31 @@ public class TeamController {
 
     /** 팀 생성 */
     @PostMapping
-    public ResponseEntity<Team> create(HttpSession session,
-                                       @RequestBody Map<String, String> body) {
-        Long memberId = (Long) session.getAttribute("memberId");
-        return ResponseEntity.ok(teamService.create(
-                memberId, body.get("teamName"), body.get("description")));
+    public ApiResponse<Team> create(HttpSession session,
+                                    @RequestBody TeamReqDTO.Create request) {
+        BaseSuccessCode code = MemberSuccessCode.OK;
+        return ApiResponse.onSuccess(code, teamService.create(session, request));
     }
 
     /** 초대 코드로 팀 참여 */
     @PostMapping("/join")
-    public ResponseEntity<TeamMember> join(HttpSession session,
-                                           @RequestBody Map<String, String> body) {
-        Long memberId = (Long) session.getAttribute("memberId");
-        return ResponseEntity.ok(teamService.joinByInviteCode(memberId, body.get("inviteCode")));
+    public ApiResponse<TeamMember> join(HttpSession session,
+                                        @RequestParam String inviteCode) {
+        BaseSuccessCode code = MemberSuccessCode.OK;
+        return ApiResponse.onSuccess(code, teamService.joinByInviteCode(session, inviteCode));
     }
 
     /** 내 팀 목록 */
     @GetMapping
-    public ResponseEntity<List<Team>> myTeams(HttpSession session) {
-        Long memberId = (Long) session.getAttribute("memberId");
-        return ResponseEntity.ok(teamService.getMyTeams(memberId));
+    public ApiResponse<List<Team>> myTeams(HttpSession session) {
+        BaseSuccessCode code = MemberSuccessCode.OK;
+        return ApiResponse.onSuccess(code, teamService.getMyTeams(session));
     }
 
     /** 팀 멤버 목록 */
     @GetMapping("/{teamId}/members")
-    public ResponseEntity<List<TeamMember>> members(@PathVariable Long teamId) {
-        return ResponseEntity.ok(teamService.getMembers(teamId));
+    public ApiResponse<List<TeamMember>> members(@PathVariable Long teamId) {
+        BaseSuccessCode code = MemberSuccessCode.OK;
+        return ApiResponse.onSuccess(code, teamService.getMembers(teamId));
     }
 }

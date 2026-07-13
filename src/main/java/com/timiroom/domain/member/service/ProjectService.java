@@ -1,15 +1,20 @@
 package com.timiroom.domain.member.service;
 
+import com.timiroom.domain.member.dto.ProjectMemberReqDTO;
+import com.timiroom.domain.member.dto.ProjectReqDTO;
 import com.timiroom.domain.member.entity.Project;
 import com.timiroom.domain.member.entity.mapping.ProjectMember;
 import com.timiroom.domain.member.enums.ProjectRole;
+import com.timiroom.domain.member.enums.Role;
 import com.timiroom.domain.member.repository.ProjectMemberRepository;
 import com.timiroom.domain.member.repository.ProjectRepository;
 import com.timiroom.domain.pipeline.repositoty.PipelineArtifactRepository;
 import com.timiroom.domain.pipeline.entity.PipelineExecution;
 import com.timiroom.domain.pipeline.repositoty.PipelineExecutionRepository;
 import com.timiroom.domain.pipeline.repositoty.RequirementRepository;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,11 +32,12 @@ public class ProjectService {
     private final PipelineArtifactRepository pipelineArtifactRepository;
 
     @Transactional
-    public Project create(Long teamId, Long memberId, String projectName, String description) {
+    public Project create(HttpSession session, ProjectReqDTO.Create request) {
+        Long memberId = (Long) session.getAttribute("memberId");
         Project project = Project.builder()
-                .teamId(teamId)
-                .projectName(projectName)
-                .description(description)
+                .teamId(request.getTeamId())
+                .projectName(request.getProjectName())
+                .description(request.getDescription())
                 .build();
         Project saved = projectRepository.save(project);
 
@@ -45,7 +51,9 @@ public class ProjectService {
     }
 
     @Transactional
-    public ProjectMember addMember(Long projectId, Long memberId, ProjectRole role) {
+    public ProjectMember addMember(Long projectId, ProjectMemberReqDTO.Add request) {
+        Long memberId = request.getMemberId();
+        ProjectRole role = request.getRole();
         if (projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId)) {
             throw new IllegalStateException("이미 프로젝트에 속해 있습니다");
         }
@@ -68,7 +76,8 @@ public class ProjectService {
     }
 
     @Transactional(readOnly = true)
-    public List<Project> getMyProjects(Long memberId) {
+    public List<Project> getMyProjects(HttpSession session) {
+        Long memberId = (Long) session.getAttribute("memberId");
         List<Long> projectIds = projectMemberRepository.findProjectIdsByMemberId(memberId);
         return projectRepository.findAllById(projectIds);
     }
@@ -79,7 +88,8 @@ public class ProjectService {
     }
 
     @Transactional
-    public void delete(Long projectId, Long memberId) {
+    public void delete(HttpSession session, Long projectId) {
+        Long memberId = (Long) session.getAttribute("memberId");
         projectRepository.findById(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다: " + projectId));
 
