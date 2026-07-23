@@ -33,11 +33,11 @@
 | 로컬 런타임 | backend `8080`, rag-pipeline `8081`, frontend `3300` 응답 확인 |
 | pgvector 연결 | Docker PostgreSQL `5433`에서 vector OID 조회 및 `PgVectorStore` 초기화 확인 |
 | 보안 경로 | 프론트 Origin CORS preflight 허용, 미인증 GitHub API와 잘못된 웹훅 서명은 `401` 확인 |
-| 로그인 사용자 화면 E2E | Google OAuth 로그인 후 설치 동기화·워크스페이스 연결·프로젝트 레포 연결·실제 이슈/PR/브랜치 조회 확인 |
+| 로그인 사용자 화면 E2E | Google·GitHub OAuth 로그인 후 설치 동기화·워크스페이스 연결·프로젝트 레포 연결·실제 이슈/PR/브랜치 조회 확인 |
 
 운영 안전성 보완으로 installation 동기화·할당 해제는 워크스페이스 소유자만 수행하며, 프로젝트가 사용하는 installation은 레포 연결을 먼저 해제하기 전까지 워크스페이스에서 분리할 수 없다. 웹훅 처리는 서명 검증 후 비동기로 실행하고, 최근 PR 정합성 결과는 현재 연결된 레포 범위에서만 조회한다.
 
-브랜치 커밋 100건 응답이 기본 WebClient 버퍼를 넘겨 `500`이 발생하는 문제는 GitHub 전용 응답 버퍼를 4 MiB로 확장해 해결했고, 실제 기본 브랜치 커밋 조회까지 인증 체인 테스트에 포함했다. 로컬 GitHub OAuth 로그인은 GitHub OAuth App에 `http://localhost:8080/login/oauth2/code/github` 콜백 등록이 필요하며, 현재 로컬 E2E는 등록된 Google OAuth 경로로 완료했다.
+브랜치 커밋 100건 응답이 기본 WebClient 버퍼를 넘겨 `500`이 발생하는 문제는 GitHub 전용 응답 버퍼를 4 MiB로 확장해 해결했고, 실제 기본 브랜치 커밋 조회까지 인증 체인 테스트에 포함했다. `timiroom` 조직의 로컬 전용 GitHub OAuth App에 `http://localhost:8080/login/oauth2/code/github` 콜백을 등록했으며, GitHub 승인 후 프론트엔드 대시보드로 복귀하는 로그인 E2E도 완료했다.
 
 ---
 
