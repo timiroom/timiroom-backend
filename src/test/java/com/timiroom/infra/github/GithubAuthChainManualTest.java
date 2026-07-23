@@ -1,6 +1,7 @@
 package com.timiroom.infra.github;
 
 import com.timiroom.infra.github.dto.GithubInstallationInfo;
+import com.timiroom.infra.github.dto.GithubCommitInfo;
 import com.timiroom.infra.github.dto.GithubRepoInfo;
 import org.junit.jupiter.api.Test;
 
@@ -43,7 +44,16 @@ class GithubAuthChainManualTest {
         repos.forEach(r -> System.out.println("repo: " + r.fullName()
                 + (r.isPrivate() ? " (private)" : "") + " default=" + r.defaultBranch()));
 
-        // 3) 토큰 캐시 재사용 확인 (두 번째 호출은 캐시에서)
+        // 3) 실제 기본 브랜치의 커밋 응답(최대 100건) 역직렬화 확인
+        GithubRepoInfo historyRepo = repos.stream()
+                .filter(repo -> repo.defaultBranch() != null && !repo.defaultBranch().isBlank())
+                .findFirst()
+                .orElseThrow();
+        List<GithubCommitInfo> commits = client.listCommits(
+                historyRepo.fullName(), installationId, historyRepo.defaultBranch());
+        assertFalse(commits.isEmpty(), "기본 브랜치 커밋이 하나도 없습니다");
+
+        // 4) 토큰 캐시 재사용 확인 (두 번째 호출은 캐시에서)
         String token1 = auth.getInstallationToken(installationId);
         String token2 = auth.getInstallationToken(installationId);
         assertNotNull(token1);

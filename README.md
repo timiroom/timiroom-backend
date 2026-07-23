@@ -115,6 +115,13 @@ GITHUB_CLIENT_SECRET=your_github_client_secret
 RAG_PIPELINE_URL=http://localhost:8081
 ```
 
+로컬 OAuth 공급자 콘솔에는 아래 콜백 URL을 정확히 등록해야 합니다.
+
+```text
+Google: http://localhost:8080/login/oauth2/code/google
+GitHub: http://localhost:8080/login/oauth2/code/github
+```
+
 #### `rag-pipeline/.env` (rag-pipeline 8081 용)
 
 ```dotenv

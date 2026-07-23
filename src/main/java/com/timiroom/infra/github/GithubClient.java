@@ -32,6 +32,8 @@ import java.util.Map;
 @Component
 public class GithubClient {
 
+    private static final int MAX_GITHUB_RESPONSE_BYTES = 4 * 1024 * 1024;
+
     private final GithubAppAuthService authService;
     private final WebClient webClient;
 
@@ -39,7 +41,11 @@ public class GithubClient {
             GithubAppAuthService authService,
             @Value("${github.api-base-url:https://api.github.com}") String baseUrl) {
         this.authService = authService;
-        this.webClient = WebClient.builder().baseUrl(baseUrl).build();
+        this.webClient = WebClient.builder()
+                .baseUrl(baseUrl)
+                .codecs(configurer ->
+                        configurer.defaultCodecs().maxInMemorySize(MAX_GITHUB_RESPONSE_BYTES))
+                .build();
     }
 
     /** 이 App의 설치 목록 — App JWT 인증. GET /app/installations */
