@@ -5,6 +5,40 @@
 
 ---
 
+## 진행 현황 (2026-07-23)
+
+| Phase | 상태 | 완료 범위 |
+|---|---|---|
+| Phase 0 — GitHub App 인프라 | 완료 | App 인증, installation 동기화, installation token 캐시, GitHub REST 클라이언트 |
+| Phase 1 — Repo 연결 | 완료 | 프로젝트-레포 연결/해제 API와 프로젝트 설정의 설치 동기화·레포 연결 UI |
+| Phase 2 — 브랜치 히스토리 | 완료 | 연결 레포만 대상으로 하는 읽기 전용 브랜치·커밋 조회 API 및 ActivityBar 히스토리 UI |
+| Phase 3 — 이슈 생성/조회 | 완료 | 연결 레포 통합 이슈 조회·생성 API와 프로젝트 Issues 탭 |
+| Phase 4 — PR 정합성 | 완료 | 규칙·선택형 LLM API_SPEC·DB_SCHEMA 대조, PR 목록·연관 PR 그룹핑, GitHub review comment·Checks API 게시 |
+| Phase 5 — 웹훅 + 알림 | 완료 | 서명 검증된 `pull_request` opened/synchronize 웹훅 자동 검사와 경고 시 프로젝트 멤버 알림 |
+
+> LLM 대조는 `GITHUB_CONSISTENCY_LLM_ENABLED=true`에서만 보조 findings를 더한다. 기본값은 비용 없는 규칙 기반이며, 이슈 참조 또는 feature branch 이름이 일치하는 열린 PR을 함께 표시하고 경고가 있을 때만 앱 알림을 생성한다.
+
+> Phase 1·2의 GitHub API 조회는 모두 App installation token을 사용하며, 프로젝트 접근 권한과 연결 여부를 서버에서 확인한다.
+
+---
+
+## 검증 현황 (2026-07-23)
+
+| 구분 | 결과 |
+|---|---|
+| 백엔드 전체 테스트 | 통과 |
+| RAG 파이프라인 전체 테스트 | 통과 |
+| 프론트엔드 lint / production build | 통과 (기존 `<img>` 경고만 존재) |
+| 실제 GitHub App 인증 체인 | App JWT → installation token → 설치 레포 조회 통과 |
+| 로컬 런타임 | backend `8080`, rag-pipeline `8081`, frontend `3300` 응답 확인 |
+| pgvector 연결 | Docker PostgreSQL `5433`에서 vector OID 조회 및 `PgVectorStore` 초기화 확인 |
+| 보안 경로 | 프론트 Origin CORS preflight 허용, 미인증 GitHub API와 잘못된 웹훅 서명은 `401` 확인 |
+| 로그인 사용자 화면 E2E | 브라우저에 로그인 세션이 없어 `/dashboard` → `/` 리디렉션까지만 확인 |
+
+운영 안전성 보완으로 installation 동기화·할당 해제는 워크스페이스 소유자만 수행하며, 프로젝트가 사용하는 installation은 레포 연결을 먼저 해제하기 전까지 워크스페이스에서 분리할 수 없다. 웹훅 처리는 서명 검증 후 비동기로 실행하고, 최근 PR 정합성 결과는 현재 연결된 레포 범위에서만 조회한다.
+
+---
+
 ## 1. 확정된 방향
 
 | 항목 | 결정 | 비고 |
@@ -182,18 +216,18 @@ infra/github/
 - (백엔드) 브랜치 목록 / 커밋 히스토리 조회
 - (프론트) "커밋 히스토리" 탭을 브랜치·커밋 타임라인으로
 
-### Phase 3 — 이슈 생성/조회 (의존: P1)
+### Phase 3 — 이슈 생성/조회 (의존: P1) — 완료
 - (백엔드) 이슈 목록(연결 repo 통합) / 생성
 - (프론트) 프로젝트 Issues 탭 + 생성 모달
 
-### Phase 4 — PR 정합성 (의존: P1, P3 / 핵심 차별점)
+### Phase 4 — PR 정합성 (의존: P1, P3 / 핵심 차별점) — 규칙 기반·선택형 LLM·연관 PR 그룹핑 + review comment·Checks API 완료
 - (백엔드) PR 목록·상세 조회
 - (백엔드) 명세 대조 엔진 (규칙 기반 → rag-pipeline LLM 위임)
 - (백엔드) repo 간 연관 PR 그룹핑
 - (백엔드) Checks API 게시
 - (프론트) PRs 탭 + 명세 패널 배지
 
-### Phase 5 — 웹훅 + 알림 (의존: P4)
+### Phase 5 — 웹훅 + 알림 (의존: P4) — 완료
 - (백엔드) `/webhooks/github` 수신 + HMAC 검증
 - (백엔드) PR opened/synced 시 정합성 자동 트리거
 - (백엔드) 결과를 기존 `notification` 도메인에 연동

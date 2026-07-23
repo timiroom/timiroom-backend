@@ -1,6 +1,7 @@
 package com.timiroom.domain.github;
 
 import com.timiroom.domain.github.dto.ProjectRepoResponse;
+import com.timiroom.domain.project.Project;
 import com.timiroom.domain.project.ProjectMember;
 import com.timiroom.domain.project.ProjectMemberRepository;
 import com.timiroom.domain.project.ProjectRole;
@@ -57,12 +58,15 @@ public class GithubRepoLinkService {
     @Transactional
     public ProjectRepoResponse link(Long projectId, Long actorMemberId,
                                     Long installationId, Long githubRepoId, String roleHint) {
-        projectService.getById(projectId, actorMemberId);
+        Project project = projectService.getById(projectId, actorMemberId);
         requirePm(projectId, actorMemberId);
 
-        githubInstallationRepository.findByInstallationId(installationId)
+        GithubInstallation installation = githubInstallationRepository.findByInstallationId(installationId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "등록되지 않은 installation입니다. 먼저 동기화를 실행해주세요: " + installationId));
+        if (!project.getTeamId().equals(installation.getTeamId())) {
+            throw new SecurityException("이 프로젝트의 워크스페이스에 연결되지 않은 GitHub 설치입니다: " + installationId);
+        }
 
         // 클라이언트가 준 메타데이터를 믿지 않고, 설치가 실제로 접근 가능한 레포인지 GitHub에서 확인
         GithubRepoInfo remote = githubClient.listInstallationRepositories(installationId).stream()

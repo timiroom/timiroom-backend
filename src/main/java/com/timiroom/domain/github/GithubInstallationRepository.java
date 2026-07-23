@@ -10,4 +10,6 @@ public interface GithubInstallationRepository extends JpaRepository<GithubInstal
     Optional<GithubInstallation> findByInstallationId(Long installationId);
 
     List<GithubInstallation> findByTeamId(Long teamId);
+
+    List<GithubInstallation> findByTeamIdIsNull();
 }

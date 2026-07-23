@@ -113,6 +113,38 @@ public class RagPipelineClient {
     }
 
     /**
+     * 명시적으로 활성화된 PR 정합성 LLM 보조 검토.
+     * rag-pipeline의 기존 AgentController를 재사용하며, 호출 여부는 backend 설정이 결정한다.
+     */
+    public String reviewConsistency(String prompt, String model) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response;
+        try {
+            response = webClient.post()
+                    .uri("/api/agent/chat")
+                    .header("X-LLM-Provider", "foundry")
+                    .header("X-LLM-Model", model)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(Map.of(
+                            "messages", List.of(Map.of("role", "user", "content", prompt)),
+                            "systemPrompt", "PR 정합성 검토 요청에는 지정된 JSON만 반환하세요.",
+                            "projectContext", Map.of("source", "github-consistency")))
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .timeout(Duration.ofSeconds(60))
+                    .block();
+        } catch (WebClientRequestException e) {
+            throw unavailable("reviewConsistency", e);
+        }
+        if (response == null) throw new IllegalStateException("RAG 파이프라인 LLM 검토 응답이 없습니다");
+        Object content = response.get("content");
+        if (content == null || content.toString().isBlank()) {
+            throw new IllegalStateException("RAG 파이프라인 LLM 검토 내용이 없습니다");
+        }
+        return content.toString();
+    }
+
+    /**
      * SSE 진행 스트림 구독
      * GET /api/v1/orchestration/progress/{pipelineId}
      * - event: "progress" | "complete" | "error"
