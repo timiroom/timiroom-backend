@@ -95,6 +95,8 @@ app:
     timeout:
       stream: 90
       sync: 60
+    pr-consistency:
+      model: ${PR_CONSISTENCY_AGENT_MODEL:gpt-5.4-mini}
   rag:
     chunk-size: 512
     chunk-overlap: 64

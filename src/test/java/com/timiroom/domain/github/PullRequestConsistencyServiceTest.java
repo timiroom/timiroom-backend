@@ -14,6 +14,7 @@ import com.timiroom.infra.github.dto.GithubPullRequestFileInfo;
 import com.timiroom.infra.github.dto.GithubPullRequestInfo;
 import com.timiroom.infra.github.dto.GithubPullRequestReviewInfo;
 import com.timiroom.infra.github.dto.GithubCheckRunInfo;
+import com.timiroom.infra.ragpipeline.RagPipelineClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,8 +23,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +35,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,6 +55,7 @@ class PullRequestConsistencyServiceTest {
     @Mock PipelineService pipelineService;
     @Mock NotificationService notificationService;
     @Mock GithubClient githubClient;
+    @Mock RagPipelineClient ragPipelineClient;
     @Spy ObjectMapper objectMapper = new ObjectMapper();
     @InjectMocks PullRequestConsistencyService service;
 
@@ -66,7 +71,7 @@ class PullRequestConsistencyServiceTest {
         when(githubClient.getPullRequest("timiroom/timiroom-backend", INSTALLATION_ID, 42))
                 .thenReturn(new GithubPullRequestInfo(42, "feat: task API", "", "open", false, "head-sha",
                         "feature/task", "develop", "https://github.com/timiroom/timiroom-backend/pull/42", "dev", "2026-07-12T10:00:00Z"));
-        when(githubClient.listPullRequestFiles("timiroom/timiroom-backend", INSTALLATION_ID, 42))
+        lenient().when(githubClient.listPullRequestFiles("timiroom/timiroom-backend", INSTALLATION_ID, 42))
                 .thenReturn(List.of(new GithubPullRequestFileInfo("TaskController.java", "modified", 3, 0,
                         "+ @GetMapping(\"/api/v1/tasks\")")));
     }
@@ -87,6 +92,7 @@ class PullRequestConsistencyServiceTest {
         var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
 
         assertThat(result.score()).isEqualTo(100);
+        assertThat(result.evaluator()).isEqualTo("RULES");
         assertThat(result.reviewPosted()).isTrue();
         assertThat(result.checkRunUrl()).isEqualTo("https://check");
         assertThat(result.findings()).anyMatch(f -> "PASS".equals(f.severity()) && f.message().contains("/api/v1/tasks"));
@@ -100,7 +106,6 @@ class PullRequestConsistencyServiceTest {
     @Test
     void checkAndReview_같은_head_sha에는_중복_review를_남기지_않는다() {
         givenLinkedPm();
-        when(pipelineService.getLatestArtifactsByProject(PROJECT_ID)).thenReturn(List.of());
         when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
                 .thenReturn(Optional.of(GithubPullRequestReviewRecord.builder().projectId(PROJECT_ID)
                         .githubRepoId(REPO_ID).pullNumber(42).headSha("head-sha").reviewUrl("https://review").build()));
@@ -110,6 +115,59 @@ class PullRequestConsistencyServiceTest {
         assertThat(result.skippedDuplicate()).isTrue();
         assertThat(result.reviewPosted()).isFalse();
         verify(githubClient, never()).createPullRequestCommentReview(any(), anyLong(), anyInt(), any(), any());
+    }
+
+    @Test
+    void checkAndReview_전용_Consistency_Agent_판정을_사용한다() throws Exception {
+        givenLinkedPm();
+        ReflectionTestUtils.setField(service, "agentEnabled", true);
+        ReflectionTestUtils.setField(service, "agentModel", "gpt-5.4-mini");
+        when(pipelineService.getLatestArtifactsByProject(PROJECT_ID)).thenReturn(List.of(
+                PipelineArtifact.builder().artifactType(PipelineArtifact.ArtifactType.API_SPEC)
+                        .content("GET /api/v1/tasks").build()));
+        when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
+                .thenReturn(Optional.empty());
+        var agentResponse = new ObjectMapper().readTree("""
+                {"agent":"PR_CONSISTENCY_AGENT","findings":[
+                  {"severity":"PASS","area":"API","message":"GET /api/v1/tasks 구현이 API_SPEC과 일치합니다."}
+                ]}
+                """);
+        when(ragPipelineClient.reviewPullRequestConsistency(any())).thenReturn(agentResponse);
+        when(githubClient.createCompletedConsistencyCheckRun(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq("head-sha"), eq(100), eq(false), any())).thenReturn(new GithubCheckRunInfo(9L, "https://check", "success"));
+        when(githubClient.createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq(42), eq("head-sha"), any())).thenReturn(new GithubPullRequestReviewInfo(7L, "https://review", "COMMENTED"));
+
+        var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
+
+        assertThat(result.evaluator()).isEqualTo("AGENT");
+        assertThat(result.findings()).extracting(finding -> finding.message())
+                .containsExactly("GET /api/v1/tasks 구현이 API_SPEC과 일치합니다.");
+        ArgumentCaptor<Object> request = ArgumentCaptor.forClass(Object.class);
+        verify(ragPipelineClient).reviewPullRequestConsistency(request.capture());
+        assertThat(((Map<?, ?>) request.getValue()).get("repository")).isEqualTo("timiroom/timiroom-backend");
+    }
+
+    @Test
+    void checkAndReview_Agent_실패시_규칙_엔진으로_fallback한다() {
+        givenLinkedPm();
+        ReflectionTestUtils.setField(service, "agentEnabled", true);
+        when(pipelineService.getLatestArtifactsByProject(PROJECT_ID)).thenReturn(List.of(
+                PipelineArtifact.builder().artifactType(PipelineArtifact.ArtifactType.API_SPEC)
+                        .content("GET /api/v1/tasks").build()));
+        when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
+                .thenReturn(Optional.empty());
+        when(ragPipelineClient.reviewPullRequestConsistency(any()))
+                .thenThrow(new IllegalStateException("agent unavailable"));
+        when(githubClient.createCompletedConsistencyCheckRun(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq("head-sha"), eq(100), eq(false), any())).thenReturn(new GithubCheckRunInfo(9L, "https://check", "success"));
+        when(githubClient.createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq(42), eq("head-sha"), any())).thenReturn(new GithubPullRequestReviewInfo(7L, "https://review", "COMMENTED"));
+
+        var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
+
+        assertThat(result.evaluator()).isEqualTo("RULE_FALLBACK");
+        assertThat(result.findings()).anyMatch(finding -> finding.message().contains("규칙 기반 검사"));
     }
 
     @Test

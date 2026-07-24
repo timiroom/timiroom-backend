@@ -65,5 +65,5 @@ github:
     private-key: ${GITHUB_APP_PRIVATE_KEY:}
   webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
   consistency:
-    llm-enabled: ${GITHUB_CONSISTENCY_LLM_ENABLED:false}
-    llm-model: ${GITHUB_CONSISTENCY_LLM_MODEL:gpt-5.4-mini}
+    agent-enabled: ${GITHUB_CONSISTENCY_AGENT_ENABLED:${GITHUB_CONSISTENCY_LLM_ENABLED:true}}
+    agent-model: ${GITHUB_CONSISTENCY_AGENT_MODEL:${GITHUB_CONSISTENCY_LLM_MODEL:gpt-5.4-mini}}

@@ -42,8 +42,8 @@ production environment에 아래 시크릿을 추가하면 됩니다.
 | APP_GITHUB_APP_ID | 4278317 |
 | APP_GITHUB_APP_PRIVATE_KEY | .pem 파일 내용 전체 (개행 포함) |
 | APP_GITHUB_WEBHOOK_SECRET | 웹훅 시크릿 |
-| APP_GITHUB_CONSISTENCY_LLM_ENABLED | `true`일 때에만 PR마다 rag-pipeline LLM 보조 검토 실행 (기본 `false`) |
-| APP_GITHUB_CONSISTENCY_LLM_MODEL | 선택 모델명 (기본 `gpt-5.4-mini`) |
+| APP_GITHUB_CONSISTENCY_AGENT_ENABLED | 전용 PR Consistency Agent 사용 여부 (기본 `true`, 실패 시 규칙 fallback) |
+| APP_GITHUB_CONSISTENCY_AGENT_MODEL | Agent 모델명 (기본 `gpt-5.4-mini`) |
 
 운영에서는 파일 경로 대신 `GITHUB_APP_PRIVATE_KEY`에 PEM 내용을 직접 넣습니다.
 이스케이프된 개행(\n)이 들어와도 코드에서 복원합니다.
@@ -79,4 +79,4 @@ GITHUB_APP_ID=4278317 GITHUB_APP_PRIVATE_KEY_PATH=.secrets/xxx.pem ./gradlew tes
 - `domain/github/GithubInstallation` — 설치 엔티티 (installation_id, 계정, team 연결)
 - `domain/github/GithubInstallationController` — 동기화/조회 API
 
-Phase 1(프로젝트-레포 연결)·Phase 2(읽기 전용 브랜치 히스토리)·Phase 3(이슈 생성/조회)이 구현되었습니다. `pull_request` 웹훅의 opened/reopened/synchronize/ready_for_review 이벤트는 서명 검증 후 정합성 review comment와 Checks API 결과를 자동 게시합니다. 경고가 있으면 프로젝트 멤버에게 앱 알림도 생성하고, 이슈 참조 또는 feature branch 이름이 같은 열린 PR을 함께 표시합니다. LLM 보조 검토는 `GITHUB_CONSISTENCY_LLM_ENABLED=true`에서만 활성화됩니다.
+Phase 1(프로젝트-레포 연결)·Phase 2(읽기 전용 브랜치 히스토리)·Phase 3(이슈 생성/조회)이 구현되었습니다. `pull_request` 웹훅의 opened/reopened/synchronize/ready_for_review 이벤트는 서명 검증 후 전용 PR Consistency Agent 검사를 실행하고 review comment와 Checks API 결과를 자동 게시합니다. 경고가 있으면 프로젝트 멤버에게 앱 알림도 생성하고, 이슈 참조 또는 feature branch 이름이 같은 열린 PR을 함께 표시합니다. Agent가 응답하지 않으면 규칙 엔진으로 자동 fallback합니다.

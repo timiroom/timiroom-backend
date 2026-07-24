@@ -1,5 +1,6 @@
 package com.timiroom.infra.ragpipeline;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -112,36 +113,25 @@ public class RagPipelineClient {
         return data;
     }
 
-    /**
-     * 명시적으로 활성화된 PR 정합성 LLM 보조 검토.
-     * rag-pipeline의 기존 AgentController를 재사용하며, 호출 여부는 backend 설정이 결정한다.
-     */
-    public String reviewConsistency(String prompt, String model) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> response;
+    /** 전용 PR Consistency Agent에 구조화된 검증 요청을 전달한다. */
+    public JsonNode reviewPullRequestConsistency(Object requestBody) {
+        JsonNode response;
         try {
             response = webClient.post()
-                    .uri("/api/agent/chat")
-                    .header("X-LLM-Provider", "foundry")
-                    .header("X-LLM-Model", model)
+                    .uri("/api/v1/agents/pr-consistency/review")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(Map.of(
-                            "messages", List.of(Map.of("role", "user", "content", prompt)),
-                            "systemPrompt", "PR 정합성 검토 요청에는 지정된 JSON만 반환하세요.",
-                            "projectContext", Map.of("source", "github-consistency")))
+                    .bodyValue(requestBody)
                     .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .timeout(Duration.ofSeconds(60))
+                    .bodyToMono(JsonNode.class)
+                    .timeout(Duration.ofSeconds(75))
                     .block();
         } catch (WebClientRequestException e) {
-            throw unavailable("reviewConsistency", e);
+            throw unavailable("reviewPullRequestConsistency", e);
         }
-        if (response == null) throw new IllegalStateException("RAG 파이프라인 LLM 검토 응답이 없습니다");
-        Object content = response.get("content");
-        if (content == null || content.toString().isBlank()) {
-            throw new IllegalStateException("RAG 파이프라인 LLM 검토 내용이 없습니다");
+        if (response == null || !response.path("findings").isArray()) {
+            throw new IllegalStateException("PR Consistency Agent의 구조화된 응답이 없습니다");
         }
-        return content.toString();
+        return response;
     }
 
     /**

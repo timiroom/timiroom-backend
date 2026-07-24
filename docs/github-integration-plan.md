@@ -13,10 +13,10 @@
 | Phase 1 — Repo 연결 | 완료 | 프로젝트-레포 연결/해제 API와 프로젝트 설정의 설치 동기화·레포 연결 UI |
 | Phase 2 — 브랜치 히스토리 | 완료 | 연결 레포만 대상으로 하는 읽기 전용 브랜치·커밋 조회 API 및 ActivityBar 히스토리 UI |
 | Phase 3 — 이슈 생성/조회 | 완료 | 연결 레포 통합 이슈 조회·생성 API와 프로젝트 Issues 탭 |
-| Phase 4 — PR 정합성 | 완료 | 규칙·선택형 LLM API_SPEC·DB_SCHEMA 대조, PR 목록·연관 PR 그룹핑, GitHub review comment·Checks API 게시 |
+| Phase 4 — PR 정합성 | 완료 | 전용 Consistency Agent 우선 API_SPEC·DB_SCHEMA 대조, 규칙 fallback, PR 목록·연관 PR 그룹핑, GitHub review comment·Checks API 게시 |
 | Phase 5 — 웹훅 + 알림 | 완료 | 서명 검증된 `pull_request` opened/synchronize 웹훅 자동 검사와 경고 시 프로젝트 멤버 알림 |
 
-> LLM 대조는 `GITHUB_CONSISTENCY_LLM_ENABLED=true`에서만 보조 findings를 더한다. 기본값은 비용 없는 규칙 기반이며, 이슈 참조 또는 feature branch 이름이 일치하는 열린 PR을 함께 표시하고 경고가 있을 때만 앱 알림을 생성한다.
+> 전용 PR Consistency Agent가 기본 판정자이며 `GITHUB_CONSISTENCY_AGENT_ENABLED=false`일 때만 규칙 엔진만 사용한다. Agent 호출 실패 시에도 규칙 엔진으로 자동 fallback하며, 이슈 참조 또는 feature branch 이름이 일치하는 열린 PR을 함께 표시하고 경고가 있을 때만 앱 알림을 생성한다.
 
 > Phase 1·2의 GitHub API 조회는 모두 App installation token을 사용하며, 프로젝트 접근 권한과 연결 여부를 서버에서 확인한다.
 
@@ -173,7 +173,7 @@ infra/github/
 3. 대조 판정:
    - **API_SPEC**: 명세에 정의된 엔드포인트/필드가 실제 컨트롤러·DTO diff와 일치하는지
    - **DB_SCHEMA**: 명세 테이블/컬럼이 엔티티·마이그레이션 diff와 일치하는지
-4. 판정 엔진: 1차 규칙 기반 → 2차 rag-pipeline(LLM) 위임 검토 (기존 파이프라인 재활용)
+4. 판정 엔진: rag-pipeline 전용 `PR Consistency Agent`가 의미 단위로 우선 검토 → 장애 시 규칙 엔진 fallback
 5. 결과를 GitHub **Checks API**로 PR에 게시 + 앱 내 배지 표시
 
 ### 5.2 repo 간 정합성 (②)
@@ -222,9 +222,10 @@ infra/github/
 - (백엔드) 이슈 목록(연결 repo 통합) / 생성
 - (프론트) 프로젝트 Issues 탭 + 생성 모달
 
-### Phase 4 — PR 정합성 (의존: P1, P3 / 핵심 차별점) — 규칙 기반·선택형 LLM·연관 PR 그룹핑 + review comment·Checks API 완료
+### Phase 4 — PR 정합성 (의존: P1, P3 / 핵심 차별점) — 전용 Agent·규칙 fallback·연관 PR 그룹핑 + review comment·Checks API 완료
 - (백엔드) PR 목록·상세 조회
-- (백엔드) 명세 대조 엔진 (규칙 기반 → rag-pipeline LLM 위임)
+- (rag-pipeline) 전용 `POST /api/v1/agents/pr-consistency/review` Agent API
+- (백엔드) Agent 우선 명세 대조 + Agent 장애 시 규칙 fallback
 - (백엔드) repo 간 연관 PR 그룹핑
 - (백엔드) Checks API 게시
 - (프론트) PRs 탭 + 명세 패널 배지
@@ -239,6 +240,6 @@ infra/github/
 ## 8. 열린 질문 / 리스크
 
 - installation과 team 매핑: 한 조직 설치를 여러 워크스페이스가 공유할지, 워크스페이스당 설치할지
-- 명세 대조 정확도: 규칙 기반의 한계와 LLM 위임 시 비용/지연 트레이드오프
+- 명세 대조 정확도: Agent의 오탐 가능성과 호출 비용·지연을 관찰하고, 규칙 fallback 결과와 비교하는 운영 지표 필요
 - rate limit: 대량 PR 검사 시 배치·캐싱 전략
 - private repo(ops): 권한 범위 및 노출 정책

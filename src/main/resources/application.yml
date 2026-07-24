@@ -92,9 +92,9 @@ github:
     private-key-path: ${GITHUB_APP_PRIVATE_KEY_PATH:}  # PEM 파일 경로 (로컬)
   webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
   consistency:
-    # true일 때만 rag-pipeline을 통해 외부 LLM을 호출한다. 기본은 비용 없는 규칙 기반 검사다.
-    llm-enabled: ${GITHUB_CONSISTENCY_LLM_ENABLED:false}
-    llm-model: ${GITHUB_CONSISTENCY_LLM_MODEL:gpt-5.4-mini}
+    # 전용 Consistency Agent가 우선 검증하고, 호출 실패 시 규칙 엔진으로 안전하게 fallback한다.
+    agent-enabled: ${GITHUB_CONSISTENCY_AGENT_ENABLED:${GITHUB_CONSISTENCY_LLM_ENABLED:true}}
+    agent-model: ${GITHUB_CONSISTENCY_AGENT_MODEL:${GITHUB_CONSISTENCY_LLM_MODEL:gpt-5.4-mini}}
 
 logging:
   level:

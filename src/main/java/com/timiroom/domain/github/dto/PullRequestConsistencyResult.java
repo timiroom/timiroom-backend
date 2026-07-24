@@ -12,5 +12,6 @@ public record PullRequestConsistencyResult(
         boolean skippedDuplicate,
         String reviewUrl,
         String checkRunUrl,
+        String evaluator,
         List<ConsistencyFinding> findings
 ) {}

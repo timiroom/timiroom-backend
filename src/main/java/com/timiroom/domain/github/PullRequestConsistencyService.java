@@ -23,6 +23,7 @@ import com.timiroom.infra.github.dto.GithubPullRequestInfo;
 import com.timiroom.infra.github.dto.GithubPullRequestReviewInfo;
 import com.timiroom.infra.ragpipeline.RagPipelineClient;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,7 @@ import java.util.regex.Pattern;
  * 자동 승인이나 변경 요청은 하지 않으며, 같은 head SHA에는 한 번만 게시한다.
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class PullRequestConsistencyService {
 
@@ -61,11 +63,11 @@ public class PullRequestConsistencyService {
     private final ObjectMapper objectMapper;
     private final GithubClient githubClient;
 
-    @Value("${github.consistency.llm-enabled:false}")
-    private boolean llmEnabled;
+    @Value("${github.consistency.agent-enabled:true}")
+    private boolean agentEnabled;
 
-    @Value("${github.consistency.llm-model:gpt-5.4-mini}")
-    private String llmModel;
+    @Value("${github.consistency.agent-model:gpt-5.4-mini}")
+    private String agentModel;
 
     @Transactional(readOnly = true)
     public List<ProjectPullRequestResponse> list(Long projectId, Long memberId) {
@@ -97,23 +99,24 @@ public class PullRequestConsistencyService {
 
     private PullRequestConsistencyResult checkAndReview(Long projectId, GithubRepo repo, int pullNumber) {
         GithubPullRequestInfo pullRequest = githubClient.getPullRequest(repo.getFullName(), repo.getInstallationId(), pullNumber);
+        GithubPullRequestReviewRecord existing = reviewRecordRepository
+                .findByProjectIdAndGithubRepoIdAndPullNumber(projectId, repo.getId(), pullNumber).orElse(null);
+        if (existing != null && pullRequest.headSha() != null && pullRequest.headSha().equals(existing.getHeadSha())) {
+            return new PullRequestConsistencyResult(repo.getId(), pullNumber, pullRequest.headSha(),
+                    existing.getScore() != null ? existing.getScore() : 0,
+                    false, true, existing.getReviewUrl(), existing.getCheckRunUrl(), "CACHED",
+                    readFindings(existing.getFindingsJson()));
+        }
+
         List<GithubPullRequestFileInfo> files = githubClient.listPullRequestFiles(repo.getFullName(), repo.getInstallationId(), pullNumber);
         Map<PipelineArtifact.ArtifactType, String> specifications = latestSpecifications(projectId);
-        List<ConsistencyFinding> findings = analyze(files, specifications);
-        appendLlmFindings(files, specifications, findings);
+        AnalysisOutcome analysis = analyzeWithAgent(repo, pullRequest, files, specifications);
+        List<ConsistencyFinding> findings = analysis.findings();
         long warningCount = findings.stream().filter(f -> "WARNING".equals(f.severity())).count();
         int score = Math.max(0, 100 - (int) warningCount * 25);
         String findingsJson = writeFindings(findings);
 
-        GithubPullRequestReviewRecord existing = reviewRecordRepository
-                .findByProjectIdAndGithubRepoIdAndPullNumber(projectId, repo.getId(), pullNumber).orElse(null);
-        if (existing != null && pullRequest.headSha() != null && pullRequest.headSha().equals(existing.getHeadSha())) {
-            existing.updateResult(score, findingsJson);
-            return new PullRequestConsistencyResult(repo.getId(), pullNumber, pullRequest.headSha(), score,
-                    false, true, existing.getReviewUrl(), existing.getCheckRunUrl(), findings);
-        }
-
-        String reviewBody = reviewMarkdown(score, findings);
+        String reviewBody = reviewMarkdown(score, findings, analysis.evaluator());
         GithubCheckRunInfo checkRun = githubClient.createCompletedConsistencyCheckRun(repo.getFullName(),
                 repo.getInstallationId(), pullRequest.headSha(), score, warningCount > 0, reviewBody);
         GithubPullRequestReviewInfo review = githubClient.createPullRequestCommentReview(repo.getFullName(),
@@ -129,7 +132,7 @@ public class PullRequestConsistencyService {
         }
         if (warningCount > 0) notifyProjectMembers(projectId, repo, pullNumber, warningCount);
         return new PullRequestConsistencyResult(repo.getId(), pullNumber, pullRequest.headSha(), score,
-                true, false, review.htmlUrl(), checkRun.htmlUrl(), findings);
+                true, false, review.htmlUrl(), checkRun.htmlUrl(), analysis.evaluator(), findings);
     }
 
     /** 프로젝트 전체에서 가장 최근에 검사된 PR의 정합성 요약. 아직 검사한 PR이 없으면 null. */
@@ -182,8 +185,65 @@ public class PullRequestConsistencyService {
         return result;
     }
 
-    private List<ConsistencyFinding> analyze(List<GithubPullRequestFileInfo> files,
+    private AnalysisOutcome analyzeWithAgent(GithubRepo repo,
+                                             GithubPullRequestInfo pullRequest,
+                                             List<GithubPullRequestFileInfo> files,
                                              Map<PipelineArtifact.ArtifactType, String> specifications) {
+        if (!agentEnabled) {
+            return new AnalysisOutcome(analyzeWithRules(files, specifications), "RULES");
+        }
+        try {
+            JsonNode response = ragPipelineClient.reviewPullRequestConsistency(agentRequest(
+                    repo, pullRequest, files, specifications));
+            List<ConsistencyFinding> findings = new ArrayList<>();
+            for (JsonNode finding : response.path("findings")) {
+                String severity = finding.path("severity").asText("INFO").toUpperCase();
+                if (!Set.of("PASS", "INFO", "WARNING").contains(severity)) severity = "INFO";
+                String area = finding.path("area").asText("Agent").trim();
+                String message = finding.path("message").asText("").trim();
+                if (!message.isBlank()) findings.add(new ConsistencyFinding(severity, area, message));
+            }
+            if (findings.isEmpty()) {
+                throw new IllegalStateException("Consistency Agent가 finding을 반환하지 않았습니다");
+            }
+            return new AnalysisOutcome(List.copyOf(findings), "AGENT");
+        } catch (Exception e) {
+            log.warn("PR Consistency Agent 실패 — 규칙 엔진 fallback: {}", e.getMessage());
+            List<ConsistencyFinding> findings = new ArrayList<>(analyzeWithRules(files, specifications));
+            findings.add(new ConsistencyFinding("INFO", "검사기",
+                    "Consistency Agent를 사용할 수 없어 규칙 기반 검사 결과를 사용했습니다."));
+            return new AnalysisOutcome(List.copyOf(findings), "RULE_FALLBACK");
+        }
+    }
+
+    private Map<String, Object> agentRequest(GithubRepo repo,
+                                             GithubPullRequestInfo pullRequest,
+                                             List<GithubPullRequestFileInfo> files,
+                                             Map<PipelineArtifact.ArtifactType, String> specifications) {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("model", agentModel);
+        request.put("repository", repo.getFullName());
+        request.put("pullNumber", pullRequest.number());
+        request.put("title", pullRequest.title());
+        request.put("body", pullRequest.body());
+        request.put("headRef", pullRequest.headRef());
+        request.put("baseRef", pullRequest.baseRef());
+        request.put("apiSpec", specifications.get(PipelineArtifact.ArtifactType.API_SPEC));
+        request.put("dbSchema", specifications.get(PipelineArtifact.ArtifactType.DB_SCHEMA));
+        request.put("changedFiles", files.stream().map(file -> {
+            Map<String, Object> changedFile = new LinkedHashMap<>();
+            changedFile.put("filename", file.filename());
+            changedFile.put("status", file.status());
+            changedFile.put("additions", file.additions());
+            changedFile.put("deletions", file.deletions());
+            changedFile.put("patch", file.patch());
+            return changedFile;
+        }).toList());
+        return request;
+    }
+
+    private List<ConsistencyFinding> analyzeWithRules(List<GithubPullRequestFileInfo> files,
+                                                      Map<PipelineArtifact.ArtifactType, String> specifications) {
         List<ConsistencyFinding> findings = new ArrayList<>();
         boolean apiChanged = files.stream().anyMatch(this::looksLikeApiChange);
         boolean dbChanged = files.stream().anyMatch(this::looksLikeDatabaseChange);
@@ -196,62 +256,6 @@ public class PullRequestConsistencyService {
 
         if (files.isEmpty()) findings.add(new ConsistencyFinding("INFO", "변경 파일", "GitHub에서 변경 파일을 받지 못해 파일 기반 검사를 건너뛰었습니다."));
         return findings;
-    }
-
-    private void appendLlmFindings(List<GithubPullRequestFileInfo> files,
-                                   Map<PipelineArtifact.ArtifactType, String> specifications,
-                                   List<ConsistencyFinding> findings) {
-        if (!llmEnabled) return;
-        try {
-            JsonNode response = objectMapper.readTree(ragPipelineClient.reviewConsistency(
-                    llmPrompt(files, specifications), llmModel));
-            JsonNode llmFindings = response.path("findings");
-            if (!llmFindings.isArray()) {
-                findings.add(new ConsistencyFinding("INFO", "LLM", "LLM 응답에 구조화된 findings가 없어 규칙 기반 결과만 사용했습니다."));
-                return;
-            }
-            for (JsonNode finding : llmFindings) {
-                String severity = finding.path("severity").asText("INFO").toUpperCase();
-                if (!Set.of("PASS", "INFO", "WARNING").contains(severity)) severity = "INFO";
-                String area = finding.path("area").asText("LLM");
-                String message = finding.path("message").asText("").trim();
-                if (!message.isBlank()) findings.add(new ConsistencyFinding(severity, area, message));
-            }
-        } catch (Exception e) {
-            findings.add(new ConsistencyFinding("INFO", "LLM", "LLM 검토를 완료하지 못해 규칙 기반 결과만 사용했습니다."));
-        }
-    }
-
-    private String llmPrompt(List<GithubPullRequestFileInfo> files,
-                             Map<PipelineArtifact.ArtifactType, String> specifications) {
-        StringBuilder changedFiles = new StringBuilder();
-        for (GithubPullRequestFileInfo file : files) {
-            changedFiles.append("\n### ").append(file.filename()).append("\n")
-                    .append(truncate(file.patch(), 4_000));
-        }
-        return """
-                You review whether a pull request matches a product API specification and DB schema.
-                Use only the supplied material. Do not invent endpoints, tables, or requirements.
-                Return JSON only: {"findings":[{"severity":"PASS|INFO|WARNING","area":"API|DB|Cross-repo","message":"short Korean explanation"}]}.
-                A WARNING is appropriate only when the diff gives concrete evidence of a mismatch or a required specification is missing.
-
-                API_SPEC:
-                %s
-
-                DB_SCHEMA:
-                %s
-
-                PR changed files:
-                %s
-                """.formatted(
-                truncate(specifications.get(PipelineArtifact.ArtifactType.API_SPEC), 12_000),
-                truncate(specifications.get(PipelineArtifact.ArtifactType.DB_SCHEMA), 12_000),
-                truncate(changedFiles.toString(), 20_000));
-    }
-
-    private String truncate(String text, int limit) {
-        if (text == null || text.isBlank()) return "(없음)";
-        return text.length() <= limit ? text : text.substring(0, limit) + "\n...[truncated]";
     }
 
     private void analyzeApi(List<GithubPullRequestFileInfo> files, String apiSpec, List<ConsistencyFinding> findings) {
@@ -349,9 +353,15 @@ public class PullRequestConsistencyService {
         return keys;
     }
 
-    private String reviewMarkdown(int score, List<ConsistencyFinding> findings) {
+    private String reviewMarkdown(int score, List<ConsistencyFinding> findings, String evaluator) {
+        String evaluatorDescription = switch (evaluator) {
+            case "AGENT" -> "전용 `PR Consistency Agent`가 최신 명세와 변경 diff를 의미 단위로 검토했습니다.";
+            case "RULE_FALLBACK" -> "Consistency Agent 호출에 실패해 규칙 엔진이 최신 명세와 변경 diff를 대조했습니다.";
+            default -> "규칙 엔진이 최신 명세와 변경 diff를 대조했습니다.";
+        };
         StringBuilder body = new StringBuilder("## timiroom 정합성 자동 리뷰\n\n")
-                .append("> 최신 `API_SPEC`·`DB_SCHEMA`와 PR 변경 파일을 규칙 기반으로 대조했습니다. 자동 승인이나 변경 요청은 하지 않습니다.\n\n")
+                .append("> ").append(evaluatorDescription)
+                .append(" 자동 승인이나 변경 요청은 하지 않습니다.\n\n")
                 .append("**점수: ").append(score).append("/100**\n\n");
         for (ConsistencyFinding finding : findings) {
             String icon = switch (finding.severity()) {
@@ -392,6 +402,8 @@ public class PullRequestConsistencyService {
                 pullRequest.body(), pullRequest.state(), pullRequest.draft(), pullRequest.headSha(), pullRequest.headRef(),
                 pullRequest.baseRef(), pullRequest.htmlUrl(), pullRequest.authorLogin(), pullRequest.updatedAt(), relatedPullRequests);
     }
+
+    private record AnalysisOutcome(List<ConsistencyFinding> findings, String evaluator) {}
 
     private record PullWithRepo(GithubRepo repo, GithubPullRequestInfo pullRequest) {}
 }
