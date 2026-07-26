@@ -1,5 +1,6 @@
 package com.timiroom.infra.ragpipeline;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -110,6 +111,27 @@ public class RagPipelineClient {
         @SuppressWarnings("unchecked")
         Map<String, Object> data = (Map<String, Object>) response.get("data");
         return data;
+    }
+
+    /** 전용 PR Consistency Agent에 구조화된 검증 요청을 전달한다. */
+    public JsonNode reviewPullRequestConsistency(Object requestBody) {
+        JsonNode response;
+        try {
+            response = webClient.post()
+                    .uri("/api/v1/agents/pr-consistency/review")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .timeout(Duration.ofSeconds(75))
+                    .block();
+        } catch (WebClientRequestException e) {
+            throw unavailable("reviewPullRequestConsistency", e);
+        }
+        if (response == null || !response.path("findings").isArray()) {
+            throw new IllegalStateException("PR Consistency Agent의 구조화된 응답이 없습니다");
+        }
+        return response;
     }
 
     /**

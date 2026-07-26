@@ -5,7 +5,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: timiroom-postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_DB: timiroom
       POSTGRES_USER: timiroom

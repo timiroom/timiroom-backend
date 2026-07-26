@@ -7,7 +7,7 @@ spring:
 
   # ── PostgreSQL (timiroom 공유 DB) ───────────────────────────────
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/timiroom}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/timiroom}
     username: ${DB_USERNAME:timiroom}
     password: ${DB_PASSWORD:timiroom1234}
     driver-class-name: org.postgresql.Driver
@@ -95,6 +95,8 @@ app:
     timeout:
       stream: 90
       sync: 60
+    pr-consistency:
+      model: ${PR_CONSISTENCY_AGENT_MODEL:gpt-5.4-mini}
   rag:
     chunk-size: 512
     chunk-overlap: 64

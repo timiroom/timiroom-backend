@@ -113,6 +113,23 @@ GITHUB_CLIENT_SECRET=your_github_client_secret
 
 # rag-pipeline 연동 URL
 RAG_PIPELINE_URL=http://localhost:8081
+
+# PR 정합성 실행기: PYTHON(국내 LG K-EXAONE) | SPRING(해외 Foundry)
+GITHUB_CONSISTENCY_RUNTIME=PYTHON
+
+# PYTHON 실행기용 독립 정합성 서비스
+CONSISTENCY_SERVICE_URL=http://localhost:8082
+CONSISTENCY_SERVICE_API_KEY=
+
+# SPRING 실행기용 모델 (rag-pipeline의 FOUNDRY_API_KEY/URL 사용)
+GITHUB_CONSISTENCY_AGENT_MODEL=gpt-5.4-mini
+```
+
+로컬 OAuth 공급자 콘솔에는 아래 콜백 URL을 정확히 등록해야 합니다.
+
+```text
+Google: http://localhost:8080/login/oauth2/code/google
+GitHub: http://localhost:8080/login/oauth2/code/github
 ```
 
 #### `rag-pipeline/.env` (rag-pipeline 8081 용)
