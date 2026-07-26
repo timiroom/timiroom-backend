@@ -14,6 +14,7 @@ import com.timiroom.infra.github.dto.GithubPullRequestFileInfo;
 import com.timiroom.infra.github.dto.GithubPullRequestInfo;
 import com.timiroom.infra.github.dto.GithubPullRequestReviewInfo;
 import com.timiroom.infra.github.dto.GithubCheckRunInfo;
+import com.timiroom.infra.consistency.ConsistencyServiceClient;
 import com.timiroom.infra.ragpipeline.RagPipelineClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,7 @@ class PullRequestConsistencyServiceTest {
     @Mock NotificationService notificationService;
     @Mock GithubClient githubClient;
     @Mock RagPipelineClient ragPipelineClient;
+    @Mock ConsistencyServiceClient consistencyServiceClient;
     @Spy ObjectMapper objectMapper = new ObjectMapper();
     @InjectMocks PullRequestConsistencyService service;
 
@@ -118,10 +120,11 @@ class PullRequestConsistencyServiceTest {
     }
 
     @Test
-    void checkAndReview_전용_Consistency_Agent_판정을_사용한다() throws Exception {
+    void checkAndReview_Spring_해외_Consistency_Agent_판정을_사용한다() throws Exception {
         givenLinkedPm();
         ReflectionTestUtils.setField(service, "agentEnabled", true);
         ReflectionTestUtils.setField(service, "agentModel", "gpt-5.4-mini");
+        ReflectionTestUtils.setField(service, "agentRuntime", "SPRING");
         when(pipelineService.getLatestArtifactsByProject(PROJECT_ID)).thenReturn(List.of(
                 PipelineArtifact.builder().artifactType(PipelineArtifact.ArtifactType.API_SPEC)
                         .content("GET /api/v1/tasks").build()));
@@ -140,18 +143,51 @@ class PullRequestConsistencyServiceTest {
 
         var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
 
-        assertThat(result.evaluator()).isEqualTo("AGENT");
+        assertThat(result.evaluator()).isEqualTo("SPRING_FOUNDRY");
         assertThat(result.findings()).extracting(finding -> finding.message())
                 .containsExactly("GET /api/v1/tasks 구현이 API_SPEC과 일치합니다.");
         ArgumentCaptor<Object> request = ArgumentCaptor.forClass(Object.class);
         verify(ragPipelineClient).reviewPullRequestConsistency(request.capture());
         assertThat(((Map<?, ?>) request.getValue()).get("repository")).isEqualTo("timiroom/timiroom-backend");
+        verify(consistencyServiceClient, never()).reviewPullRequestConsistency(any());
+    }
+
+    @Test
+    void checkAndReview_Python_국내_EXAONE_Agent_판정을_사용한다() throws Exception {
+        givenLinkedPm();
+        ReflectionTestUtils.setField(service, "agentEnabled", true);
+        ReflectionTestUtils.setField(service, "agentModel", "gpt-5.4-mini");
+        ReflectionTestUtils.setField(service, "agentRuntime", "PYTHON");
+        when(pipelineService.getLatestArtifactsByProject(PROJECT_ID)).thenReturn(List.of(
+                PipelineArtifact.builder().artifactType(PipelineArtifact.ArtifactType.API_SPEC)
+                        .content("GET /api/v1/tasks").build()));
+        when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
+                .thenReturn(Optional.empty());
+        var agentResponse = new ObjectMapper().readTree("""
+                {"agent":"PR_CONSISTENCY_AGENT","provider":"EXAONE","findings":[
+                  {"severity":"PASS","area":"API","message":"EXAONE 검증 결과 API_SPEC과 일치합니다."}
+                ]}
+                """);
+        when(consistencyServiceClient.reviewPullRequestConsistency(any())).thenReturn(agentResponse);
+        when(githubClient.createCompletedConsistencyCheckRun(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq("head-sha"), eq(100), eq(false), any())).thenReturn(new GithubCheckRunInfo(9L, "https://check", "success"));
+        when(githubClient.createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq(42), eq("head-sha"), any())).thenReturn(new GithubPullRequestReviewInfo(7L, "https://review", "COMMENTED"));
+
+        var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
+
+        assertThat(result.evaluator()).isEqualTo("PYTHON_EXAONE");
+        assertThat(result.findings()).extracting(finding -> finding.message())
+                .containsExactly("EXAONE 검증 결과 API_SPEC과 일치합니다.");
+        verify(consistencyServiceClient).reviewPullRequestConsistency(any());
+        verify(ragPipelineClient, never()).reviewPullRequestConsistency(any());
     }
 
     @Test
     void checkAndReview_Agent_실패시_규칙_엔진으로_fallback한다() {
         givenLinkedPm();
         ReflectionTestUtils.setField(service, "agentEnabled", true);
+        ReflectionTestUtils.setField(service, "agentRuntime", "SPRING");
         when(pipelineService.getLatestArtifactsByProject(PROJECT_ID)).thenReturn(List.of(
                 PipelineArtifact.builder().artifactType(PipelineArtifact.ArtifactType.API_SPEC)
                         .content("GET /api/v1/tasks").build()));

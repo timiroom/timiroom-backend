@@ -21,6 +21,7 @@ import com.timiroom.infra.github.dto.GithubCheckRunInfo;
 import com.timiroom.infra.github.dto.GithubPullRequestFileInfo;
 import com.timiroom.infra.github.dto.GithubPullRequestInfo;
 import com.timiroom.infra.github.dto.GithubPullRequestReviewInfo;
+import com.timiroom.infra.consistency.ConsistencyServiceClient;
 import com.timiroom.infra.ragpipeline.RagPipelineClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +61,7 @@ public class PullRequestConsistencyService {
     private final PipelineService pipelineService;
     private final NotificationService notificationService;
     private final RagPipelineClient ragPipelineClient;
+    private final ConsistencyServiceClient consistencyServiceClient;
     private final ObjectMapper objectMapper;
     private final GithubClient githubClient;
 
@@ -68,6 +70,9 @@ public class PullRequestConsistencyService {
 
     @Value("${github.consistency.agent-model:gpt-5.4-mini}")
     private String agentModel;
+
+    @Value("${github.consistency.runtime:PYTHON}")
+    private String agentRuntime;
 
     @Transactional(readOnly = true)
     public List<ProjectPullRequestResponse> list(Long projectId, Long memberId) {
@@ -193,8 +198,11 @@ public class PullRequestConsistencyService {
             return new AnalysisOutcome(analyzeWithRules(files, specifications), "RULES");
         }
         try {
-            JsonNode response = ragPipelineClient.reviewPullRequestConsistency(agentRequest(
-                    repo, pullRequest, files, specifications));
+            String runtime = normalizedAgentRuntime();
+            Object request = agentRequest(repo, pullRequest, files, specifications);
+            JsonNode response = "PYTHON".equals(runtime)
+                    ? consistencyServiceClient.reviewPullRequestConsistency(request)
+                    : ragPipelineClient.reviewPullRequestConsistency(request);
             List<ConsistencyFinding> findings = new ArrayList<>();
             for (JsonNode finding : response.path("findings")) {
                 String severity = finding.path("severity").asText("INFO").toUpperCase();
@@ -206,7 +214,8 @@ public class PullRequestConsistencyService {
             if (findings.isEmpty()) {
                 throw new IllegalStateException("Consistency Agent가 finding을 반환하지 않았습니다");
             }
-            return new AnalysisOutcome(List.copyOf(findings), "AGENT");
+            return new AnalysisOutcome(List.copyOf(findings),
+                    "PYTHON".equals(runtime) ? "PYTHON_EXAONE" : "SPRING_FOUNDRY");
         } catch (Exception e) {
             log.warn("PR Consistency Agent 실패 — 규칙 엔진 fallback: {}", e.getMessage());
             List<ConsistencyFinding> findings = new ArrayList<>(analyzeWithRules(files, specifications));
@@ -355,6 +364,8 @@ public class PullRequestConsistencyService {
 
     private String reviewMarkdown(int score, List<ConsistencyFinding> findings, String evaluator) {
         String evaluatorDescription = switch (evaluator) {
+            case "PYTHON_EXAONE" -> "독립 Python `PR Consistency Agent`가 Friendli의 LG K-EXAONE으로 최신 명세와 변경 diff를 검토했습니다.";
+            case "SPRING_FOUNDRY" -> "Spring `PR Consistency Agent`가 해외 Foundry 모델로 최신 명세와 변경 diff를 검토했습니다.";
             case "AGENT" -> "전용 `PR Consistency Agent`가 최신 명세와 변경 diff를 의미 단위로 검토했습니다.";
             case "RULE_FALLBACK" -> "Consistency Agent 호출에 실패해 규칙 엔진이 최신 명세와 변경 diff를 대조했습니다.";
             default -> "규칙 엔진이 최신 명세와 변경 diff를 대조했습니다.";
@@ -404,6 +415,14 @@ public class PullRequestConsistencyService {
     }
 
     private record AnalysisOutcome(List<ConsistencyFinding> findings, String evaluator) {}
+
+    private String normalizedAgentRuntime() {
+        String normalized = agentRuntime == null ? "" : agentRuntime.trim().toUpperCase();
+        if (!Set.of("PYTHON", "SPRING").contains(normalized)) {
+            throw new IllegalArgumentException("지원하지 않는 GITHUB_CONSISTENCY_RUNTIME: " + agentRuntime);
+        }
+        return normalized;
+    }
 
     private record PullWithRepo(GithubRepo repo, GithubPullRequestInfo pullRequest) {}
 }

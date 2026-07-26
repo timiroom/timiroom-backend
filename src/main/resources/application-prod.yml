@@ -11,6 +11,10 @@ management:
 rag-pipeline:
   base-url: ${RAG_PIPELINE_URL:http://rag-pipeline-svc:8080}
 
+consistency-service:
+  base-url: ${CONSISTENCY_SERVICE_URL:http://consistency-svc:8080}
+  api-key: ${CONSISTENCY_SERVICE_API_KEY:}
+
 spring:
   jpa:
     hibernate:
@@ -66,4 +70,5 @@ github:
   webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
   consistency:
     agent-enabled: ${GITHUB_CONSISTENCY_AGENT_ENABLED:${GITHUB_CONSISTENCY_LLM_ENABLED:true}}
+    runtime: ${GITHUB_CONSISTENCY_RUNTIME:PYTHON}
     agent-model: ${GITHUB_CONSISTENCY_AGENT_MODEL:${GITHUB_CONSISTENCY_LLM_MODEL:gpt-5.4-mini}}

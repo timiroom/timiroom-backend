@@ -70,6 +70,11 @@ server:
 rag-pipeline:
   base-url: ${RAG_PIPELINE_URL:http://localhost:8081}
 
+# 후속 정합성/수정 전용 Python 서비스 (Friendli LG K-EXAONE)
+consistency-service:
+  base-url: ${CONSISTENCY_SERVICE_URL:http://localhost:8082}
+  api-key: ${CONSISTENCY_SERVICE_API_KEY:}
+
 cors:
   allowed-origins: ${FRONTEND_URL:http://localhost:3000}
 
@@ -94,6 +99,8 @@ github:
   consistency:
     # 전용 Consistency Agent가 우선 검증하고, 호출 실패 시 규칙 엔진으로 안전하게 fallback한다.
     agent-enabled: ${GITHUB_CONSISTENCY_AGENT_ENABLED:${GITHUB_CONSISTENCY_LLM_ENABLED:true}}
+    # PYTHON: 독립 EXAONE 서비스, SPRING: 기존 rag-pipeline의 해외 Foundry Agent
+    runtime: ${GITHUB_CONSISTENCY_RUNTIME:PYTHON}
     agent-model: ${GITHUB_CONSISTENCY_AGENT_MODEL:${GITHUB_CONSISTENCY_LLM_MODEL:gpt-5.4-mini}}
 
 logging:
