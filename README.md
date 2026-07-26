@@ -113,6 +113,10 @@ GITHUB_CLIENT_SECRET=your_github_client_secret
 
 # rag-pipeline 연동 URL
 RAG_PIPELINE_URL=http://localhost:8081
+
+# GitHub PR 정합성 Agent 제공자 선택
+GITHUB_CONSISTENCY_AGENT_PROVIDER=EXAONE
+GITHUB_CONSISTENCY_EXAONE_MODEL=LGAI-EXAONE/K-EXAONE-236B-A23B
 ```
 
 로컬 OAuth 공급자 콘솔에는 아래 콜백 URL을 정확히 등록해야 합니다.
@@ -129,6 +133,12 @@ GitHub: http://localhost:8080/login/oauth2/code/github
 OPENAI_API_KEY=your_openai_api_key        # GPT-4o 에이전트 + text-embedding-3-large
 ANTHROPIC_API_KEY=your_anthropic_api_key  # Claude Sonnet (AI 추천 파이프라인)
 COHERE_API_KEY=your_cohere_api_key        # Reranker (선택 — 없으면 reranker 비활성화)
+
+# GitHub PR 정합성 Agent만 LG K-EXAONE으로 실행
+PR_CONSISTENCY_AGENT_PROVIDER=EXAONE
+PR_CONSISTENCY_EXAONE_MODEL=LGAI-EXAONE/K-EXAONE-236B-A23B
+EXAONE_CHAT_COMPLETIONS_URL=http://localhost:8000/v1/chat/completions
+EXAONE_API_KEY=                       # 자체 호스팅이면 비워둘 수 있음
 
 # PostgreSQL (백엔드와 공유 DB)
 DB_URL=jdbc:postgresql://localhost:5432/timiroom

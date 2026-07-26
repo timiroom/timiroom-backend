@@ -94,7 +94,9 @@ github:
   consistency:
     # 전용 Consistency Agent가 우선 검증하고, 호출 실패 시 규칙 엔진으로 안전하게 fallback한다.
     agent-enabled: ${GITHUB_CONSISTENCY_AGENT_ENABLED:${GITHUB_CONSISTENCY_LLM_ENABLED:true}}
-    agent-model: ${GITHUB_CONSISTENCY_AGENT_MODEL:${GITHUB_CONSISTENCY_LLM_MODEL:gpt-5.4-mini}}
+    agent-provider: ${GITHUB_CONSISTENCY_AGENT_PROVIDER:EXAONE}
+    exaone-model: ${GITHUB_CONSISTENCY_EXAONE_MODEL:LGAI-EXAONE/K-EXAONE-236B-A23B}
+    foundry-model: ${GITHUB_CONSISTENCY_FOUNDRY_MODEL:${GITHUB_CONSISTENCY_AGENT_MODEL:${GITHUB_CONSISTENCY_LLM_MODEL:gpt-5.4-mini}}}
 
 logging:
   level:

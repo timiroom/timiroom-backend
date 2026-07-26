@@ -28,7 +28,28 @@ App 등록은 한 번으로 끝났고, 이후에는 사용할 조직/계정에 �
 GITHUB_APP_ID=4278317
 GITHUB_APP_PRIVATE_KEY_PATH=.secrets/timiroom.2026-07-12.private-key.pem
 GITHUB_WEBHOOK_SECRET=(팀 공유 값)
+
+# PR 정합성 Agent: EXAONE(국내) 또는 FOUNDRY(기존 해외) 중 선택
+GITHUB_CONSISTENCY_AGENT_PROVIDER=EXAONE
+GITHUB_CONSISTENCY_EXAONE_MODEL=LGAI-EXAONE/K-EXAONE-236B-A23B
 ```
+
+`rag-pipeline/.env`에는 EXAONE 추론 서버를 지정합니다. vLLM·llama.cpp 자체 호스팅은
+`EXAONE_API_KEY`를 비워둘 수 있고, 인증 프록시나 사내 게이트웨이는 Bearer 키를 설정합니다.
+
+```dotenv
+PR_CONSISTENCY_AGENT_PROVIDER=EXAONE
+PR_CONSISTENCY_EXAONE_MODEL=LGAI-EXAONE/K-EXAONE-236B-A23B
+EXAONE_CHAT_COMPLETIONS_URL=http://localhost:8000/v1/chat/completions
+EXAONE_API_KEY=
+```
+
+기존 해외 모델로 전환하려면 백엔드와 rag-pipeline의 provider를 `FOUNDRY`로 바꾸고
+`GITHUB_CONSISTENCY_FOUNDRY_MODEL`, `PR_CONSISTENCY_FOUNDRY_MODEL`, `FOUNDRY_API_KEY`를 설정합니다.
+
+K-EXAONE 자체 호스팅 요구사항과 실행 명령은 [LG AI Research 공식 K-EXAONE 저장소](https://github.com/LG-AI-EXAONE/K-EXAONE)를
+기준으로 합니다. 모델을 제3자 대상 상용 서비스 형태로 제공하는 경우에는 K-EXAONE 모델 라이선스의
+별도 계약 조건을 배포 전에 확인해야 합니다.
 
 값이 없으면 서버는 "GitHub App 미설정" 경고와 함께 정상 부팅되고, GitHub 관련 API만 비활성 상태가 됩니다.
 
@@ -43,7 +64,12 @@ production environment에 아래 시크릿을 추가하면 됩니다.
 | APP_GITHUB_APP_PRIVATE_KEY | .pem 파일 내용 전체 (개행 포함) |
 | APP_GITHUB_WEBHOOK_SECRET | 웹훅 시크릿 |
 | APP_GITHUB_CONSISTENCY_AGENT_ENABLED | 전용 PR Consistency Agent 사용 여부 (기본 `true`, 실패 시 규칙 fallback) |
-| APP_GITHUB_CONSISTENCY_AGENT_MODEL | Agent 모델명 (기본 `gpt-5.4-mini`) |
+| APP_GITHUB_CONSISTENCY_AGENT_PROVIDER | `EXAONE` 또는 `FOUNDRY` (기본 `EXAONE`) |
+| APP_GITHUB_CONSISTENCY_EXAONE_MODEL | LG 모델명 (기본 `LGAI-EXAONE/K-EXAONE-236B-A23B`) |
+| APP_GITHUB_CONSISTENCY_FOUNDRY_MODEL | 기존 해외 모델명 (기본 `gpt-5.4-mini`) |
+
+rag-pipeline 배포 시 production environment에는 `RAG_EXAONE_CHAT_COMPLETIONS_URL`,
+필요한 경우 `RAG_EXAONE_API_KEY`, 그리고 `RAG_PR_CONSISTENCY_AGENT_PROVIDER=EXAONE`을 등록합니다.
 
 운영에서는 파일 경로 대신 `GITHUB_APP_PRIVATE_KEY`에 PEM 내용을 직접 넣습니다.
 이스케이프된 개행(\n)이 들어와도 코드에서 복원합니다.

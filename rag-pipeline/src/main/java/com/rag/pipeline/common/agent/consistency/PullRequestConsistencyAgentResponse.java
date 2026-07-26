@@ -5,6 +5,7 @@ import java.util.List;
 /** 전용 Consistency Agent의 구조화된 판정 결과. */
 public record PullRequestConsistencyAgentResponse(
         String agent,
+        String provider,
         String model,
         boolean passed,
         String summary,
