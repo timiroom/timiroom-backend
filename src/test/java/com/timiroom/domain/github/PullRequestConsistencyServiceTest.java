@@ -121,15 +121,14 @@ class PullRequestConsistencyServiceTest {
     void checkAndReview_전용_Consistency_Agent_판정을_사용한다() throws Exception {
         givenLinkedPm();
         ReflectionTestUtils.setField(service, "agentEnabled", true);
-        ReflectionTestUtils.setField(service, "agentProvider", "EXAONE");
-        ReflectionTestUtils.setField(service, "exaoneModel", "LGAI-EXAONE/K-EXAONE-236B-A23B");
+        ReflectionTestUtils.setField(service, "agentModel", "gpt-5.4-mini");
         when(pipelineService.getLatestArtifactsByProject(PROJECT_ID)).thenReturn(List.of(
                 PipelineArtifact.builder().artifactType(PipelineArtifact.ArtifactType.API_SPEC)
                         .content("GET /api/v1/tasks").build()));
         when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
                 .thenReturn(Optional.empty());
         var agentResponse = new ObjectMapper().readTree("""
-                {"agent":"PR_CONSISTENCY_AGENT","provider":"EXAONE","model":"LGAI-EXAONE/K-EXAONE-236B-A23B","findings":[
+                {"agent":"PR_CONSISTENCY_AGENT","findings":[
                   {"severity":"PASS","area":"API","message":"GET /api/v1/tasks 구현이 API_SPEC과 일치합니다."}
                 ]}
                 """);
@@ -141,19 +140,12 @@ class PullRequestConsistencyServiceTest {
 
         var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
 
-        assertThat(result.evaluator()).isEqualTo("EXAONE");
+        assertThat(result.evaluator()).isEqualTo("AGENT");
         assertThat(result.findings()).extracting(finding -> finding.message())
                 .containsExactly("GET /api/v1/tasks 구현이 API_SPEC과 일치합니다.");
         ArgumentCaptor<Object> request = ArgumentCaptor.forClass(Object.class);
         verify(ragPipelineClient).reviewPullRequestConsistency(request.capture());
         assertThat(((Map<?, ?>) request.getValue()).get("repository")).isEqualTo("timiroom/timiroom-backend");
-        assertThat(((Map<?, ?>) request.getValue()).get("provider")).isEqualTo("EXAONE");
-        assertThat(((Map<?, ?>) request.getValue()).get("model"))
-                .isEqualTo("LGAI-EXAONE/K-EXAONE-236B-A23B");
-        ArgumentCaptor<String> reviewBody = ArgumentCaptor.forClass(String.class);
-        verify(githubClient).createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
-                eq(42), eq("head-sha"), reviewBody.capture());
-        assertThat(reviewBody.getValue()).contains("K-EXAONE");
     }
 
     @Test

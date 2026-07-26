@@ -4,7 +4,6 @@ import java.util.List;
 
 /** PR 구현과 최신 설계 산출물을 Consistency Agent에 전달하는 구조화된 요청. */
 public record PullRequestConsistencyAgentRequest(
-        String provider,
         String model,
         String repository,
         int pullNumber,

@@ -66,14 +66,8 @@ public class PullRequestConsistencyService {
     @Value("${github.consistency.agent-enabled:true}")
     private boolean agentEnabled;
 
-    @Value("${github.consistency.agent-provider:EXAONE}")
-    private String agentProvider;
-
-    @Value("${github.consistency.exaone-model:LGAI-EXAONE/K-EXAONE-236B-A23B}")
-    private String exaoneModel;
-
-    @Value("${github.consistency.foundry-model:gpt-5.4-mini}")
-    private String foundryModel;
+    @Value("${github.consistency.agent-model:gpt-5.4-mini}")
+    private String agentModel;
 
     @Transactional(readOnly = true)
     public List<ProjectPullRequestResponse> list(Long projectId, Long memberId) {
@@ -212,8 +206,7 @@ public class PullRequestConsistencyService {
             if (findings.isEmpty()) {
                 throw new IllegalStateException("Consistency Agent가 finding을 반환하지 않았습니다");
             }
-            String provider = normalizeAgentProvider(response.path("provider").asText(agentProvider));
-            return new AnalysisOutcome(List.copyOf(findings), provider);
+            return new AnalysisOutcome(List.copyOf(findings), "AGENT");
         } catch (Exception e) {
             log.warn("PR Consistency Agent 실패 — 규칙 엔진 fallback: {}", e.getMessage());
             List<ConsistencyFinding> findings = new ArrayList<>(analyzeWithRules(files, specifications));
@@ -228,9 +221,7 @@ public class PullRequestConsistencyService {
                                              List<GithubPullRequestFileInfo> files,
                                              Map<PipelineArtifact.ArtifactType, String> specifications) {
         Map<String, Object> request = new LinkedHashMap<>();
-        String provider = normalizeAgentProvider(agentProvider);
-        request.put("provider", provider);
-        request.put("model", "EXAONE".equals(provider) ? exaoneModel : foundryModel);
+        request.put("model", agentModel);
         request.put("repository", repo.getFullName());
         request.put("pullNumber", pullRequest.number());
         request.put("title", pullRequest.title());
@@ -364,8 +355,6 @@ public class PullRequestConsistencyService {
 
     private String reviewMarkdown(int score, List<ConsistencyFinding> findings, String evaluator) {
         String evaluatorDescription = switch (evaluator) {
-            case "EXAONE" -> "LG AI Research `K-EXAONE` 기반 전용 PR Consistency Agent가 최신 명세와 변경 diff를 의미 단위로 검토했습니다.";
-            case "FOUNDRY" -> "해외 AI 기반 전용 PR Consistency Agent가 최신 명세와 변경 diff를 의미 단위로 검토했습니다.";
             case "AGENT" -> "전용 `PR Consistency Agent`가 최신 명세와 변경 diff를 의미 단위로 검토했습니다.";
             case "RULE_FALLBACK" -> "Consistency Agent 호출에 실패해 규칙 엔진이 최신 명세와 변경 diff를 대조했습니다.";
             default -> "규칙 엔진이 최신 명세와 변경 diff를 대조했습니다.";
@@ -415,11 +404,6 @@ public class PullRequestConsistencyService {
     }
 
     private record AnalysisOutcome(List<ConsistencyFinding> findings, String evaluator) {}
-
-    private String normalizeAgentProvider(String provider) {
-        String normalized = provider == null ? "" : provider.trim().toUpperCase();
-        return Set.of("EXAONE", "FOUNDRY").contains(normalized) ? normalized : "EXAONE";
-    }
 
     private record PullWithRepo(GithubRepo repo, GithubPullRequestInfo pullRequest) {}
 }

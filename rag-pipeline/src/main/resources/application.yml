@@ -89,11 +89,6 @@ app:
     foundry:
       responses-url: ${FOUNDRY_RESPONSES_URL:https://align-it-resource.services.ai.azure.com/openai/v1/responses}
       rerank-url: ${FOUNDRY_RERANK_URL:https://align-it-resource.services.ai.azure.com/providers/cohere/v2/rerank}
-    exaone:
-      # vLLM/llama.cpp 또는 사내 EXAONE 게이트웨이의 OpenAI 호환 Chat Completions API
-      chat-completions-url: ${EXAONE_CHAT_COMPLETIONS_URL:http://localhost:8000/v1/chat/completions}
-      # 자체 호스팅은 비워둘 수 있고, 인증 게이트웨이는 Bearer 키를 설정한다.
-      api-key: ${EXAONE_API_KEY:}
   cors:
     allowed-origins: http://localhost:3000,http://localhost:5500,http://127.0.0.1:5500
   agent:
@@ -101,9 +96,7 @@ app:
       stream: 90
       sync: 60
     pr-consistency:
-      provider: ${PR_CONSISTENCY_AGENT_PROVIDER:EXAONE}
-      foundry-model: ${PR_CONSISTENCY_FOUNDRY_MODEL:gpt-5.4-mini}
-      exaone-model: ${PR_CONSISTENCY_EXAONE_MODEL:LGAI-EXAONE/K-EXAONE-236B-A23B}
+      model: ${PR_CONSISTENCY_AGENT_MODEL:gpt-5.4-mini}
   rag:
     chunk-size: 512
     chunk-overlap: 64
