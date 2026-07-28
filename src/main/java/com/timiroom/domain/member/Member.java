@@ -31,6 +31,9 @@ public class Member extends BaseEntity {
     @Column(name = "profile_image_url", length = 500)
     private String profileImageUrl;
 
+    @Column(name = "github_login", length = 39)
+    private String githubLogin;
+
     @Enumerated(EnumType.STRING)
     private Role role;
 
@@ -62,6 +65,10 @@ public class Member extends BaseEntity {
 
     public void updateProfileImageUrl(String profileImageUrl) {
         this.profileImageUrl = profileImageUrl;
+    }
+
+    public void updateGithubLogin(String githubLogin) {
+        this.githubLogin = githubLogin;
     }
 
     public String getDisplayName() {
