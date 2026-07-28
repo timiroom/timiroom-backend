@@ -101,7 +101,11 @@ class PullRequestConsistencyServiceTest {
         ArgumentCaptor<String> reviewBody = ArgumentCaptor.forClass(String.class);
         verify(githubClient).createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
                 eq(42), eq("head-sha"), reviewBody.capture());
-        assertThat(reviewBody.getValue()).contains("정합성 자동 리뷰").contains("100/100");
+        assertThat(reviewBody.getValue())
+                .contains("timiroom PR 정합성 리뷰")
+                .contains("리뷰 요약")
+                .contains("정합성 점수")
+                .contains("100/100");
         verify(reviewRecordRepository).save(any(GithubPullRequestReviewRecord.class));
     }
 
@@ -110,12 +114,14 @@ class PullRequestConsistencyServiceTest {
         givenLinkedPm();
         when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
                 .thenReturn(Optional.of(GithubPullRequestReviewRecord.builder().projectId(PROJECT_ID)
-                        .githubRepoId(REPO_ID).pullNumber(42).headSha("head-sha").reviewUrl("https://review").build()));
+                        .githubRepoId(REPO_ID).pullNumber(42).headSha("head-sha").reviewUrl("https://review")
+                        .evaluator("PYTHON_EXAONE").build()));
 
         var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
 
         assertThat(result.skippedDuplicate()).isTrue();
         assertThat(result.reviewPosted()).isFalse();
+        assertThat(result.evaluator()).isEqualTo("PYTHON_EXAONE");
         verify(githubClient, never()).createPullRequestCommentReview(any(), anyLong(), anyInt(), any(), any());
     }
 
@@ -164,8 +170,11 @@ class PullRequestConsistencyServiceTest {
         when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
                 .thenReturn(Optional.empty());
         var agentResponse = new ObjectMapper().readTree("""
-                {"agent":"PR_CONSISTENCY_AGENT","provider":"EXAONE","findings":[
-                  {"severity":"PASS","area":"API","message":"EXAONE 검증 결과 API_SPEC과 일치합니다."}
+                {"agent":"PR_CONSISTENCY_AGENT","provider":"EXAONE","evaluationMode":"EXAONE_FACT_GATE","summary":"API 명세와 구현이 일치합니다.","findings":[
+                  {"severity":"PASS","area":"API","message":"@GetMapping EXAONE 검증 결과 API_SPEC과 일치합니다.",
+                   "evidence":["@GetMapping으로 GET /api/v1/tasks 구현"],
+                   "references":[{"sourceType":"IMPLEMENTATION","source":"TaskController.java","line":12,"quote":"@GetMapping('/api/v1/tasks')"}],
+                   "recommendation":"현재 구현을 유지하세요."}
                 ]}
                 """);
         when(consistencyServiceClient.reviewPullRequestConsistency(any())).thenReturn(agentResponse);
@@ -176,11 +185,83 @@ class PullRequestConsistencyServiceTest {
 
         var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
 
-        assertThat(result.evaluator()).isEqualTo("PYTHON_EXAONE");
+        assertThat(result.evaluator()).isEqualTo("PYTHON_EXAONE_FACT_GATE");
         assertThat(result.findings()).extracting(finding -> finding.message())
-                .containsExactly("EXAONE 검증 결과 API_SPEC과 일치합니다.");
+                .containsExactly("@GetMapping EXAONE 검증 결과 API_SPEC과 일치합니다.");
+        assertThat(result.findings().getFirst().evidence()).containsExactly("@GetMapping으로 GET /api/v1/tasks 구현");
+        assertThat(result.findings().getFirst().recommendation()).isEqualTo("현재 구현을 유지하세요.");
+        assertThat(result.findings().getFirst().references()).hasSize(1);
+        assertThat(result.findings().getFirst().references().getFirst().line()).isEqualTo(12);
+        ArgumentCaptor<String> reviewBody = ArgumentCaptor.forClass(String.class);
+        verify(githubClient).createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq(42), eq("head-sha"), reviewBody.capture());
+        assertThat(reviewBody.getValue()).contains("`@GetMapping` EXAONE 검증 결과 API_SPEC과 일치합니다.");
         verify(consistencyServiceClient).reviewPullRequestConsistency(any());
         verify(ragPipelineClient, never()).reviewPullRequestConsistency(any());
+    }
+
+    @Test
+    void checkAndReview_Python_분석요청에_head와_base_전체파일을_제한적으로_포함한다() throws Exception {
+        givenLinkedPm();
+        ReflectionTestUtils.setField(service, "agentEnabled", true);
+        ReflectionTestUtils.setField(service, "agentRuntime", "PYTHON");
+        when(pipelineService.getLatestArtifactsByProject(PROJECT_ID)).thenReturn(List.of(
+                PipelineArtifact.builder().artifactType(PipelineArtifact.ArtifactType.API_SPEC)
+                        .content("GET /api/v1/tasks").build()));
+        when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
+                .thenReturn(Optional.empty());
+        when(githubClient.getRepositoryFileContent("timiroom/timiroom-backend", INSTALLATION_ID,
+                "TaskController.java", "head-sha")).thenReturn(Optional.of("head source"));
+        when(githubClient.getRepositoryFileContent("timiroom/timiroom-backend", INSTALLATION_ID,
+                "TaskController.java", "develop")).thenReturn(Optional.of("base source"));
+        when(consistencyServiceClient.reviewPullRequestConsistency(any())).thenReturn(new ObjectMapper().readTree("""
+                {"evaluationMode":"EXAONE_FACT_GATE","summary":"일치","findings":[
+                  {"severity":"PASS","area":"API","message":"일치","evidence":[]}
+                ]}
+                """));
+        when(githubClient.createCompletedConsistencyCheckRun(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq("head-sha"), eq(100), eq(false), any())).thenReturn(new GithubCheckRunInfo(9L, "https://check", "success"));
+        when(githubClient.createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq(42), eq("head-sha"), any())).thenReturn(new GithubPullRequestReviewInfo(7L, "https://review", "COMMENTED"));
+
+        service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
+
+        ArgumentCaptor<Object> request = ArgumentCaptor.forClass(Object.class);
+        verify(consistencyServiceClient).reviewPullRequestConsistency(request.capture());
+        var changedFiles = (List<?>) ((Map<?, ?>) request.getValue()).get("changedFiles");
+        var changedFile = (Map<?, ?>) changedFiles.getFirst();
+        assertThat(changedFile.get("content")).isEqualTo("head source");
+        assertThat(changedFile.get("baseContent")).isEqualTo("base source");
+        assertThat(changedFile.get("patchTruncated")).isEqualTo(false);
+    }
+
+    @Test
+    void checkAndReview_근거부족은_통과가_아니라_판정보류_0점이다() throws Exception {
+        givenLinkedPm();
+        ReflectionTestUtils.setField(service, "agentEnabled", true);
+        ReflectionTestUtils.setField(service, "agentRuntime", "PYTHON");
+        when(pipelineService.getLatestArtifactsByProject(PROJECT_ID)).thenReturn(List.of());
+        when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
+                .thenReturn(Optional.empty());
+        when(consistencyServiceClient.reviewPullRequestConsistency(any())).thenReturn(new ObjectMapper().readTree("""
+                {"evaluationMode":"EXAONE_FACT_GATE","summary":"판정 보류","findings":[
+                  {"severity":"INCONCLUSIVE","area":"Fact Gate","message":"근거 부족","evidence":[]}
+                ]}
+                """));
+        when(githubClient.createCompletedConsistencyCheckRun(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq("head-sha"), eq(0), eq(true), any())).thenReturn(new GithubCheckRunInfo(9L, "https://check", "neutral"));
+        when(githubClient.createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq(42), eq("head-sha"), any())).thenReturn(new GithubPullRequestReviewInfo(7L, "https://review", "COMMENTED"));
+        when(projectMemberRepository.findByProjectId(PROJECT_ID)).thenReturn(List.of());
+
+        var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
+
+        assertThat(result.score()).isZero();
+        assertThat(result.findings().getFirst().severity()).isEqualTo("INCONCLUSIVE");
+        ArgumentCaptor<String> reviewBody = ArgumentCaptor.forClass(String.class);
+        verify(githubClient).createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
+                eq(42), eq("head-sha"), reviewBody.capture());
+        assertThat(reviewBody.getValue()).contains("판정 보류").contains("**—**");
     }
 
     @Test
@@ -213,7 +294,7 @@ class PullRequestConsistencyServiceTest {
         when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
                 .thenReturn(Optional.empty());
         when(githubClient.createCompletedConsistencyCheckRun(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
-                eq("head-sha"), eq(75), eq(true), any())).thenReturn(new GithubCheckRunInfo(9L, "https://check", "neutral"));
+                eq("head-sha"), eq(75), eq(false), any())).thenReturn(new GithubCheckRunInfo(9L, "https://check", "neutral"));
         when(githubClient.createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
                 eq(42), eq("head-sha"), any())).thenReturn(new GithubPullRequestReviewInfo(7L, "https://review", "COMMENTED"));
         when(projectMemberRepository.findByProjectId(PROJECT_ID)).thenReturn(List.of(
@@ -302,5 +383,31 @@ class PullRequestConsistencyServiceTest {
         assertThat(pulls).hasSize(2);
         assertThat(pulls.stream().filter(pull -> pull.repoId().equals(REPO_ID)).findFirst().orElseThrow().relatedPullRequests())
                 .extracting(related -> related.repoFullName()).containsExactly("timiroom/timiroom-frontend");
+    }
+
+    @Test
+    void list_같은_head_sha의_기존_정합성_결과를_함께_반환한다() {
+        when(projectRepoLinkRepository.findByProjectId(PROJECT_ID)).thenReturn(List.of(
+                ProjectRepoLink.builder().projectId(PROJECT_ID).githubRepoId(REPO_ID).build()));
+        when(githubRepoRepository.findById(REPO_ID)).thenReturn(Optional.of(GithubRepo.builder().id(REPO_ID)
+                .fullName("timiroom/timiroom-backend").installationId(INSTALLATION_ID).build()));
+        when(githubClient.listPullRequests("timiroom/timiroom-backend", INSTALLATION_ID)).thenReturn(List.of(
+                new GithubPullRequestInfo(42, "feat: login #24", "", "open", false, "sha1", "feature/24-login",
+                        "develop", "https://backend/pr/42", "dev", "2026-07-12T10:00:00Z")));
+        when(reviewRecordRepository.findByProjectIdAndGithubRepoIdIn(PROJECT_ID, List.of(REPO_ID)))
+                .thenReturn(List.of(GithubPullRequestReviewRecord.builder()
+                        .projectId(PROJECT_ID).githubRepoId(REPO_ID).pullNumber(42).headSha("sha1")
+                        .reviewUrl("https://review").checkRunUrl("https://check").score(75)
+                        .evaluator("PYTHON_EXAONE_FACT_GATE")
+                        .findingsJson("[{\"severity\":\"WARNING\",\"area\":\"API\",\"message\":\"메서드 불일치\"}]")
+                        .build()));
+
+        var pulls = service.list(PROJECT_ID, MEMBER_ID);
+
+        assertThat(pulls).hasSize(1);
+        assertThat(pulls.getFirst().consistencyResult()).isNotNull();
+        assertThat(pulls.getFirst().consistencyResult().score()).isEqualTo(75);
+        assertThat(pulls.getFirst().consistencyResult().evaluator()).isEqualTo("PYTHON_EXAONE_FACT_GATE");
+        assertThat(pulls.getFirst().consistencyResult().findings()).hasSize(1);
     }
 }

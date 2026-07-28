@@ -12,5 +12,6 @@ public record ProjectConsistencySummary(
         String reviewUrl,
         String checkRunUrl,
         LocalDateTime checkedAt,
+        String evaluator,
         List<ConsistencyFinding> findings
 ) {}

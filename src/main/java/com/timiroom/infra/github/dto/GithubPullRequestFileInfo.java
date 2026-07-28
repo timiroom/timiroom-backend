@@ -6,5 +6,18 @@ public record GithubPullRequestFileInfo(
         String status,
         int additions,
         int deletions,
-        String patch
-) {}
+        String patch,
+        String content,
+        String baseContent,
+        boolean patchTruncated
+) {
+    public GithubPullRequestFileInfo(String filename, String status, int additions, int deletions, String patch) {
+        this(filename, status, additions, deletions, patch, null, null,
+                (patch == null || patch.isBlank()) && additions + deletions > 0);
+    }
+
+    public GithubPullRequestFileInfo withContents(String content, String baseContent) {
+        return new GithubPullRequestFileInfo(filename, status, additions, deletions, patch,
+                content, baseContent, patchTruncated);
+    }
+}

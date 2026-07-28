@@ -57,6 +57,10 @@ public class GithubPullRequestReviewRecord {
     @Column(name = "findings_json", columnDefinition = "TEXT")
     private String findingsJson;
 
+    /** 실제 판정기 식별자. 중복 검사 응답에서도 원래 판정기를 그대로 노출한다. */
+    @Column(name = "evaluator", length = 40)
+    private String evaluator;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -71,8 +75,9 @@ public class GithubPullRequestReviewRecord {
         this.checkRunUrl = checkRunUrl;
     }
 
-    public void updateResult(Integer score, String findingsJson) {
+    public void updateResult(Integer score, String findingsJson, String evaluator) {
         this.score = score;
         this.findingsJson = findingsJson;
+        this.evaluator = evaluator;
     }
 }

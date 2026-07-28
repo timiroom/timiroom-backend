@@ -18,6 +18,8 @@ import java.util.Map;
 @RequestMapping("/auth")
 public class MemberController {
 
+    private static final String GITHUB_LOGIN_PATTERN = "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$";
+
     private final MemberService memberService;
     private final MemberRepository memberRepository;
     private final StorageService storageService;
@@ -33,7 +35,7 @@ public class MemberController {
         return ResponseEntity.ok(memberToMap(member));
     }
 
-    /** 이름 수정 — PATCH /auth/me */
+    /** 계정 설정 수정 — PATCH /auth/me */
     @PatchMapping("/me")
     public ResponseEntity<?> updateMe(
             HttpSession session,
@@ -43,13 +45,31 @@ public class MemberController {
         if (memberId == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Not logged in"));
         }
+        boolean updatesName = body.containsKey("name");
+        boolean updatesGithubLogin = body.containsKey("githubLogin");
+        if (!updatesName && !updatesGithubLogin) {
+            return ResponseEntity.badRequest().body(Map.of("error", "수정할 계정 정보를 입력해주세요"));
+        }
+
         String name = body.get("name");
-        if (name == null || name.isBlank()) {
+        if (updatesName && (name == null || name.isBlank())) {
             return ResponseEntity.badRequest().body(Map.of("error", "이름을 입력해주세요"));
         }
+
+        String githubLogin = body.get("githubLogin");
+        String normalizedGithubLogin = githubLogin == null ? null : githubLogin.trim();
+        if (updatesGithubLogin && normalizedGithubLogin != null && !normalizedGithubLogin.isBlank()
+                && !normalizedGithubLogin.matches(GITHUB_LOGIN_PATTERN)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "올바른 GitHub 사용자명을 입력해주세요"));
+        }
+
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("Member not found"));
-        member.updateName(name);
+        if (updatesName) member.updateName(name.trim());
+        if (updatesGithubLogin) {
+            member.updateGithubLogin(normalizedGithubLogin == null || normalizedGithubLogin.isBlank()
+                    ? null : normalizedGithubLogin);
+        }
         memberRepository.save(member);
         return ResponseEntity.ok(memberToMap(member));
     }
@@ -84,6 +104,7 @@ public class MemberController {
         map.put("email", member.getEmail());
         map.put("provider", member.getProvider());
         map.put("avatarUrl", member.getProfileImageUrl());
+        map.put("githubLogin", member.getGithubLogin());
         return map;
     }
 }

@@ -19,10 +19,17 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+
+import org.springframework.web.util.UriBuilder;
 
 /**
  * GitHub REST API 클라이언트 (WebClient 기반).
@@ -33,6 +40,7 @@ import java.util.Map;
 public class GithubClient {
 
     private static final int MAX_GITHUB_RESPONSE_BYTES = 4 * 1024 * 1024;
+    private static final int MAX_SOURCE_FILE_BYTES = 192 * 1024;
 
     private final GithubAppAuthService authService;
     private final WebClient webClient;
@@ -95,8 +103,13 @@ public class GithubClient {
 
     /** 연결된 레포의 특정 브랜치 커밋 히스토리(최대 100건). */
     public List<GithubCommitInfo> listCommits(String repositoryFullName, long installationId, String branch) {
-        String encodedBranch = java.net.URLEncoder.encode(branch, java.nio.charset.StandardCharsets.UTF_8);
-        JsonNode body = get(repositoryPath(repositoryFullName) + "/commits?sha=" + encodedBranch + "&per_page=100",
+        String commitsPath = repositoryPath(repositoryFullName) + "/commits";
+        JsonNode body = get(
+                uriBuilder -> uriBuilder.path(commitsPath)
+                        .queryParam("sha", branch)
+                        .queryParam("per_page", 100)
+                        .build(),
+                commitsPath + "?sha=" + branch + "&per_page=100",
                 authService.getInstallationToken(installationId));
         List<GithubCommitInfo> result = new ArrayList<>();
         for (JsonNode node : body) {
@@ -112,9 +125,10 @@ public class GithubClient {
         return result;
     }
 
-    /** 연결 레포의 열린 이슈 목록. GitHub API가 함께 반환하는 PR 항목은 제외한다. */
+    /** 연결 레포의 전체 이슈 목록. GitHub API가 함께 반환하는 PR 항목은 제외한다. */
     public List<GithubIssueInfo> listIssues(String repositoryFullName, long installationId) {
-        JsonNode body = get(repositoryPath(repositoryFullName) + "/issues?state=open&per_page=100",
+        // 일정 진척률은 issue 종료/재오픈 상태까지 반영해야 하므로 열린 issue만 제한하지 않는다.
+        JsonNode body = get(repositoryPath(repositoryFullName) + "/issues?state=all&per_page=100",
                 authService.getInstallationToken(installationId));
         List<GithubIssueInfo> result = new ArrayList<>();
         for (JsonNode node : body) {
@@ -127,11 +141,31 @@ public class GithubClient {
     /** 연결 레포에 이슈를 생성한다. */
     public GithubIssueInfo createIssue(String repositoryFullName, long installationId,
                                        String title, String body, List<String> labels) {
+        return createIssue(repositoryFullName, installationId, title, body, labels, List.of());
+    }
+
+    /** 연결 레포에 이슈를 생성하고 등록된 GitHub 계정을 담당자로 지정한다. */
+    public GithubIssueInfo createIssue(String repositoryFullName, long installationId,
+                                       String title, String body, List<String> labels, List<String> assignees) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("title", title);
         if (body != null && !body.isBlank()) payload.put("body", body);
         if (labels != null && !labels.isEmpty()) payload.put("labels", labels);
+        if (assignees != null && !assignees.isEmpty()) payload.put("assignees", assignees);
         return toIssue(post(repositoryPath(repositoryFullName) + "/issues",
+                authService.getInstallationToken(installationId), payload));
+    }
+
+    /** 연결 레포의 기존 이슈 제목·본문·라벨·담당자를 갱신한다. null 필드는 기존 값을 유지한다. */
+    public GithubIssueInfo updateIssue(String repositoryFullName, long installationId, int issueNumber,
+                                       String title, String body, List<String> labels, List<String> assignees) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        if (title != null) payload.put("title", title);
+        if (body != null) payload.put("body", body);
+        if (labels != null) payload.put("labels", labels);
+        if (assignees != null) payload.put("assignees", assignees);
+        if (payload.isEmpty()) throw new IllegalArgumentException("수정할 GitHub Issue 정보가 없습니다");
+        return toIssue(patch(repositoryPath(repositoryFullName) + "/issues/" + issueNumber,
                 authService.getInstallationToken(installationId), payload));
     }
 
@@ -166,6 +200,38 @@ public class GithubClient {
         return result;
     }
 
+    /**
+     * 특정 ref의 UTF-8 소스 파일 원문을 읽는다. GitHub Contents API의 base64 응답만 허용하고,
+     * 너무 큰 파일·디렉터리·바이너리·없는 파일은 정합성 입력에서 안전하게 제외한다.
+     */
+    public Optional<String> getRepositoryFileContent(String repositoryFullName, long installationId,
+                                                     String filename, String ref) {
+        if (filename == null || filename.isBlank() || ref == null || ref.isBlank()) return Optional.empty();
+        String contentPath = repositoryPath(repositoryFullName) + "/contents/" + filename;
+        try {
+            JsonNode body = get(
+                    uriBuilder -> uriBuilder.path(contentPath).queryParam("ref", ref).build(),
+                    contentPath + "?ref=" + ref,
+                    authService.getInstallationToken(installationId));
+            if (!"file".equals(body.path("type").asText())
+                    || !"base64".equalsIgnoreCase(body.path("encoding").asText())
+                    || body.path("size").asInt(MAX_SOURCE_FILE_BYTES + 1) > MAX_SOURCE_FILE_BYTES) {
+                return Optional.empty();
+            }
+            byte[] decoded = Base64.getMimeDecoder().decode(body.path("content").asText(""));
+            if (decoded.length > MAX_SOURCE_FILE_BYTES || containsNullByte(decoded)) return Optional.empty();
+            return Optional.of(new String(decoded, StandardCharsets.UTF_8));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            log.debug("GitHub 파일 원문 조회 생략 ({}@{}): {}", filename, ref, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private boolean containsNullByte(byte[] value) {
+        for (byte item : value) if (item == 0) return true;
+        return false;
+    }
+
     /** PR에 summary review comment를 게시한다. 자동 승인/변경 요청은 사용하지 않는다. */
     public GithubPullRequestReviewInfo createPullRequestCommentReview(String repositoryFullName, long installationId,
                                                                         int pullNumber, String headSha, String body) {
@@ -183,23 +249,28 @@ public class GithubClient {
 
     /** PR head commit에 완료된 정합성 check run을 게시한다. */
     public GithubCheckRunInfo createCompletedConsistencyCheckRun(String repositoryFullName, long installationId,
-                                                                  String headSha, int score, boolean hasWarnings,
-                                                                  String summary) {
+                                                                  String headSha, int score, boolean inconclusive,
+        String summary) {
         Map<String, Object> output = new LinkedHashMap<>();
-        output.put("title", "정합성 " + score + "/100");
+        output.put("title", consistencyCheckTitle(score, inconclusive));
         output.put("summary", summary);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("name", "timiroom 정합성 검사");
         payload.put("head_sha", headSha);
         payload.put("status", "completed");
-        payload.put("conclusion", hasWarnings ? "neutral" : "success");
+        payload.put("conclusion", inconclusive || score < 100 ? "neutral" : "success");
         payload.put("output", output);
 
         JsonNode response = post(repositoryPath(repositoryFullName) + "/check-runs",
                 authService.getInstallationToken(installationId), payload);
         return new GithubCheckRunInfo(response.path("id").asLong(), response.path("html_url").asText(null),
                 response.path("conclusion").asText(null));
+    }
+
+    static String consistencyCheckTitle(int score, boolean inconclusive) {
+        if (inconclusive) return "판정 보류 · 근거 확인 필요";
+        return (score < 100 ? "검토 필요 · " : "정합성 확인 완료 · ") + score + "/100";
     }
 
     private GithubIssueInfo toIssue(JsonNode node) {
@@ -246,6 +317,10 @@ public class GithubClient {
         return request(HttpMethod.POST, path, bearerToken, body);
     }
 
+    private JsonNode patch(String path, String bearerToken, Object body) {
+        return request(HttpMethod.PATCH, path, bearerToken, body);
+    }
+
     private JsonNode request(HttpMethod method, String pathWithQuery, String bearerToken, Object body) {
         try {
             WebClient.RequestBodySpec request = webClient.method(method)
@@ -259,6 +334,26 @@ public class GithubClient {
                     .onStatus(HttpStatusCode::isError, r -> r.bodyToMono(String.class).defaultIfEmpty("")
                             .map(b -> new IllegalStateException(
                                     "GitHub API 호출 실패 (" + r.statusCode() + " " + pathWithQuery + "): " + b)))
+                    .bodyToMono(JsonNode.class)
+                    .block();
+        } catch (WebClientRequestException e) {
+            throw new IllegalStateException("GitHub API에 연결할 수 없습니다: " + e.getMessage(), e);
+        }
+    }
+
+    private JsonNode get(Function<UriBuilder, URI> uriFunction, String requestDescription, String bearerToken) {
+        try {
+            return webClient.get()
+                    .uri(uriFunction)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken)
+                    .header(HttpHeaders.ACCEPT, "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, response ->
+                            response.bodyToMono(String.class).defaultIfEmpty("")
+                                    .map(body -> new IllegalStateException(
+                                            "GitHub API 호출 실패 (" + response.statusCode() + " "
+                                                    + requestDescription + "): " + body)))
                     .bodyToMono(JsonNode.class)
                     .block();
         } catch (WebClientRequestException e) {

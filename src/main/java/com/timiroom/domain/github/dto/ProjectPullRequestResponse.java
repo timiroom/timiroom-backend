@@ -17,5 +17,6 @@ public record ProjectPullRequestResponse(
         String htmlUrl,
         String authorLogin,
         String updatedAt,
-        List<RelatedPullRequestResponse> relatedPullRequests
+        List<RelatedPullRequestResponse> relatedPullRequests,
+        PullRequestConsistencyResult consistencyResult
 ) {}

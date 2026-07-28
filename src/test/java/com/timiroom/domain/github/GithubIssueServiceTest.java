@@ -1,5 +1,7 @@
 package com.timiroom.domain.github;
 
+import com.timiroom.domain.member.Member;
+import com.timiroom.domain.member.MemberRepository;
 import com.timiroom.domain.project.ProjectMember;
 import com.timiroom.domain.project.ProjectMemberRepository;
 import com.timiroom.domain.project.ProjectRole;
@@ -20,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,6 +37,7 @@ class GithubIssueServiceTest {
     @Mock ProjectMemberRepository projectMemberRepository;
     @Mock ProjectRepoLinkRepository projectRepoLinkRepository;
     @Mock GithubRepoRepository githubRepoRepository;
+    @Mock MemberRepository memberRepository;
     @Mock GithubClient githubClient;
     @InjectMocks GithubIssueService service;
 
@@ -45,19 +49,24 @@ class GithubIssueServiceTest {
     }
 
     @Test
-    void create_PM은_연결된_레포에_GitHub_issue를_생성한다() {
+    void create_PM은_연결된_레포에_GitHub_issue를_생성하고_등록된_담당자를_지정한다() {
         givenLinkedRepo();
         when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, MEMBER_ID)).thenReturn(Optional.of(
                 ProjectMember.builder().projectId(PROJECT_ID).memberId(MEMBER_ID).projectRole(ProjectRole.PM).build()));
+        Member owner = mock(Member.class);
+        when(owner.getGithubLogin()).thenReturn("Chunwol");
+        when(memberRepository.findById(MEMBER_ID)).thenReturn(Optional.of(owner));
         when(githubClient.createIssue(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID), eq("로그인 오류"),
-                eq("재현 절차"), any())).thenReturn(new GithubIssueInfo(12, "로그인 오류", "재현 절차", "open",
+                eq("재현 절차"), any(), eq(List.of("Chunwol")))).thenReturn(new GithubIssueInfo(12, "로그인 오류", "재현 절차", "open",
                 "https://github.com/timiroom/timiroom-backend/issues/12", "chunwol", "2026-07-12T10:00:00Z", List.of("bug")));
 
-        var result = service.create(PROJECT_ID, MEMBER_ID, REPO_ID, "로그인 오류", "재현 절차", List.of("bug"));
+        var result = service.create(PROJECT_ID, MEMBER_ID, REPO_ID, "로그인 오류", "재현 절차", List.of("bug"), MEMBER_ID);
 
         assertThat(result.number()).isEqualTo(12);
         assertThat(result.repoFullName()).isEqualTo("timiroom/timiroom-backend");
         verify(projectService).getById(PROJECT_ID, MEMBER_ID);
+        verify(githubClient).createIssue("timiroom/timiroom-backend", INSTALLATION_ID,
+                "로그인 오류", "재현 절차", List.of("bug"), List.of("Chunwol"));
     }
 
     @Test
@@ -69,5 +78,28 @@ class GithubIssueServiceTest {
         assertThatThrownBy(() -> service.create(PROJECT_ID, MEMBER_ID, REPO_ID, "제목", "", List.of()))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("PM");
+    }
+
+    @Test
+    void update_기능명세의_담당자와_일정을_GitHub_issue에_동기화한다() {
+        givenLinkedRepo();
+        when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, MEMBER_ID)).thenReturn(Optional.of(
+                ProjectMember.builder().projectId(PROJECT_ID).memberId(MEMBER_ID).projectRole(ProjectRole.PM).build()));
+        Member owner = mock(Member.class);
+        when(owner.getGithubLogin()).thenReturn("Chunwol");
+        when(memberRepository.findById(MEMBER_ID)).thenReturn(Optional.of(owner));
+        when(githubClient.updateIssue("timiroom/timiroom-backend", INSTALLATION_ID, 12,
+                "[백엔드] 로그인", "담당자: 임석현\n종료일: 2026-08-01", null, List.of("Chunwol")))
+                .thenReturn(new GithubIssueInfo(12, "[백엔드] 로그인", "담당자: 임석현\n종료일: 2026-08-01",
+                        "open", "https://github.com/timiroom/timiroom-backend/issues/12", "chunwol",
+                        "2026-07-12T10:00:00Z", List.of("feature")));
+
+        var result = service.update(PROJECT_ID, MEMBER_ID, REPO_ID, 12,
+                "[백엔드] 로그인", "담당자: 임석현\n종료일: 2026-08-01", null, MEMBER_ID);
+
+        assertThat(result.number()).isEqualTo(12);
+        assertThat(result.body()).contains("2026-08-01");
+        verify(githubClient).updateIssue("timiroom/timiroom-backend", INSTALLATION_ID, 12,
+                "[백엔드] 로그인", "담당자: 임석현\n종료일: 2026-08-01", null, List.of("Chunwol"));
     }
 }
