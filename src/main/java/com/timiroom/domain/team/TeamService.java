@@ -307,6 +307,7 @@ public class TeamService {
                             teamMember.getMemberId(),
                             member != null ? member.getDisplayName() : "알 수 없음",
                             member != null ? member.getEmail() : "",
+                            member != null ? member.getGithubLogin() : null,
                             teamMember.getTeamRole(),
                             teamMember.getJoinedAt()
                     );

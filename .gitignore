@@ -45,3 +45,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# GitHub App private key 등 로컬 시크릿
+.secrets/
