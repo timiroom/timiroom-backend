@@ -42,9 +42,11 @@ public class RagPipelineClient {
 
     /**
      * 파이프라인 시작 요청 → pipelineId(UUID) 반환
-     * POST /api/v1/orchestration/generate (multipart/form-data)
+     * POST /api/v1/orchestration/generate?mode={mode} (multipart/form-data)
+     *
+     * @param mode "collaborative" 또는 "sequential" — rag-pipeline OrchestrationController로 그대로 전달
      */
-    public String generate(String requestJson, List<MultipartFile> files) {
+    public String generate(String requestJson, List<MultipartFile> files, String mode) {
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
         builder.part("request", requestJson).contentType(MediaType.APPLICATION_JSON);
 
@@ -66,7 +68,10 @@ public class RagPipelineClient {
         Map<String, Object> response;
         try {
             response = webClient.post()
-                    .uri("/api/v1/orchestration/generate")
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/v1/orchestration/generate")
+                            .queryParam("mode", mode)
+                            .build())
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(BodyInserters.fromMultipartData(builder.build()))
                     .retrieve()

@@ -29,10 +29,11 @@ public class PipelineController {
     public ResponseEntity<Map<String, Object>> start(
             HttpSession session,
             @PathVariable Long requirementId,
-            @RequestPart(value = "files", required = false) List<MultipartFile> files
+            @RequestPart(value = "files", required = false) List<MultipartFile> files,
+            @RequestParam(value = "mode", defaultValue = "collaborative") String mode
     ) throws Exception {
         Long memberId = (Long) session.getAttribute("memberId");
-        return ResponseEntity.ok(pipelineService.startPipeline(memberId, requirementId, files));
+        return ResponseEntity.ok(pipelineService.startPipeline(memberId, requirementId, files, mode));
     }
 
     /**
@@ -81,10 +82,11 @@ public class PipelineController {
     @PostMapping("/restart/{pipelineId}")
     public ResponseEntity<Map<String, Object>> restart(
             HttpSession session,
-            @PathVariable String pipelineId
+            @PathVariable String pipelineId,
+            @RequestParam(value = "mode", defaultValue = "collaborative") String mode
     ) throws Exception {
         Long memberId = (Long) session.getAttribute("memberId");
-        return ResponseEntity.ok(pipelineService.restartPipeline(memberId, pipelineId));
+        return ResponseEntity.ok(pipelineService.restartPipeline(memberId, pipelineId, mode));
     }
 
     /**

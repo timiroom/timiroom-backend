@@ -38,15 +38,17 @@ public class PipelineService {
      * 파이프라인 시작
      * - requirement에서 FormData JSON 읽어 rag-pipeline 호출
      * - PipelineExecution 저장 (requirementId 연결)
+     *
+     * @param mode "collaborative" 또는 "sequential" — rag-pipeline 오케스트레이션 그래프 선택
      */
     @Transactional
     public Map<String, Object> startPipeline(
-            Long memberId, Long requirementId, List<MultipartFile> files) throws Exception {
+            Long memberId, Long requirementId, List<MultipartFile> files, String mode) throws Exception {
 
         Requirement requirement = requirementService.getById(requirementId);
         requirementService.updateStatus(requirementId, RequirementStatus.PROCESSING);
 
-        String pipelineId = ragPipelineClient.generate(requirement.getContent(), files);
+        String pipelineId = ragPipelineClient.generate(requirement.getContent(), files, mode);
 
         PipelineExecution execution = PipelineExecution.builder()
                 .pipelineId(pipelineId)
@@ -65,10 +67,10 @@ public class PipelineService {
      * 파이프라인 재시작: 기존 pipelineId로 실행 기록을 찾아 동일 requirementId로 재실행
      */
     @Transactional
-    public Map<String, Object> restartPipeline(Long memberId, String pipelineId) throws Exception {
+    public Map<String, Object> restartPipeline(Long memberId, String pipelineId, String mode) throws Exception {
         PipelineExecution prev = executionRepository.findByPipelineId(pipelineId)
                 .orElseThrow(() -> new IllegalArgumentException("파이프라인을 찾을 수 없습니다: " + pipelineId));
-        return startPipeline(memberId, prev.getRequirementId(), null);
+        return startPipeline(memberId, prev.getRequirementId(), null, mode);
     }
 
     /**
