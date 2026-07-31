@@ -12,6 +12,13 @@ spring:
     password: ${POSTGRES_PASSWORD:timiroom1234}
     driver-class-name: org.postgresql.Driver
 
+  # 기존 Hibernate 관리 DB를 Flyway에 안전하게 편입한다.
+  # baseline 0 이후 버전부터 실제 마이그레이션이 실행된다.
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+
   jpa:
     hibernate:
       ddl-auto: update
