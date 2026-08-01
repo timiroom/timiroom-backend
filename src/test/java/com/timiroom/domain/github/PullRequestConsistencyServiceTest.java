@@ -1,14 +1,14 @@
 package com.timiroom.domain.github;
 
-import com.timiroom.domain.pipeline.PipelineArtifact;
-import com.timiroom.domain.pipeline.PipelineService;
-import com.timiroom.domain.notification.NotificationService;
-import com.timiroom.domain.notification.NotificationReferenceType;
-import com.timiroom.domain.notification.NotificationType;
-import com.timiroom.domain.project.ProjectMember;
-import com.timiroom.domain.project.ProjectMemberRepository;
-import com.timiroom.domain.project.ProjectRole;
-import com.timiroom.domain.project.ProjectService;
+import com.timiroom.domain.pipeline.entity.PipelineArtifact;
+import com.timiroom.domain.pipeline.service.PipelineService;
+import com.timiroom.domain.notification.service.NotificationService;
+import com.timiroom.domain.notification.enums.NotificationReferenceType;
+import com.timiroom.domain.notification.enums.NotificationType;
+import com.timiroom.domain.project.entity.mapping.ProjectMember;
+import com.timiroom.domain.project.repository.ProjectMemberRepository;
+import com.timiroom.domain.project.enums.ProjectRole;
+import com.timiroom.domain.project.service.ProjectService;
 import com.timiroom.infra.github.GithubClient;
 import com.timiroom.infra.github.dto.GithubPullRequestFileInfo;
 import com.timiroom.infra.github.dto.GithubPullRequestInfo;

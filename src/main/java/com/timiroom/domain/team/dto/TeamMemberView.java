@@ -1,6 +1,6 @@
 package com.timiroom.domain.team.dto;
 
-import com.timiroom.domain.team.TeamRole;
+import com.timiroom.domain.team.enums.TeamRole;
 
 import java.time.LocalDateTime;
 

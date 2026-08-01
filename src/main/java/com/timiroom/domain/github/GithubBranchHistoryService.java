@@ -1,6 +1,6 @@
 package com.timiroom.domain.github;
 
-import com.timiroom.domain.project.ProjectService;
+import com.timiroom.domain.project.service.ProjectService;
 import com.timiroom.infra.github.GithubClient;
 import com.timiroom.infra.github.dto.GithubBranchInfo;
 import com.timiroom.infra.github.dto.GithubCommitInfo;

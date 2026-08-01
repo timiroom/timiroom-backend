@@ -1,11 +1,11 @@
 package com.timiroom.domain.github;
 
-import com.timiroom.domain.member.Member;
-import com.timiroom.domain.member.MemberRepository;
-import com.timiroom.domain.project.ProjectMember;
-import com.timiroom.domain.project.ProjectMemberRepository;
-import com.timiroom.domain.project.ProjectRole;
-import com.timiroom.domain.project.ProjectService;
+import com.timiroom.domain.member.entity.Member;
+import com.timiroom.domain.member.repository.MemberRepository;
+import com.timiroom.domain.project.entity.mapping.ProjectMember;
+import com.timiroom.domain.project.repository.ProjectMemberRepository;
+import com.timiroom.domain.project.enums.ProjectRole;
+import com.timiroom.domain.project.service.ProjectService;
 import com.timiroom.infra.github.GithubClient;
 import com.timiroom.infra.github.dto.GithubIssueInfo;
 import org.junit.jupiter.api.Test;

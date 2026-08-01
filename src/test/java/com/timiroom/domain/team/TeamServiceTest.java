@@ -1,13 +1,20 @@
 package com.timiroom.domain.team;
 
-import com.timiroom.domain.member.Member;
-import com.timiroom.domain.member.MemberRepository;
-import com.timiroom.domain.project.ProjectMember;
-import com.timiroom.domain.project.ProjectRepository;
-import com.timiroom.domain.project.ProjectMemberRepository;
-import com.timiroom.domain.project.ProjectRole;
-import com.timiroom.domain.project.ProjectService;
+import com.timiroom.domain.member.entity.Member;
+import com.timiroom.domain.member.repository.MemberRepository;
+import com.timiroom.domain.pipeline.entity.PipelineArtifact;
+import com.timiroom.domain.project.entity.mapping.ProjectMember;
+import com.timiroom.domain.project.repository.ProjectRepository;
+import com.timiroom.domain.project.repository.ProjectMemberRepository;
+import com.timiroom.domain.project.enums.ProjectRole;
+import com.timiroom.domain.project.service.ProjectService;
 import com.timiroom.domain.team.dto.TeamInvitePreviewResponse;
+import com.timiroom.domain.team.entity.Team;
+import com.timiroom.domain.team.entity.mapping.TeamMember;
+import com.timiroom.domain.team.enums.TeamRole;
+import com.timiroom.domain.team.repository.TeamMemberRepository;
+import com.timiroom.domain.team.repository.TeamRepository;
+import com.timiroom.domain.team.service.TeamService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -344,7 +351,7 @@ class TeamServiceTest {
 
         assertThatThrownBy(() ->
                 projectService.saveDocument(project.getProjectId(), outsider.getMemberId(),
-                        com.timiroom.domain.pipeline.PipelineArtifact.ArtifactType.PRD, "content"))
+                        PipelineArtifact.ArtifactType.PRD, "content"))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("프로젝트 멤버만");
     }
@@ -363,14 +370,14 @@ class TeamServiceTest {
         // BACKEND cannot edit PRD
         assertThatThrownBy(() ->
                 projectService.saveDocument(project.getProjectId(), dev.getMemberId(),
-                        com.timiroom.domain.pipeline.PipelineArtifact.ArtifactType.PRD, "content"))
+                        PipelineArtifact.ArtifactType.PRD, "content"))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("BACKEND");
 
         // BACKEND can pass DB_SCHEMA permission check (fails later on missing pipeline data, not SecurityException)
         assertThatThrownBy(() ->
                 projectService.saveDocument(project.getProjectId(), dev.getMemberId(),
-                        com.timiroom.domain.pipeline.PipelineArtifact.ArtifactType.DB_SCHEMA, "content"))
+                        PipelineArtifact.ArtifactType.DB_SCHEMA, "content"))
                 .isNotInstanceOf(SecurityException.class);
     }
 
@@ -388,14 +395,14 @@ class TeamServiceTest {
         // DESIGNER cannot edit DB_SCHEMA
         assertThatThrownBy(() ->
                 projectService.saveDocument(project.getProjectId(), designer.getMemberId(),
-                        com.timiroom.domain.pipeline.PipelineArtifact.ArtifactType.DB_SCHEMA, "content"))
+                        PipelineArtifact.ArtifactType.DB_SCHEMA, "content"))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("DESIGNER");
 
         // DESIGNER can pass PRD permission check
         assertThatThrownBy(() ->
                 projectService.saveDocument(project.getProjectId(), designer.getMemberId(),
-                        com.timiroom.domain.pipeline.PipelineArtifact.ArtifactType.PRD, "content"))
+                        PipelineArtifact.ArtifactType.PRD, "content"))
                 .isNotInstanceOf(SecurityException.class);
     }
 
