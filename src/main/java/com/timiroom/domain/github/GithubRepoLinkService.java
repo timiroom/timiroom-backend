@@ -1,11 +1,11 @@
 package com.timiroom.domain.github;
 
 import com.timiroom.domain.github.dto.ProjectRepoResponse;
-import com.timiroom.domain.project.Project;
-import com.timiroom.domain.project.ProjectMember;
-import com.timiroom.domain.project.ProjectMemberRepository;
-import com.timiroom.domain.project.ProjectRole;
-import com.timiroom.domain.project.ProjectService;
+import com.timiroom.domain.project.entity.Project;
+import com.timiroom.domain.project.entity.mapping.ProjectMember;
+import com.timiroom.domain.project.repository.ProjectMemberRepository;
+import com.timiroom.domain.project.enums.ProjectRole;
+import com.timiroom.domain.project.service.ProjectService;
 import com.timiroom.infra.github.GithubClient;
 import com.timiroom.infra.github.dto.GithubRepoInfo;
 import lombok.RequiredArgsConstructor;

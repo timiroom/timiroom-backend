@@ -1,8 +1,8 @@
 package com.timiroom.domain.oauth;
 
-import com.timiroom.domain.member.Member;
-import com.timiroom.domain.member.MemberRepository;
-import com.timiroom.domain.member.Provider;
+import com.timiroom.domain.member.entity.Member;
+import com.timiroom.domain.member.repository.MemberRepository;
+import com.timiroom.domain.member.enums.Provider;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
