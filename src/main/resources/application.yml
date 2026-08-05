@@ -58,6 +58,7 @@ spring:
           github:
             client-id: ${GITHUB_CLIENT_ID:dummy}
             client-secret: ${GITHUB_CLIENT_SECRET:dummy}
+            redirect-uri: "${OAUTH2_REDIRECT_BASE_URL:http://localhost:8080}/login/oauth2/code/github"
             scope:
               - user:email
               - read:user
