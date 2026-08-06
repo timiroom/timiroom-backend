@@ -47,6 +47,9 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**", "/oauth2/**", "/login/**", "/error").permitAll()
                         .requestMatchers("/api/v1/teams/invite/**").permitAll()
                         .requestMatchers("/webhooks/github").permitAll()
+                        // Mock 서버는 프론트/외부 도구(Postman 등)가 직접 호출하므로 인증 제외
+                        // (호출 로그 조회 /api/v1/mock/** 은 인증 필요)
+                        .requestMatchers("/mock/**").permitAll()
                         .requestMatchers("/api/v1/pipeline/**").authenticated()
                         .anyRequest().authenticated()
                 )
