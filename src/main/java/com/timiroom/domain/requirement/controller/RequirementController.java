@@ -1,5 +1,6 @@
 package com.timiroom.domain.requirement.controller;
 
+import com.timiroom.domain.requirement.enums.RequirementStatus;
 import com.timiroom.domain.requirement.service.RequirementService;
 import com.timiroom.domain.requirement.entity.Requirement;
 import jakarta.servlet.http.HttpSession;
@@ -49,5 +50,14 @@ public class RequirementController {
     public ResponseEntity<List<Requirement>> myRequirements(HttpSession session) {
         Long memberId = (Long) session.getAttribute("memberId");
         return ResponseEntity.ok(requirementService.getMyRequirements(memberId));
+    }
+
+    @PatchMapping("/{requirementId}/status")
+    public ResponseEntity<Void> updateStatus(
+            @PathVariable Long requirementId,
+            @RequestBody RequirementStatus status
+    ) {
+        requirementService.updateStatus(requirementId, status);
+        return ResponseEntity.ok().build();
     }
 }
