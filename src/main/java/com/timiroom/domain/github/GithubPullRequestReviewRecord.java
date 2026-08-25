@@ -61,6 +61,35 @@ public class GithubPullRequestReviewRecord {
     @Column(name = "evaluator", length = 40)
     private String evaluator;
 
+    /** 지식 그래프에서 PR 노드에 붙일 이름과 링크 — 그래프를 그릴 때마다 GitHub에 다시 묻지 않는다. */
+    @Column(name = "pull_title", length = 400)
+    private String pullTitle;
+
+    @Column(name = "pull_url", length = 500)
+    private String pullUrl;
+
+    /**
+     * open | closed. 닫히거나 머지된 PR은 지식 그래프에서 내린다.
+     *
+     * 그래프의 PR 노드는 "지금 이걸 건드리는 중"이라는 뜻이다. 머지가 끝난 변경은
+     * 이미 명세와 코드 양쪽에 반영된 사실이지 진행 중인 위험이 아니므로, 남겨 두면
+     * 몇 달 전 작업까지 영향 표시가 켜진 채로 쌓여 정작 지금 봐야 할 것을 덮는다.
+     */
+    @Column(name = "pull_state", length = 20)
+    private String pullState;
+
+    /**
+     * 이 PR이 건드린 API 경로와 테이블 이름.
+     *
+     * 변경 파일에서 뽑아낸 결과를 검사 시점에 저장해 둔다. 지식 그래프는 요청마다
+     * 새로 계산되는데, 그때마다 GitHub에서 변경 파일을 다시 받아오면 호출 한도에 걸리고
+     * 화면도 느려진다. 파일을 이미 손에 쥐고 있는 검사 시점이 뽑아 두기 가장 좋은 자리다.
+     *
+     * 형태: {"apis":["/api/v1/reviews"],"tables":["reviews"],"files":["src/.../ReviewController.java"]}
+     */
+    @Column(name = "touched_json", columnDefinition = "TEXT")
+    private String touchedJson;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -79,5 +108,21 @@ public class GithubPullRequestReviewRecord {
         this.score = score;
         this.findingsJson = findingsJson;
         this.evaluator = evaluator;
+    }
+
+    public void updateGraphContext(String pullTitle, String pullUrl, String pullState, String touchedJson) {
+        this.pullTitle = pullTitle;
+        this.pullUrl = pullUrl;
+        this.pullState = pullState;
+        this.touchedJson = touchedJson;
+    }
+
+    public void markClosed() {
+        this.pullState = "closed";
+    }
+
+    /** 그래프에 올릴 대상인지 — 아직 열려 있고 무엇을 건드렸는지 아는 PR만 */
+    public boolean isOpenForGraph() {
+        return !"closed".equalsIgnoreCase(pullState) && touchedJson != null;
     }
 }
