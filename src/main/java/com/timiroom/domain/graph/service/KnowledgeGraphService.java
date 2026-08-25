@@ -11,6 +11,7 @@ import com.timiroom.domain.graph.dto.GraphResponse;
 import com.timiroom.domain.pipeline.entity.PipelineArtifact;
 import com.timiroom.domain.pipeline.repository.ArtifactRevisionRepository;
 import com.timiroom.domain.pipeline.service.PipelineService;
+import com.timiroom.domain.project.service.ProjectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class KnowledgeGraphService {
 
+    private final ProjectService projectService;
     private final PipelineService pipelineService;
     private final ArtifactRevisionRepository revisionRepository;
     private final GithubPullRequestReviewRecordRepository reviewRecordRepository;
@@ -91,6 +93,16 @@ public class KnowledgeGraphService {
     /** "테이블A (1:N) 테이블B" 형태의 관계 서술 */
     private static final Pattern RELATION = Pattern.compile(
             "([A-Za-z_][A-Za-z0-9_]*)\\s*\\(\\s*([0-9NM]+\\s*:\\s*[0-9NM]+)\\s*\\)\\s*([A-Za-z_][A-Za-z0-9_]*)");
+
+    /**
+     * @param memberId 요청자. 이 프로젝트 사람이 맞는지 먼저 확인한다 —
+     *                 응답이 곧 명세 전체라 소속 확인 없이는 남의 프로젝트가 그대로 읽힌다.
+     */
+    @Transactional(readOnly = true)
+    public GraphResponse build(Long projectId, Long memberId) {
+        projectService.getById(projectId, memberId);
+        return build(projectId);
+    }
 
     @Transactional(readOnly = true)
     public GraphResponse build(Long projectId) {

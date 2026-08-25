@@ -11,6 +11,7 @@ import com.timiroom.domain.pipeline.entity.ArtifactRevision;
 import com.timiroom.domain.pipeline.entity.PipelineArtifact;
 import com.timiroom.domain.pipeline.repository.ArtifactRevisionRepository;
 import com.timiroom.domain.pipeline.service.PipelineService;
+import com.timiroom.domain.project.service.ProjectService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 /**
  * 지식 그래프 연결 판정 검증.
@@ -38,6 +43,9 @@ class KnowledgeGraphServiceTest {
 
     @Mock
     ArtifactRevisionRepository revisionRepository;
+
+    @Mock
+    ProjectService projectService;
 
     @Mock
     GithubPullRequestReviewRecordRepository reviewRecordRepository;
@@ -76,7 +84,7 @@ class KnowledgeGraphServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new KnowledgeGraphService(pipelineService, revisionRepository,
+        service = new KnowledgeGraphService(projectService, pipelineService, revisionRepository,
                 reviewRecordRepository, projectRepoLinkRepository, new ObjectMapper());
     }
 
@@ -477,6 +485,31 @@ class KnowledgeGraphServiceTest {
             assertThat(n.change()).isNull();
             assertThat(n.impacted()).isFalse();
         });
+    }
+
+    @Test
+    @DisplayName("프로젝트 사람이 아니면 그래프를 내주지 않는다")
+    void 소속을_먼저_확인한다() {
+        // 응답에는 기능 목록·API 경로와 설명·테이블 컬럼·PR 제목이 모두 담긴다.
+        // 사실상 명세 전체라, 소속 확인 없이는 projectId만 바꿔 남의 프로젝트가 읽힌다.
+        given(projectService.getById(1L, 999L))
+                .willThrow(new SecurityException("프로젝트 접근 권한이 없습니다"));
+
+        assertThatThrownBy(() -> service.build(1L, 999L))
+                .isInstanceOf(SecurityException.class);
+
+        // 권한이 막혔으면 명세를 읽는 데까지 가서도 안 된다
+        then(pipelineService).should(never()).getLatestArtifactsByProject(anyLong());
+    }
+
+    @Test
+    @DisplayName("프로젝트 사람이면 그래프를 정상적으로 받는다")
+    void 소속이_확인되면_내준다() {
+        givenArtifacts();
+
+        GraphResponse graph = service.build(1L, 7L);
+
+        assertThat(graph.nodes()).isNotEmpty();
     }
 
     /* ══════════════════════════════════════
