@@ -26,6 +26,10 @@ public class GithubWebhookService {
 
     @Async
     public void handle(String event, JsonNode payload) {
+        if ("push".equals(event)) {
+            handlePush(payload);
+            return;
+        }
         if (!"pull_request".equals(event)) return;
         String action = payload.path("action").asText();
         boolean review = REVIEW_ACTIONS.contains(action);
@@ -50,6 +54,48 @@ public class GithubWebhookService {
                             }
                         }),
                 () -> log.debug("연결되지 않은 GitHub repo webhook 무시 — githubRepoId={}", githubRepoId));
+    }
+
+    /**
+     * PR을 거치지 않고 브랜치에 바로 올라온 커밋을 검사한다.
+     *
+     * GitHub App은 이미 push를 구독하고 있었지만 처리하는 코드가 없어 그냥 버려지고 있었다.
+     * PR을 열지 않으면 정합성 검사를 통째로 건너뛸 수 있었다는 뜻이다.
+     *
+     * 걸러 내는 것들
+     * - 브랜치 삭제(after가 0으로 채워짐)와 첫 push(before가 0): 비교할 앞이 없다
+     * - 태그·기타 ref: 코드 변경이 아니다
+     * - 봇이 올린 커밋: 배포 파이프라인이 이미지 태그를 올리는 것까지 검사할 이유가 없다
+     */
+    private void handlePush(JsonNode payload) {
+        String ref = payload.path("ref").asText();
+        if (!ref.startsWith("refs/heads/")) return;
+
+        String before = payload.path("before").asText("");
+        String after = payload.path("after").asText("");
+        if (isEmptySha(before) || isEmptySha(after)) return;
+
+        // PR로 들어온 머지 커밋은 이미 PR 경로에서 검사했다. 다시 부를 필요가 없다.
+        if (payload.path("head_commit").path("message").asText("").startsWith("Merge pull request")) return;
+
+        long githubRepoId = payload.path("repository").path("id").asLong(-1);
+        if (githubRepoId < 0) return;
+
+        String message = payload.path("head_commit").path("message").asText("");
+        githubRepoRepository.findByGithubRepoId(githubRepoId).ifPresent(repo ->
+                projectRepoLinkRepository.findByGithubRepoId(repo.getId()).forEach(link -> {
+                    try {
+                        pullRequestConsistencyService.checkPush(link.getProjectId(), repo, before, after, message);
+                    } catch (Exception e) {
+                        log.error("push 정합성 검사 실패 — project={}, repo={}, ref={}: {}",
+                                link.getProjectId(), repo.getFullName(), ref, e.getMessage(), e);
+                    }
+                }));
+    }
+
+    /** 브랜치 생성·삭제 시 GitHub이 0으로 채워 보내는 SHA */
+    private boolean isEmptySha(String sha) {
+        return sha.isBlank() || sha.chars().allMatch(c -> c == '0');
     }
 
     private void runReview(Long projectId, GithubRepo repo, int pullNumber) {
