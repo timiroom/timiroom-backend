@@ -201,6 +201,29 @@ public class GithubClient {
     }
 
     /**
+     * 두 커밋 사이에 바뀐 파일(최대 100건).
+     *
+     * PR은 "base 대비 무엇이 달라졌는가"가 GitHub 쪽에 이미 정리되어 있지만,
+     * push에는 그런 것이 없어 before와 after 사이를 직접 물어야 한다.
+     * 응답 모양은 PR 변경 파일과 같아 정합성 검사가 그대로 받아 쓸 수 있다.
+     */
+    public List<GithubPullRequestFileInfo> compareCommits(String repositoryFullName, long installationId,
+                                                          String base, String head) {
+        JsonNode body = get(repositoryPath(repositoryFullName) + "/compare/" + base + "..." + head,
+                authService.getInstallationToken(installationId));
+        List<GithubPullRequestFileInfo> result = new ArrayList<>();
+        for (JsonNode node : body.path("files")) {
+            result.add(new GithubPullRequestFileInfo(
+                    node.path("filename").asText(),
+                    node.path("status").asText(),
+                    node.path("additions").asInt(0),
+                    node.path("deletions").asInt(0),
+                    node.path("patch").asText("")));
+        }
+        return result;
+    }
+
+    /**
      * 특정 ref의 UTF-8 소스 파일 원문을 읽는다. GitHub Contents API의 base64 응답만 허용하고,
      * 너무 큰 파일·디렉터리·바이너리·없는 파일은 정합성 입력에서 안전하게 제외한다.
      */

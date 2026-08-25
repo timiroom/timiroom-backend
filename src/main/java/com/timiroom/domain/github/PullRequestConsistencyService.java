@@ -169,6 +169,49 @@ public class PullRequestConsistencyService {
                 true, false, review.htmlUrl(), checkRun.htmlUrl(), analysis.evaluator(), findings);
     }
 
+    /**
+     * PR을 거치지 않고 브랜치에 바로 올라온 커밋을 명세와 대조한다.
+     *
+     * PR 경로가 있는데도 이걸 두는 이유 — PR을 쓰지 않으면 검사를 통째로 건너뛸 수 있어서다.
+     * 우회로가 열려 있는 검사는 검사가 아니다.
+     *
+     * PR과 다른 점 두 가지.
+     * 첫째, 리뷰 코멘트를 남기지 않는다. 달 PR이 없다. 대신 커밋에 Check Run을 올린다.
+     * 둘째, 결과를 review record에 쓰지 않는다. 그 표는 PR 번호로 묶여 있고, push에는
+     * 번호가 없다. 이미 올라간 코드라 "다시 검사하지 않기"를 위한 중복 방지도 필요 없다.
+     *
+     * 막을 수는 없고 알릴 수만 있다. 이미 들어간 코드이기 때문이다. 그래서 경고가 있을 때만
+     * 사람을 부른다.
+     */
+    @Transactional
+    public void checkPush(Long projectId, GithubRepo repo, String beforeSha, String afterSha, String headCommitMessage) {
+        List<GithubPullRequestFileInfo> files =
+                githubClient.compareCommits(repo.getFullName(), repo.getInstallationId(), beforeSha, afterSha);
+        if (files.isEmpty()) {
+            log.debug("push에 변경 파일이 없어 정합성 검사 생략 — repo={}, {}..{}",
+                    repo.getFullName(), shortSha(beforeSha), shortSha(afterSha));
+            return;
+        }
+
+        Map<PipelineArtifact.ArtifactType, String> specifications = latestSpecifications(projectId);
+        AnalysisOutcome analysis = analyzeWithAgent(repo,
+                new ChangeContext(0, headCommitMessage, "", "직접 push", ""), files, specifications);
+
+        List<ConsistencyFinding> findings = analysis.findings();
+        long warnings = findings.stream().filter(f -> "WARNING".equals(f.severity())).count();
+        long inconclusive = findings.stream().filter(f -> "INCONCLUSIVE".equals(f.severity())).count();
+        int score = inconclusive > 0 ? 0 : Math.max(0, 100 - (int) warnings * 25);
+
+        githubClient.createCompletedConsistencyCheckRun(repo.getFullName(), repo.getInstallationId(),
+                afterSha, score, inconclusive > 0, pushCheckMarkdown(score, findings, analysis));
+
+        if (warnings + inconclusive > 0) {
+            notifyPushMembers(projectId, repo, afterSha, warnings, inconclusive);
+        }
+        log.info("push 정합성 검사 — project={}, repo={}, sha={}, 점수={}, 경고={}",
+                projectId, repo.getFullName(), shortSha(afterSha), score, warnings);
+    }
+
     /** 프로젝트 전체에서 가장 최근에 검사된 PR의 정합성 요약. 아직 검사한 PR이 없으면 null. */
     @Transactional(readOnly = true)
     public ProjectConsistencySummary getLatestSummary(Long projectId, Long memberId) {
@@ -203,6 +246,50 @@ public class PullRequestConsistencyService {
         } catch (Exception e) {
             return List.of();
         }
+    }
+
+    /**
+     * push용 Check Run 본문.
+     *
+     * PR 리뷰 본문과 달리 "병합 전에 확인하세요"라고 쓰지 않는다. 이미 들어간 코드라
+     * 막을 수 있는 시점이 지났고, 할 수 있는 말은 "명세와 어긋나니 둘 중 하나를 고치라"는 것뿐이다.
+     */
+    private String pushCheckMarkdown(int score, List<ConsistencyFinding> findings, AnalysisOutcome analysis) {
+        List<ConsistencyFinding> warnings = findings.stream()
+                .filter(finding -> "WARNING".equals(finding.severity())).toList();
+
+        StringBuilder body = new StringBuilder("## 🔍 timiroom 정합성 검사 (직접 push)\n\n")
+                .append(warnings.isEmpty() ? "> [!NOTE]\n> " : "> [!WARNING]\n> ")
+                .append(warnings.isEmpty()
+                        ? "이 커밋과 명세 사이에서 어긋난 점을 찾지 못했습니다."
+                        : "이 커밋이 명세와 어긋나는 점이 **" + warnings.size() + "건** 있습니다. "
+                          + "이미 반영된 코드이므로, 구현을 되돌리거나 명세를 갱신해야 합니다.")
+                .append("\n\n")
+                .append("| 항목 | 결과 |\n| --- | --- |\n")
+                .append("| 정합성 점수 | **").append(score).append("/100** |\n")
+                .append("| 리뷰 엔진 | ").append(evaluatorLabel(analysis.evaluator())).append(" |\n")
+                .append("| 비교 범위 | 최신 API·DB 명세 ↔ push된 변경 |\n\n")
+                .append("### 요약\n\n> ").append(markdownText(analysis.summary())).append("\n\n");
+
+        if (!warnings.isEmpty()) {
+            body.append("### ⚠️ 확인 사항\n\n");
+            warnings.forEach(finding -> appendFindingDetails(body, finding, true));
+        }
+
+        body.append("---\n<sub>PR을 거치지 않고 브랜치에 직접 올라온 커밋이라 리뷰 코멘트 대신 "
+                + "검사 결과만 남깁니다.</sub>");
+        return body.toString();
+    }
+
+    private void notifyPushMembers(Long projectId, GithubRepo repo, String sha,
+                                   long warningCount, long inconclusiveCount) {
+        String detail = warningCount > 0 ? warningCount + "개의 명세 정합성 경고"
+                : "근거 부족으로 인한 판정 보류 " + inconclusiveCount + "건";
+        String content = repo.getFullName() + " " + shortSha(sha)
+                + " (PR 없이 직접 push)에서 " + detail + "이 발견됐습니다.";
+        projectMemberRepository.findByProjectId(projectId).forEach(member -> notificationService.create(
+                member.getMemberId(), NotificationType.PR_CONSISTENCY_REVIEW, "직접 push 정합성 확인 필요",
+                content, NotificationReferenceType.PULL_REQUEST, 0L));
     }
 
     private void notifyProjectMembers(Long projectId, GithubRepo repo, int pullNumber,
@@ -245,13 +332,28 @@ public class PullRequestConsistencyService {
                                              GithubPullRequestInfo pullRequest,
                                              List<GithubPullRequestFileInfo> files,
                                              Map<PipelineArtifact.ArtifactType, String> specifications) {
+        return analyzeWithAgent(repo, new ChangeContext(
+                pullRequest.number(), pullRequest.title(), pullRequest.body(),
+                pullRequest.headRef(), pullRequest.baseRef()), files, specifications);
+    }
+
+    /**
+     * 변경 한 덩어리를 명세와 대조한다.
+     *
+     * PR 객체 대신 ChangeContext를 받는다. 검사에 필요한 건 "무엇이 왜 바뀌었는가"뿐이고
+     * 그건 PR에만 있는 정보가 아니다. push도 같은 판단을 받아야 하는데 PR 번호가 없다.
+     */
+    private AnalysisOutcome analyzeWithAgent(GithubRepo repo,
+                                             ChangeContext change,
+                                             List<GithubPullRequestFileInfo> files,
+                                             Map<PipelineArtifact.ArtifactType, String> specifications) {
         if (!agentEnabled) {
             List<ConsistencyFinding> findings = analyzeWithRules(files, specifications);
             return new AnalysisOutcome(findings, "RULES", defaultReviewSummary(findings));
         }
         try {
             String runtime = normalizedAgentRuntime();
-            Object request = agentRequest(repo, pullRequest, files, specifications);
+            Object request = agentRequest(repo, change, files, specifications);
             JsonNode response = "PYTHON".equals(runtime)
                     ? consistencyServiceClient.reviewPullRequestConsistency(request)
                     : ragPipelineClient.reviewPullRequestConsistency(request);
@@ -308,17 +410,17 @@ public class PullRequestConsistencyService {
     }
 
     private Map<String, Object> agentRequest(GithubRepo repo,
-                                             GithubPullRequestInfo pullRequest,
+                                             ChangeContext change,
                                              List<GithubPullRequestFileInfo> files,
                                              Map<PipelineArtifact.ArtifactType, String> specifications) {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("model", agentModel);
         request.put("repository", repo.getFullName());
-        request.put("pullNumber", pullRequest.number());
-        request.put("title", pullRequest.title());
-        request.put("body", pullRequest.body());
-        request.put("headRef", pullRequest.headRef());
-        request.put("baseRef", pullRequest.baseRef());
+        request.put("pullNumber", change.pullNumber());
+        request.put("title", change.title());
+        request.put("body", change.body());
+        request.put("headRef", change.headRef());
+        request.put("baseRef", change.baseRef());
         request.put("apiSpec", specifications.get(PipelineArtifact.ArtifactType.API_SPEC));
         request.put("dbSchema", specifications.get(PipelineArtifact.ArtifactType.DB_SCHEMA));
         request.put("changedFiles", files.stream().map(file -> {
@@ -666,6 +768,13 @@ public class PullRequestConsistencyService {
     }
 
     private record AnalysisOutcome(List<ConsistencyFinding> findings, String evaluator, String summary) {}
+
+    /**
+     * 검사에 필요한 변경의 맥락. PR이면 번호와 제목이, push면 브랜치와 커밋 메시지가 들어온다.
+     * pullNumber는 push일 때 0이다 — 붙일 PR이 없다는 뜻이다.
+     */
+    private record ChangeContext(int pullNumber, String title, String body,
+                                 String headRef, String baseRef) {}
 
     private String normalizedAgentRuntime() {
         String normalized = agentRuntime == null ? "" : agentRuntime.trim().toUpperCase();
