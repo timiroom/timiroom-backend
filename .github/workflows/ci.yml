@@ -42,7 +42,18 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build
-        run: ./gradlew build -x test --no-daemon
+        # -x test 를 떼어 테스트까지 돌린다. 붙어 있던 동안 "Build pass"는
+        # 컴파일이 됐다는 뜻일 뿐이었고, 테스트가 깨진 채로도 초록불이었다.
+        run: ./gradlew build --no-daemon
+
+      # 실패했을 때 어느 테스트가 왜 깨졌는지 로그만 보고 알기 어렵다.
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-report
+          path: build/reports/tests/test
+          retention-days: 7
 
   rag-pipeline:
     name: Rag-Pipeline Build
@@ -71,4 +82,12 @@ jobs:
 
       - name: Build
         working-directory: rag-pipeline
-        run: ./gradlew build -x test --no-daemon
+        run: ./gradlew build --no-daemon
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-pipeline-test-report
+          path: rag-pipeline/build/reports/tests/test
+          retention-days: 7
