@@ -1,3 +1,13 @@
+.env
+.env.*
+.env.txt
+.env.local
+.env.*.local
+.claude/
+src/main/resources/application-local.yml
+rag-pipeline/src/main/resources/application-local.yml
+rag-pipeline/.env
+rag-pipeline/.env.*
 HELP.md
 .gradle
 build/
@@ -35,3 +45,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# GitHub App private key 등 로컬 시크릿
+.secrets/

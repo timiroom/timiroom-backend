@@ -1,20 +1,74 @@
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+rag-pipeline:
+  base-url: ${RAG_PIPELINE_URL:http://rag-pipeline-svc:8080}
+
+consistency-service:
+  base-url: ${CONSISTENCY_SERVICE_URL:http://consistency-svc:8080}
+  api-key: ${CONSISTENCY_SERVICE_API_KEY:}
+
 spring:
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  servlet:
+    session:
+      cookie:
+        domain: .timiroom.kro.kr
+        same-site: lax
+        secure: true
+        http-only: true
+
   datasource:
-    url: jdbc:postgresql://pg.timiroom.kro.kr:443/timiroom?ssl=true&sslmode=require
-    username: timiroom
-    password: timiroom1234
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   neo4j:
-    uri: bolt+s://bolt.timiroom.kro.kr:443
+    uri: ${NEO4J_URI}
     authentication:
-      username: neo4j
-      password: timiroom1234
+      username: ${NEO4J_USERNAME}
+      password: ${NEO4J_PASSWORD}
 
   data:
     redis:
-      host: redis.timiroom.kro.kr
-      port: 443
-      password: timiroom1234
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
       ssl:
-        enabled: true
+        enabled: ${REDIS_SSL_ENABLED}
+
+cors:
+  allowed-origins: "https://timiroom.kro.kr"
+
+storage:
+  endpoint: ${STORAGE_ENDPOINT}
+  access-key: ${STORAGE_ACCESS_KEY}
+  secret-key: ${STORAGE_SECRET_KEY}
+  bucket: ${STORAGE_BUCKET:timiroom}
+  public-url: ${STORAGE_PUBLIC_URL}
+
+github:
+  api-base-url: https://api.github.com
+  app:
+    id: ${GITHUB_APP_ID:}
+    private-key: ${GITHUB_APP_PRIVATE_KEY:}
+  webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+  consistency:
+    agent-enabled: ${GITHUB_CONSISTENCY_AGENT_ENABLED:${GITHUB_CONSISTENCY_LLM_ENABLED:true}}
+    runtime: ${GITHUB_CONSISTENCY_RUNTIME:PYTHON}
+    agent-model: ${GITHUB_CONSISTENCY_AGENT_MODEL:${GITHUB_CONSISTENCY_LLM_MODEL:gpt-5.4-mini}}

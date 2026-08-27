@@ -1,0 +1,33 @@
+# ── NAS 서버 (timiroom.kro.kr) 연결 설정 ──────────────────────────
+# 민감 정보는 환경변수로 관리합니다.
+# 필요 환경변수: DB_URL, DB_USERNAME, DB_PASSWORD, KAFKA_BOOTSTRAP_SERVERS
+
+# ── 서버 포트 (k8s 매니페스트/서비스와 일치, 로컬은 base의 8081 사용) ──
+server:
+  port: 8080
+
+cors:
+  allowed-origins: "https://timiroom.kro.kr"
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  # ── PostgreSQL (timiroom 공유 DB) ────────────────────────────────
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  # ── Kafka (NAS) ─────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+# ── 로깅 (prod) ──────────────────────────────────────────────────
+logging:
+  level:
+    com.rag.pipeline: INFO
+    org.springframework.ai: WARN
+    org.springframework.kafka: WARN
