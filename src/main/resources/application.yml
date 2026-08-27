@@ -28,13 +28,6 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-  # ── Neo4j ────────────────────────────────────────────────────────
-  neo4j:
-    uri: ${NEO4J_URI:bolt://localhost:7687}
-    authentication:
-      username: ${NEO4J_USERNAME:neo4j}
-      password: ${NEO4J_PASSWORD:timiroom1234}
-
   # ── Redis ────────────────────────────────────────────────────────
   data:
     redis:
