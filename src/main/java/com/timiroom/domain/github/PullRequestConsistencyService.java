@@ -7,6 +7,7 @@ import com.timiroom.domain.github.dto.EvidenceReference;
 import com.timiroom.domain.github.dto.ProjectConsistencySummary;
 import com.timiroom.domain.github.dto.ProjectPullRequestResponse;
 import com.timiroom.domain.github.dto.PullRequestConsistencyResult;
+import com.timiroom.domain.github.dto.PullRequestTouchPoints;
 import com.timiroom.domain.github.dto.RelatedPullRequestResponse;
 import com.timiroom.domain.notification.enums.NotificationReferenceType;
 import com.timiroom.domain.notification.service.NotificationService;
@@ -140,6 +141,10 @@ public class PullRequestConsistencyService {
         int score = inconclusiveCount > 0 ? 0 : Math.max(0, 100 - (int) warningCount * 25);
         String findingsJson = writeFindings(findings);
 
+        // 파일을 손에 쥐고 있는 지금 뽑아 둔다 — 지식 그래프는 요청마다 새로 계산되므로
+        // 그때 GitHub에 다시 물으면 호출 한도에 걸린다.
+        String touchedJson = writeTouchPoints(extractTouchPoints(files));
+
         String reviewBody = reviewMarkdown(score, findings, analysis.evaluator(), analysis.summary(), pullRequest);
         GithubCheckRunInfo checkRun = githubClient.createCompletedConsistencyCheckRun(repo.getFullName(),
                 repo.getInstallationId(), pullRequest.headSha(), score, inconclusiveCount > 0, reviewBody);
@@ -149,10 +154,15 @@ public class PullRequestConsistencyService {
             reviewRecordRepository.save(GithubPullRequestReviewRecord.builder()
                     .projectId(projectId).githubRepoId(repo.getId()).pullNumber(pullNumber)
                     .headSha(pullRequest.headSha()).reviewUrl(review.htmlUrl()).checkRunUrl(checkRun.htmlUrl())
-                    .score(score).findingsJson(findingsJson).evaluator(analysis.evaluator()).build());
+                    .score(score).findingsJson(findingsJson).evaluator(analysis.evaluator())
+                    .pullTitle(pullRequest.title()).pullUrl(pullRequest.htmlUrl())
+                    .pullState(pullRequest.state()).touchedJson(touchedJson)
+                    .build());
         } else {
             existing.updateReview(pullRequest.headSha(), review.htmlUrl(), checkRun.htmlUrl());
             existing.updateResult(score, findingsJson, analysis.evaluator());
+            existing.updateGraphContext(pullRequest.title(), pullRequest.htmlUrl(),
+                    pullRequest.state(), touchedJson);
         }
         if (attentionCount > 0) notifyProjectMembers(projectId, repo, pullNumber, warningCount, inconclusiveCount);
         return new PullRequestConsistencyResult(repo.getId(), pullNumber, pullRequest.headSha(), score,
@@ -397,6 +407,39 @@ public class PullRequestConsistencyService {
         String text = (file.filename() + "\n" + file.patch()).toLowerCase();
         return text.contains("migration") || text.contains("@entity") || text.contains("@table")
                 || text.contains("create table") || text.contains("alter table") || text.contains("@column");
+    }
+
+    /**
+     * 이 PR이 어느 API·테이블을 건드렸는지 뽑는다.
+     *
+     * 규칙 엔진이 명세 대조에 쓰는 것과 같은 정규식을 그대로 쓴다. 지식 그래프에서
+     * 코드와 명세를 잇는 근거가 리뷰에서 쓴 근거와 달라지면, 리뷰는 통과인데 그래프에는
+     * 선이 없는(혹은 그 반대인) 어긋남이 생긴다. 판단 기준은 한 곳이어야 한다.
+     *
+     * diff(patch)만 본다. 파일 전체를 훑으면 이번에 손대지 않은 엔드포인트까지 딸려 와서
+     * "이 PR이 건드린 것"이라는 뜻이 흐려진다.
+     */
+    private PullRequestTouchPoints extractTouchPoints(List<GithubPullRequestFileInfo> files) {
+        Set<String> apis = new java.util.LinkedHashSet<>();
+        Set<String> tables = new java.util.LinkedHashSet<>();
+        List<String> changedFiles = new ArrayList<>();
+
+        for (GithubPullRequestFileInfo file : files) {
+            apis.addAll(extract(API_PATH, file.patch()));
+            tables.addAll(extract(TABLE_ANNOTATION, file.patch()));
+            tables.addAll(extract(TABLE_SQL, file.patch()));
+            changedFiles.add(file.filename());
+        }
+        return new PullRequestTouchPoints(List.copyOf(apis), List.copyOf(tables), List.copyOf(changedFiles));
+    }
+
+    private String writeTouchPoints(PullRequestTouchPoints touchPoints) {
+        try {
+            return objectMapper.writeValueAsString(touchPoints);
+        } catch (Exception e) {
+            log.warn("PR 접점 직렬화 실패: {}", e.getMessage());
+            return null;
+        }
     }
 
     private Set<String> extract(Pattern pattern, String text) {
