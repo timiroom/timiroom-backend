@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +101,10 @@ public class TeamService {
                     return toTeamSummary(team, membership.getTeamRole());
                 })
                 .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(
+                        TeamSummaryResponse::lastActivityAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())
+                ))
                 .toList();
     }
 
@@ -442,7 +447,21 @@ public class TeamService {
                 team.getDescription(),
                 viewerRole == TeamRole.OWNER ? team.getInviteCode() : null,
                 team.getIconUrl(),
-                viewerRole
+                viewerRole,
+                resolveLastActivityAt(team)
         );
+    }
+
+    /**
+     * 워크스페이스의 "최신 대화" 정렬 기준 시각.
+     * 팀 소속 프로젝트 중 가장 최근에 갱신된 시각(AI 파이프라인 대화로 생성/수정됨)을 사용하고,
+     * 프로젝트가 하나도 없으면 팀 생성 시각으로 대체한다.
+     */
+    private LocalDateTime resolveLastActivityAt(Team team) {
+        return projectRepository.findByTeamId(team.getTeamId()).stream()
+                .map(Project::getUpdatedAt)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(team.getCreatedAt());
     }
 }
