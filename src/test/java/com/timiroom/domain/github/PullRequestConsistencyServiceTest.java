@@ -159,7 +159,7 @@ class PullRequestConsistencyServiceTest {
     }
 
     @Test
-    void checkAndReview_Python_국내_EXAONE_Agent_판정을_사용한다() throws Exception {
+    void checkAndReview_Python_OpenAI호환_Agent_판정을_사용한다() throws Exception {
         givenLinkedPm();
         ReflectionTestUtils.setField(service, "agentEnabled", true);
         ReflectionTestUtils.setField(service, "agentModel", "gpt-5.4-mini");
@@ -170,8 +170,8 @@ class PullRequestConsistencyServiceTest {
         when(reviewRecordRepository.findByProjectIdAndGithubRepoIdAndPullNumber(PROJECT_ID, REPO_ID, 42))
                 .thenReturn(Optional.empty());
         var agentResponse = new ObjectMapper().readTree("""
-                {"agent":"PR_CONSISTENCY_AGENT","provider":"EXAONE","evaluationMode":"EXAONE_FACT_GATE","summary":"API 명세와 구현이 일치합니다.","findings":[
-                  {"severity":"PASS","area":"API","message":"@GetMapping EXAONE 검증 결과 API_SPEC과 일치합니다.",
+                {"agent":"PR_CONSISTENCY_AGENT","provider":"OPENAI_COMPATIBLE","evaluationMode":"OPENAI_COMPATIBLE_FACT_GATE","summary":"API 명세와 구현이 일치합니다.","findings":[
+                  {"severity":"PASS","area":"API","message":"@GetMapping 모델 검증 결과 API_SPEC과 일치합니다.",
                    "evidence":["@GetMapping으로 GET /api/v1/tasks 구현"],
                    "references":[{"sourceType":"IMPLEMENTATION","source":"TaskController.java","line":12,"quote":"@GetMapping('/api/v1/tasks')"}],
                    "recommendation":"현재 구현을 유지하세요."}
@@ -185,9 +185,9 @@ class PullRequestConsistencyServiceTest {
 
         var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
 
-        assertThat(result.evaluator()).isEqualTo("PYTHON_EXAONE_FACT_GATE");
+        assertThat(result.evaluator()).isEqualTo("PYTHON_OPENAI_COMPATIBLE_FACT_GATE");
         assertThat(result.findings()).extracting(finding -> finding.message())
-                .containsExactly("@GetMapping EXAONE 검증 결과 API_SPEC과 일치합니다.");
+                .containsExactly("@GetMapping 모델 검증 결과 API_SPEC과 일치합니다.");
         assertThat(result.findings().getFirst().evidence()).containsExactly("@GetMapping으로 GET /api/v1/tasks 구현");
         assertThat(result.findings().getFirst().recommendation()).isEqualTo("현재 구현을 유지하세요.");
         assertThat(result.findings().getFirst().references()).hasSize(1);
@@ -195,7 +195,7 @@ class PullRequestConsistencyServiceTest {
         ArgumentCaptor<String> reviewBody = ArgumentCaptor.forClass(String.class);
         verify(githubClient).createPullRequestCommentReview(eq("timiroom/timiroom-backend"), eq(INSTALLATION_ID),
                 eq(42), eq("head-sha"), reviewBody.capture());
-        assertThat(reviewBody.getValue()).contains("`@GetMapping` EXAONE 검증 결과 API_SPEC과 일치합니다.");
+        assertThat(reviewBody.getValue()).contains("`@GetMapping` 모델 검증 결과 API_SPEC과 일치합니다.");
         verify(consistencyServiceClient).reviewPullRequestConsistency(any());
         verify(ragPipelineClient, never()).reviewPullRequestConsistency(any());
     }

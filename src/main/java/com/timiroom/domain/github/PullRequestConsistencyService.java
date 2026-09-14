@@ -283,7 +283,9 @@ public class PullRequestConsistencyService {
             }
             String evaluator = "SPRING".equals(runtime)
                     ? "SPRING_FOUNDRY"
-                    : "EXAONE_FACT_GATE".equals(response.path("evaluationMode").asText())
+                    : "OPENAI_COMPATIBLE_FACT_GATE".equals(response.path("evaluationMode").asText())
+                            ? "PYTHON_OPENAI_COMPATIBLE_FACT_GATE"
+                            : "EXAONE_FACT_GATE".equals(response.path("evaluationMode").asText())
                             ? "PYTHON_EXAONE_FACT_GATE"
                             : "PYTHON_EXAONE";
             return new AnalysisOutcome(List.copyOf(findings), evaluator,
@@ -528,6 +530,7 @@ public class PullRequestConsistencyService {
 
     private String evaluatorLabel(String evaluator) {
         return switch (evaluator) {
+            case "PYTHON_OPENAI_COMPATIBLE_FACT_GATE" -> "OpenAI 호환 모델 + Fact Gate";
             case "PYTHON_EXAONE" -> "🇰🇷 LG EXAONE Agent";
             case "PYTHON_EXAONE_FACT_GATE" -> "🇰🇷 LG EXAONE + Fact Gate";
             case "SPRING_FOUNDRY" -> "🌐 Foundry Agent";
@@ -539,6 +542,7 @@ public class PullRequestConsistencyService {
 
     private String evaluatorDescription(String evaluator) {
         return switch (evaluator) {
+            case "PYTHON_OPENAI_COMPATIBLE_FACT_GATE" -> "독립 Python Agent가 OpenAI 호환 모델의 판단을 AST·SQL Fact Gate 원문 근거로 검증했습니다.";
             case "PYTHON_EXAONE" -> "독립 Python PR Consistency Agent가 Friendli의 LG K-EXAONE으로 검토했습니다.";
             case "PYTHON_EXAONE_FACT_GATE" -> "독립 Python Agent가 LG K-EXAONE 판단을 AST·SQL Fact Gate 원문 근거로 검증했습니다.";
             case "SPRING_FOUNDRY" -> "Spring PR Consistency Agent가 해외 Foundry 모델로 검토했습니다.";
