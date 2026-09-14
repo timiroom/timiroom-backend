@@ -43,7 +43,7 @@ jobs:
 
       - name: Update Ops Repo with Sealed Secrets
         run: |
-          git clone https://${{ secrets.GH_PAT }}@github.com/timiroom/timiroom-ops.git
+          git clone https://x-access-token:${GH_PAT}@github.com/timiroom/timiroom-ops.git
           cd timiroom-ops/apps/backend
           
           # Check if pub-cert.pem exists (kubeseal public cert)
@@ -56,7 +56,25 @@ jobs:
           kustomize edit set image backend-image=${{ secrets.DOCKER_USERNAME }}/timiroom-backend:${{ env.IMAGE_TAG }}
           
           rm -f temp-secrets.env
-          echo "$ALL_SECRETS_JSON" | jq -r 'to_entries[] | select(.key | startswith("APP_")) | "\(.key | sub("^APP_"; ""))=\(.value)"' > temp-secrets.env
+          {
+            printf 'CONSISTENCY_SERVICE_API_KEY=%s\n' "$APP_CONSISTENCY_SERVICE_API_KEY"
+            printf 'DB_PASSWORD=%s\n' "$APP_DB_PASSWORD"
+            printf 'DB_USERNAME=%s\n' "$APP_DB_USERNAME"
+            printf 'GITHUB_APP_ID=%s\n' "$APP_GITHUB_APP_ID"
+            printf 'GITHUB_APP_PRIVATE_KEY=%s\n' "$APP_GITHUB_APP_PRIVATE_KEY"
+            printf 'GITHUB_CLIENT_ID=%s\n' "$APP_GITHUB_CLIENT_ID"
+            printf 'GITHUB_CLIENT_SECRET=%s\n' "$APP_GITHUB_CLIENT_SECRET"
+            printf 'GITHUB_WEBHOOK_SECRET=%s\n' "$APP_GITHUB_WEBHOOK_SECRET"
+            printf 'GOOGLE_CLIENT_ID=%s\n' "$APP_GOOGLE_CLIENT_ID"
+            printf 'GOOGLE_CLIENT_SECRET=%s\n' "$APP_GOOGLE_CLIENT_SECRET"
+            printf 'NEO4J_PASSWORD=%s\n' "$APP_NEO4J_PASSWORD"
+            printf 'REDIS_PASSWORD=%s\n' "$APP_REDIS_PASSWORD"
+            printf 'STORAGE_ACCESS_KEY=%s\n' "$APP_STORAGE_ACCESS_KEY"
+            printf 'STORAGE_BUCKET=%s\n' "$APP_STORAGE_BUCKET"
+            printf 'STORAGE_ENDPOINT=%s\n' "$APP_STORAGE_ENDPOINT"
+            printf 'STORAGE_PUBLIC_URL=%s\n' "$APP_STORAGE_PUBLIC_URL"
+            printf 'STORAGE_SECRET_KEY=%s\n' "$APP_STORAGE_SECRET_KEY"
+          } > temp-secrets.env
           
           kubectl create secret generic backend-secrets -n timiroom --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
           
@@ -73,4 +91,21 @@ jobs:
           git commit -m "chore: deploy image & update sealed secrets [${{ env.IMAGE_TAG }}]"
           git push
         env:
-          ALL_SECRETS_JSON: ${{ toJson(secrets) }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          APP_CONSISTENCY_SERVICE_API_KEY: ${{ secrets.APP_CONSISTENCY_SERVICE_API_KEY }}
+          APP_DB_PASSWORD: ${{ secrets.APP_DB_PASSWORD }}
+          APP_DB_USERNAME: ${{ secrets.APP_DB_USERNAME }}
+          APP_GITHUB_APP_ID: ${{ secrets.APP_GITHUB_APP_ID }}
+          APP_GITHUB_APP_PRIVATE_KEY: ${{ secrets.APP_GITHUB_APP_PRIVATE_KEY }}
+          APP_GITHUB_CLIENT_ID: ${{ secrets.APP_GITHUB_CLIENT_ID }}
+          APP_GITHUB_CLIENT_SECRET: ${{ secrets.APP_GITHUB_CLIENT_SECRET }}
+          APP_GITHUB_WEBHOOK_SECRET: ${{ secrets.APP_GITHUB_WEBHOOK_SECRET }}
+          APP_GOOGLE_CLIENT_ID: ${{ secrets.APP_GOOGLE_CLIENT_ID }}
+          APP_GOOGLE_CLIENT_SECRET: ${{ secrets.APP_GOOGLE_CLIENT_SECRET }}
+          APP_NEO4J_PASSWORD: ${{ secrets.APP_NEO4J_PASSWORD }}
+          APP_REDIS_PASSWORD: ${{ secrets.APP_REDIS_PASSWORD }}
+          APP_STORAGE_ACCESS_KEY: ${{ secrets.APP_STORAGE_ACCESS_KEY }}
+          APP_STORAGE_BUCKET: ${{ secrets.APP_STORAGE_BUCKET }}
+          APP_STORAGE_ENDPOINT: ${{ secrets.APP_STORAGE_ENDPOINT }}
+          APP_STORAGE_PUBLIC_URL: ${{ secrets.APP_STORAGE_PUBLIC_URL }}
+          APP_STORAGE_SECRET_KEY: ${{ secrets.APP_STORAGE_SECRET_KEY }}
