@@ -24,6 +24,12 @@ repositories {
 	mavenCentral()
 }
 
+// 통합 로컬 실행기에서 권한이 제한된 workspace를 사용할 수 있도록
+// -PtimiroomBuildDir로 build 출력 위치를 선택적으로 지정한다.
+if (providers.gradleProperty('timiroomBuildDir').isPresent()) {
+	layout.buildDirectory = file(providers.gradleProperty('timiroomBuildDir').get())
+}
+
 dependencies {
 	// Spring Boot Core
 	implementation 'org.springframework.boot:spring-boot-starter-web'
