@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.timiroom.domain.notification.enums.NotificationReferenceType;
 import com.timiroom.domain.notification.service.NotificationService;
 import com.timiroom.domain.notification.enums.NotificationType;
+import com.timiroom.domain.pipeline.entity.ArtifactRevision;
 import com.timiroom.domain.pipeline.entity.PipelineArtifact;
 import com.timiroom.domain.pipeline.entity.PipelineExecution;
+import com.timiroom.domain.pipeline.repository.ArtifactRevisionRepository;
 import com.timiroom.domain.pipeline.repository.PipelineArtifactRepository;
 import com.timiroom.domain.pipeline.repository.PipelineExecutionRepository;
 import com.timiroom.domain.requirement.entity.Requirement;
@@ -33,6 +35,7 @@ public class PipelineService {
     private final RagPipelineClient ragPipelineClient;
     private final PipelineExecutionRepository executionRepository;
     private final PipelineArtifactRepository artifactRepository;
+    private final ArtifactRevisionRepository revisionRepository;
     private final RequirementService requirementService;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
@@ -214,13 +217,32 @@ public class PipelineService {
         return artifactRepository.findByExecutionIdOrderByArtifactType(executionId);
     }
 
+    /**
+     * 문서 내용을 수정한다.
+     *
+     * 덮어쓰기 전에 이전 내용을 이력으로 남긴다. 이 이력이 있어야
+     * "직전 대비 무엇이 바뀌었고 그 변경이 어디에 영향을 주는지"를 계산할 수 있다.
+     */
     @Transactional
     public void updateArtifact(Long artifactId, String content) {
         PipelineArtifact artifact = artifactRepository.findById(artifactId)
                 .orElseThrow(() -> new IllegalArgumentException("Artifact not found: " + artifactId));
+
+        // 내용이 그대로면 이력을 늘리지 않는다 — 저장 버튼만 눌러도 버전이 오르면 이력이 무의미해진다
+        if (content == null || content.equals(artifact.getContent())) {
+            return;
+        }
+
+        revisionRepository.save(ArtifactRevision.builder()
+                .artifactId(artifactId)
+                .version(artifact.getVersion())
+                .content(artifact.getContent())
+                .build());
+
         artifact.updateContent(content);
         artifactRepository.save(artifact);
-        log.info("Artifact 수정 | artifactId: {}", artifactId);
+        log.info("Artifact 수정 | artifactId: {}, version: {} → {}",
+                artifactId, artifact.getVersion() - 1, artifact.getVersion());
     }
 
     public List<PipelineArtifact> getLatestArtifactsByProject(Long projectId) {
