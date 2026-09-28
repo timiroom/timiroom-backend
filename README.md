@@ -92,7 +92,7 @@ docker compose up -d
 
 ```dotenv
 # PostgreSQL
-DB_URL=jdbc:postgresql://localhost:5432/timiroom
+DB_URL=jdbc:postgresql://localhost:5433/timiroom
 DB_USERNAME=timiroom
 DB_PASSWORD=timiroom1234
 
@@ -123,7 +123,22 @@ CONSISTENCY_SERVICE_API_KEY=
 
 # SPRING 실행기용 모델 (rag-pipeline의 FOUNDRY_API_KEY/URL 사용)
 GITHUB_CONSISTENCY_AGENT_MODEL=gpt-5.4-mini
+
+# MinIO 오브젝트 스토리지 (프로필/워크스페이스 이미지)
+# ENDPOINT는 서버→MinIO 업로드용, PUBLIC_URL은 브라우저가 접근할 이미지 URL이다.
+# 서로 다른 MinIO를 가리키면 업로드는 되지만 이미지가 깨지므로 같은 인스턴스여야 한다.
+STORAGE_ENDPOINT=http://localhost:9000
+STORAGE_ACCESS_KEY=minioadmin
+STORAGE_SECRET_KEY=minioadmin1234
+STORAGE_BUCKET=timiroom
+STORAGE_PUBLIC_URL=http://localhost:9000
 ```
+
+> **`APP_` 접두사를 `.env`에 붙이지 마세요.** `APP_`는 GitHub Actions 시크릿 전용
+> 네임스페이스이고, 배포 시 `deploy.yml`이 접두사를 떼어낸 뒤 k8s Secret으로 만듭니다
+> (`APP_STORAGE_ENDPOINT` → `STORAGE_ENDPOINT`). 로컬에는 접두사를 떼주는 단계가 없어서
+> `APP_`가 붙은 값은 앱이 읽지 못하고 조용히 기본값으로 동작합니다.
+> rag-pipeline은 `RAG_`, pipeline_py는 `PIPELINE_` 접두사로 같은 규약을 씁니다.
 
 로컬 OAuth 공급자 콘솔에는 아래 콜백 URL을 정확히 등록해야 합니다.
 
@@ -141,7 +156,7 @@ ANTHROPIC_API_KEY=your_anthropic_api_key  # Claude Sonnet (AI 추천 파이프�
 COHERE_API_KEY=your_cohere_api_key        # Reranker (선택 — 없으면 reranker 비활성화)
 
 # PostgreSQL (백엔드와 공유 DB)
-DB_URL=jdbc:postgresql://localhost:5432/timiroom
+DB_URL=jdbc:postgresql://localhost:5433/timiroom
 DB_USERNAME=timiroom
 DB_PASSWORD=timiroom1234
 ```

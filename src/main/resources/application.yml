@@ -7,9 +7,9 @@ spring:
 
   # ── Database ─────────────────────────────────────────────────────
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:timiroom}
-    username: ${POSTGRES_USER:timiroom}
-    password: ${POSTGRES_PASSWORD:timiroom1234}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/timiroom}
+    username: ${DB_USERNAME:timiroom}
+    password: ${DB_PASSWORD:timiroom1234}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -69,6 +69,7 @@ server:
 # ── rag-pipeline 연동 URL ─────────────────────────────────────────
 rag-pipeline:
   base-url: ${RAG_PIPELINE_URL:http://localhost:8081}
+  chat-timeout-seconds: ${RAG_PIPELINE_CHAT_TIMEOUT_SECONDS:180}
 
 # 후속 정합성/수정 전용 Python 서비스 (Friendli LG K-EXAONE)
 consistency-service:

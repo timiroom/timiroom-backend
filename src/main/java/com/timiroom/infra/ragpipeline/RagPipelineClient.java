@@ -17,6 +17,7 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 import java.util.List;
 import java.util.Map;
 
@@ -25,20 +26,38 @@ import java.util.Map;
 public class RagPipelineClient {
 
     private final WebClient webClient;
+    private final long chatTimeoutSeconds;
 
     public RagPipelineClient(
             @Value("${rag-pipeline.base-url}") String baseUrl,
+            @Value("${rag-pipeline.chat-timeout-seconds:180}") long chatTimeoutSeconds,
             ObjectMapper objectMapper) {
         this.webClient = WebClient.builder()
                 .baseUrl(baseUrl)
                 .codecs(config -> config.defaultCodecs().maxInMemorySize(50 * 1024 * 1024))
                 .build();
-        log.info("RagPipelineClient initialized with base-url: {}", baseUrl);
+        this.chatTimeoutSeconds = chatTimeoutSeconds;
+        log.info("RagPipelineClient initialized with base-url: {}, chat-timeout: {}s", baseUrl, chatTimeoutSeconds);
     }
 
     private RuntimeException unavailable(String op, Throwable cause) {
         log.error("RAG 파이프라인 연결 실패 [{}]: {}", op, cause.getMessage());
         return new IllegalStateException("RAG 파이프라인 서비스에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.", cause);
+    }
+
+    private RuntimeException timedOut(String op, Throwable cause) {
+        log.error("RAG 파이프라인 응답 시간 초과 [{}] after {}s", op, chatTimeoutSeconds, cause);
+        return new IllegalStateException(
+                "AI 응답이 예상보다 오래 걸리고 있습니다. 잠시 후 다시 시도해주세요.", cause);
+    }
+
+    private boolean causedByTimeout(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof TimeoutException) return true;
+            current = current.getCause();
+        }
+        return false;
     }
 
     /**
@@ -105,10 +124,13 @@ public class RagPipelineClient {
                     .bodyValue(requestBody)
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .timeout(Duration.ofSeconds(30))
+                    .timeout(Duration.ofSeconds(chatTimeoutSeconds))
                     .block();
         } catch (WebClientRequestException e) {
             throw unavailable("chat", e);
+        } catch (RuntimeException e) {
+            if (causedByTimeout(e)) throw timedOut("chat", e);
+            throw e;
         }
 
         if (response == null) throw new RuntimeException("rag-pipeline 채팅 응답이 없습니다");
