@@ -1,11 +1,13 @@
 package com.timiroom.domain.oauth;
 
-import com.timiroom.domain.member.Member;
-import com.timiroom.domain.member.MemberRepository;
+import com.timiroom.domain.member.entity.Member;
+import com.timiroom.domain.member.repository.MemberRepository;
+import com.timiroom.domain.member.enums.Provider;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -19,6 +21,9 @@ import java.io.IOException;
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final MemberRepository memberRepository;
+
+    @Value("${frontend.url}")
+    private String frontendUrl;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -36,12 +41,14 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             providerId = oAuth2User.getAttribute("id").toString();  // GitHub는 id
         }
 
-        Member member = memberRepository.findByProviderAndProviderId(provider, providerId)
+        Provider providerEnum = Provider.valueOf(provider.toUpperCase());
+        Member member = memberRepository.findByProviderAndProviderId(providerEnum, providerId)
                 .orElseThrow(() -> new RuntimeException("회원 없음"));
 
         HttpSession session = request.getSession(true);
         session.setAttribute("memberId", member.getMemberId());
 
-        response.sendRedirect("http://localhost:3000/");
+        clearAuthenticationAttributes(request);
+        response.sendRedirect(frontendUrl + "/auth/callback");
     }
 }
