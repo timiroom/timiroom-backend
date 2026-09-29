@@ -662,10 +662,19 @@ public class KnowledgeGraphService {
         if (!array.isArray()) return features;
 
         for (JsonNode item : array) {
-            String value = item.isTextual() ? item.asText() : item.path("featureName").asText("");
+            String value = item.isTextual() ? item.asText() : featureName(item);
             if (!value.isBlank()) features.add(value.trim());
         }
         return features;
+    }
+
+    /** 실제 FEATURE_LIST 산출물은 name을 쓰지만, 예전 형태·다른 표기도 함께 받아 둔다 */
+    private String featureName(JsonNode item) {
+        for (String key : new String[]{"name", "featureName", "title"}) {
+            String value = item.path(key).asText("");
+            if (!value.isBlank()) return value;
+        }
+        return "";
     }
 
     /**

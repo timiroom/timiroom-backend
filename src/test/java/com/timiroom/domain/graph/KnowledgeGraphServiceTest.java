@@ -120,6 +120,24 @@ class KnowledgeGraphServiceTest {
     }
 
     @Test
+    @DisplayName("실제 파이프라인이 만드는 형태(name 필드를 쓰는 객체 배열)에서도 기능 노드를 뽑아낸다")
+    void 객체_형태_기능_명세에서도_기능을_뽑는다() {
+        String realShapeFeatures = """
+                [{"name":"검증 리뷰 목록 조회","priority":"P0","description":"검증된 리뷰만 모아서 보여준다","requirements":["필터링","정렬"]}]
+                """;
+        given(pipelineService.getLatestArtifactsByProject(1L)).willReturn(List.of(
+                artifact(PipelineArtifact.ArtifactType.FEATURE_LIST, realShapeFeatures),
+                artifact(PipelineArtifact.ArtifactType.API_SPEC, API_SPEC),
+                artifact(PipelineArtifact.ArtifactType.DB_SCHEMA, DB_SCHEMA)
+        ));
+
+        GraphResponse graph = service.build(1L);
+
+        assertThat(graph.nodes()).anyMatch(node -> node.id().equals("feature:검증 리뷰 목록 조회"));
+        assertThat(edgeExists(graph, "feature:검증 리뷰 목록 조회", "api:GET:/api/v1/reviews")).isTrue();
+    }
+
+    @Test
     @DisplayName("짧은 기능명은 낱말이 하나만 겹쳐서는 이어지지 않는다")
     void 짧은_기능명은_전부_일치해야_한다() {
         // 실제 명세에서 나온 사례다. "쿠폰 발급"의 두 낱말 중 `발급` 하나가
