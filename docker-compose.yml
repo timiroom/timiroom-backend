@@ -20,19 +20,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Neo4j ───────────────────────────────────────────────────────
-  neo4j:
-    image: neo4j:5
-    container_name: timiroom-neo4j
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      NEO4J_AUTH: neo4j/timiroom1234
-      TZ: Asia/Seoul
-    volumes:
-      - neo4j_data:/data
-
   # ── Redis ───────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -111,7 +98,6 @@ services:
 
 volumes:
   postgres_data:
-  neo4j_data:
   redis_data:
   zookeeper_data:
   zookeeper_log:

@@ -75,11 +75,9 @@
 ### 1. 인프라 실행 (Docker)
 
 ```bash
-# 프로젝트 루트에서 실행 — PostgreSQL, Redis, Neo4j, Kafka 전체 기동
+# 프로젝트 루트에서 실행 — PostgreSQL, Redis, Kafka, MinIO 전체 기동
 docker compose up -d
 ```
-
-> **주의:** Neo4j는 초기화에 10~20초 소요됩니다. 백엔드 기동 전 `docker ps`로 `healthy` 상태 확인 후 실행하세요.
 
 ### 2. 환경변수 설정
 
@@ -99,11 +97,6 @@ DB_PASSWORD=timiroom1234
 # Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
-
-# Neo4j
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=timiroom1234
 
 # OAuth2 소셜 로그인 (Google Cloud Console / GitHub OAuth App 에서 발급)
 GOOGLE_CLIENT_ID=your_google_client_id

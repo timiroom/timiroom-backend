@@ -46,9 +46,6 @@ dependencies {
 	// pgvector (RAG용 벡터 저장)
 	implementation 'com.pgvector:pgvector:0.1.6'
 
-	// Neo4j (그래프 DB)
-	implementation 'org.springframework.boot:spring-boot-starter-data-neo4j'
-
 	// Redis
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.session:spring-session-data-redis'

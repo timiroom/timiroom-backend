@@ -38,12 +38,6 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
-  neo4j:
-    uri: ${NEO4J_URI}
-    authentication:
-      username: ${NEO4J_USERNAME}
-      password: ${NEO4J_PASSWORD}
-
   data:
     redis:
       host: ${REDIS_HOST}
