@@ -183,39 +183,56 @@ public class KnowledgeGraphService {
             }
         }
 
-        // ── 그룹(도메인) 노드 ───────────────────────────────────────
-        // 리소스명을 기준으로 묶는다. reviews · review_scores → review 그룹
+        // ── 그룹 노드 ───────────────────────────────────────────────
+        // 기능이 구현하는 API와 그 API가 쓰는 테이블은 그 기능 쪽으로 모은다 — 기능이
+        // 자기가 구현하는 것들을 감싸는 느낌을 주기 위해서다(별도 그룹 노드 없이 기능
+        // 노드 자신이 부모가 된다). 기능과 이어지지 않은 API·테이블만 예전처럼
+        // 리소스명 기준으로 묶는다. reviews · review_scores → review 그룹
         Map<String, String> groupLabels = new LinkedHashMap<>();
         Map<String, String> parentOf = new LinkedHashMap<>();
 
-        for (ApiNode api : apis) {
-            String key = api.group;
-            groupLabels.putIfAbsent(key, key);
-            parentOf.put(api.id, "group:" + key);
+        for (GraphResponse.Edge edge : edges) {
+            if ("IMPLEMENTS".equals(edge.type())) {
+                parentOf.putIfAbsent(edge.target(), edge.source());
+            }
         }
-        for (TableNode table : tables) {
-            String key = table.group;
-            groupLabels.putIfAbsent(key, key);
-            parentOf.put(table.id, "group:" + key);
-        }
-        // 기능은 연결된 API의 그룹을 따라간다. 연결이 없으면 묶지 않는다.
-        for (String feature : features) {
-            String featureId = "feature:" + feature;
-            edges.stream()
-                    .filter(e -> e.source().equals(featureId))
-                    .findFirst()
-                    .map(e -> parentOf.get(e.target()))
-                    .ifPresent(group -> parentOf.put(featureId, group));
+        for (GraphResponse.Edge edge : edges) {
+            if (!"STORES".equals(edge.type())) continue;
+            String apiGroup = parentOf.get(edge.source());
+            if (apiGroup != null && apiGroup.startsWith("feature:")) {
+                parentOf.putIfAbsent(edge.target(), apiGroup);
+            }
         }
 
-        // 혼자 남는 묶음은 만들지 않는다.
+        // 기능 하나가 API 하나에만 닿으면 감쌀 게 없어 묶음이 아니라 라벨일 뿐이다 —
+        // 풀어서 아래 리소스명 묶음 후보로 다시 넘긴다.
+        Map<String, Long> featureGroupSize = parentOf.values().stream()
+                .filter(group -> group.startsWith("feature:"))
+                .collect(Collectors.groupingBy(group -> group, Collectors.counting()));
+        parentOf.values().removeIf(group -> group.startsWith("feature:")
+                && featureGroupSize.getOrDefault(group, 0L) < MIN_GROUP_MEMBERS);
+
+        // 기능과 묶이지 않은 API·테이블은 리소스명 기준으로 묶는다.
+        for (ApiNode api : apis) {
+            if (parentOf.containsKey(api.id)) continue;
+            groupLabels.putIfAbsent(api.group, api.group);
+            parentOf.put(api.id, "group:" + api.group);
+        }
+        for (TableNode table : tables) {
+            if (parentOf.containsKey(table.id)) continue;
+            groupLabels.putIfAbsent(table.group, table.group);
+            parentOf.put(table.id, "group:" + table.group);
+        }
+
+        // 리소스명 묶음도 혼자 남으면 만들지 않는다.
         //
         // 첫 낱말로 묶다 보면 refresh_tokens 하나뿐인 `refresh` 같은 묶음이 생긴다.
         // 구성원이 하나면 그건 묶음이 아니라 노드 옆에 붙은 라벨일 뿐이라, 화면에는
         // 아무것도 알려주지 않으면서 자리만 차지하고 배치까지 끌어당긴다.
         Map<String, Long> memberCount = parentOf.values().stream()
-                .collect(Collectors.groupingBy(g -> g, Collectors.counting()));
-        parentOf.values().removeIf(group -> memberCount.getOrDefault(group, 0L) < MIN_GROUP_MEMBERS);
+                .collect(Collectors.groupingBy(group -> group, Collectors.counting()));
+        parentOf.values().removeIf(group -> group.startsWith("group:")
+                && memberCount.getOrDefault(group, 0L) < MIN_GROUP_MEMBERS);
 
         groupLabels.forEach((key, label) -> {
             if (memberCount.getOrDefault("group:" + key, 0L) >= MIN_GROUP_MEMBERS) {
