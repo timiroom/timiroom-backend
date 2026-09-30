@@ -293,11 +293,15 @@ class KnowledgeGraphServiceTest {
         assertThat(edgeExists(graph, "api:GET:/api/v2/food-menu/{category}", "table:food_menus")).isTrue();
         assertThat(graph.summary().orphanTables()).isZero();
 
-        // 같은 도메인으로도 묶여야 한다 — food-profiles와 food_menus 모두 food 묶음
-        String group = nodeById(graph, "table:food_profiles").parent();
-        assertThat(group).isNotNull();
-        assertThat(nodeById(graph, "table:food_menus").parent()).isEqualTo(group);
-        assertThat(nodeById(graph, "api:GET:/api/v1/food-profiles").parent()).isEqualTo(group);
+        // 각자 자기 기능이 감싸야 한다 — food-profiles는 "식성 프로필", food_menus는
+        // "간편 탐색" 쪽으로. 글자만 보면 둘 다 food 묶음이지만, 서로 다른 기능이 구현하므로
+        // 하나의 도메인으로 뭉치지 않는다.
+        String profileGroup = nodeById(graph, "table:food_profiles").parent();
+        String menuGroup = nodeById(graph, "table:food_menus").parent();
+        assertThat(profileGroup).isEqualTo("feature:식성 프로필");
+        assertThat(menuGroup).isEqualTo("feature:간편 탐색");
+        assertThat(nodeById(graph, "api:GET:/api/v1/food-profiles").parent()).isEqualTo(profileGroup);
+        assertThat(nodeById(graph, "api:GET:/api/v2/food-menu/{category}").parent()).isEqualTo(menuGroup);
     }
 
     @Test
@@ -357,6 +361,23 @@ class KnowledgeGraphServiceTest {
     }
 
     @Test
+    @DisplayName("기능은 리소스명 묶음보다 우선해서 자기가 구현하는 API·테이블을 감싼다")
+    void 기능이_구현하는_API와_테이블을_감싼다() {
+        givenArtifacts();
+
+        GraphResponse graph = service.build(1L);
+
+        // "검증 리뷰 목록 조회"가 구현하는 API와, 그 API가 쓰는 테이블 둘 다
+        // 도메인 이름(group:review)이 아니라 기능 자신이 부모가 된다
+        assertThat(nodeById(graph, "api:GET:/api/v1/reviews").parent()).isEqualTo("feature:검증 리뷰 목록 조회");
+        assertThat(nodeById(graph, "table:reviews").parent()).isEqualTo("feature:검증 리뷰 목록 조회");
+        assertThat(nodeById(graph, "table:review_scores").parent()).isEqualTo("feature:검증 리뷰 목록 조회");
+
+        // 기능 자신은 더 큰 무언가에 감싸이지 않는다 — 감싸는 쪽이지 감싸이는 쪽이 아니다
+        assertThat(nodeById(graph, "feature:검증 리뷰 목록 조회").parent()).isNull();
+    }
+
+    @Test
     @DisplayName("혼자 남는 도메인은 묶지 않는다")
     void 구성원이_하나뿐인_묶음은_만들지_않는다() {
         givenArtifacts();
@@ -368,9 +389,12 @@ class KnowledgeGraphServiceTest {
         assertThat(graph.nodes()).noneMatch(n -> "group:audit".equals(n.id()));
         assertThat(nodeById(graph, "table:audit_logs").parent()).isNull();
 
-        // 여럿이 모인 묶음은 그대로 남는다 — reviews·review_scores·/reviews
+        // reviews 테이블은 이제 그것을 쓰는 API를 구현하는 기능("검증 리뷰 목록 조회")이
+        // 감싼다 — 도메인 이름 묶음보다 기능이 우선한다.
+        assertThat(nodeById(graph, "table:reviews").parent()).isEqualTo("feature:검증 리뷰 목록 조회");
+
+        // 기능에 딸리지 못한 나머지 review 계열(POST·score API)은 여전히 리소스명으로 묶인다
         assertThat(graph.nodes()).anyMatch(n -> "group:review".equals(n.id()));
-        assertThat(nodeById(graph, "table:reviews").parent()).isEqualTo("group:review");
     }
 
     @Test
