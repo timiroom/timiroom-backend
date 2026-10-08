@@ -83,4 +83,8 @@ Bot을 테스트 채널에 초대한다. `/timiroom connect`의 일회용 코드
 
 Slack 설치·실제 봇 송수신은 배포 전 검증 항목이다. Slack UI에서 사람이 게시한 채널 안내 메시지는 봇 전송이나 slash command callback 성공의 증거가 아니다. callback URL의 새 엔드포인트가 공개 환경에 배포되지 않았다면 명령 수신 E2E는 아직 확인할 수 없다. 기능 개발 승인과 develop 배포 승인은 구분한다.
 
+GitHub 배포 설정은 backend repository variables `INTEGRATION_ENABLED`, `INTEGRATION_ISSUER`, `INTEGRATION_SLACK_ENABLED`, `SLACK_TEAM_ID`, `SLACK_APP_ID`와 production environment secrets `APP_INTEGRATION_CURSOR_SECRET`, `APP_SLACK_BOT_TOKEN`, `APP_SLACK_SIGNING_SECRET`를 사용한다. workflow가 기존 backend-secrets와 함께 봉인해 운영에 전달한다. 기능 플래그 기본값은 false이며 활성화에 필요한 값이 없으면 배포 설정 생성이 실패한다. 프론트의 두 build variable은 backend 배포 설정과 함께 확인한다.
+
+초기 배포 순서는 consistency → backend → frontend다. 각 PR CI를 통과한 SHA를 병합하고, 해당 이미지가 Ready이며 공개 인증 경계가 정상인지 확인한 뒤 다음 서비스를 진행한다. pipeline 회귀 수정은 자체 CI와 이미지 검증 후 별도로 병합한다. 장애 시 이전 이미지로 되돌리고 기능 플래그를 false로 재배포한다. 추가 migration은 즉시 역삭제하지 않는다. 이미 발행한 snapshot·승인 이력을 보존하고, 데이터 호환성을 확인한 뒤 rollback 범위를 결정한다.
+
 공식 프로토콜 근거: [Slack 서명 검증](https://docs.slack.dev/authentication/verifying-requests-from-slack/), [Slack 명령](https://docs.slack.dev/interactivity/implementing-slash-commands/), [Codex MCP 설정](https://developers.openai.com/codex/mcp/).
