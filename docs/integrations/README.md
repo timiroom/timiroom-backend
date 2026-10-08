@@ -1,6 +1,6 @@
 # AI 도구와 Slack 연결
 
-현재 feature 브랜치의 연결 기능이다. develop에 병합·배포하지 않았다. 공개 서버에서 바로 사용할 수 있는 상태로 표시하지 않는다. 운영자의 배포 승인과 실제 Slack 설정·검증이 별도로 필요하다.
+OAuth·MCP·명세 변경안·Slack 기본 기능은 develop에 병합된 구현이다. 서비스 실행과 실제 외부 클라이언트 연결은 각각 검증한다. 서버 앞 네트워크가 외부 HTTPS 요청을 차단하면 공개 HTTP 주소만으로 Slack 명령을 받을 수 없다.
 
 ## 서버 설정
 
@@ -75,15 +75,28 @@ integration:
     app-id: ${SLACK_APP_ID}
     bot-token: ${SLACK_BOT_TOKEN}
     signing-secret: ${SLACK_SIGNING_SECRET}
+    socket-mode:
+      enabled: false
+    app-token: ${SLACK_APP_TOKEN:}
 ```
 
 Bot을 테스트 채널에 초대한다. `/timiroom connect`의 일회용 코드를 티미룸 내 프로필의 Slack 연결에 입력한다. PM이 프로젝트와 채널 ID를 연결한다. 채널에서 `spec`, `review <proposalId> <revision>`, `pr <snapshotId> <repoId> <pullNumber> <headSha>`, `status <jobId>`를 요청할 수 있다. 명령의 즉시 응답과 조회 결과는 본인에게 표시한다. 검사 종류·완료 상태와 승인 링크는 설정된 프로젝트 채널로 전달한다. 원문·diff·검사 상세는 인증이 필요한 티미룸에서 확인한다.
 
 계정 연결 해제는 해당 사용자가 설정한 채널도 해제한다. 전송 실패가 검사 결과를 바꾸지 않는다. 전송 결과가 불명확하면 자동 재전송하지 않는다. DB의 slack_command_request/slack_notification 상태와 안전한 error_code로 점검한다. request body·response_url·토큰·연결 코드를 로그에 남기지 않는다.
 
-Slack 설치·실제 봇 송수신은 배포 전 검증 항목이다. Slack UI에서 사람이 게시한 채널 안내 메시지는 봇 전송이나 slash command callback 성공의 증거가 아니다. callback URL의 새 엔드포인트가 공개 환경에 배포되지 않았다면 명령 수신 E2E는 아직 확인할 수 없다. 기능 개발 승인과 develop 배포 승인은 구분한다.
+### 외부 인바운드가 제한된 서버
+
+`socket-mode.enabled=true`와 `app-token`으로 Socket Mode를 선택할 수 있다. Slack 앱의 기존 `connections:write` app-level token을 사용하고 앱 설정에서도 Socket Mode를 켠다. 서버는 Slack으로 HTTPS/WSS 443 연결을 열며 별도 인바운드 포트가 필요하지 않다. Bot 권한은 여전히 commands/chat:write다. 워크스페이스·사용자·프로젝트 권한 검사는 기존 서비스와 공유한다. `hello`의 앱 ID와 명령의 workspace를 검증한 뒤 명령을 처리한다.
+
+SDK가 ping·재접속·주기적인 URL 교체를 관리한다. 최초 연결 실패도 백엔드 기동을 막지 않고 10초 후 재시도한다. HTTP 서명 검증은 유지해 Socket Mode를 껐을 때 기존 callback으로 복귀할 수 있다. 명령은 즉시 ACK한 후 제한된 작업 풀에서 처리하고 결과를 요청자에게만 보낸다. envelope ID는 PostgreSQL 중복 방지 키로 사용하므로 replica가 달라도 같은 검사를 중복 접수하지 않는다. ACK 직후 프로세스가 종료되거나 전송이 실패하면 해당 사용자가 명령을 다시 실행해야 한다. 불명확한 전송을 자동 반복하지 않는다.
+
+운영 로그는 `SLACK_SOCKET_CONNECTED`, `SLACK_SOCKET_DISCONNECTED`, `SLACK_SOCKET_CONNECT_FAILED` 등 코드만 기록한다. SDK의 raw payload와 인증 URL 로그는 사용하지 않는다. Slack 연결 장애와 제품 API readiness는 구분한다. Socket Mode는 현재 단일 워크스페이스 운영용이며 공개 Slack Marketplace 배포를 지원하는 방식으로 표시하지 않는다.
+
+설치·실제 봇 송수신·사용자 명령 수신은 각각 검증한다. Socket Mode를 켜기 전에 새 백엔드 이미지·설정을 준비하고, 켠 뒤 실제 `/timiroom help`, 계정 연결, 프로젝트 조회·검사를 확인한다. mode를 HTTP로 되돌릴 때는 외부 callback의 443 도달을 먼저 확인한다.
 
 GitHub 배포 설정은 backend repository variables `INTEGRATION_ENABLED`, `INTEGRATION_ISSUER`, `INTEGRATION_SLACK_ENABLED`, `SLACK_TEAM_ID`, `SLACK_APP_ID`와 production environment secrets `APP_INTEGRATION_CURSOR_SECRET`, `APP_SLACK_BOT_TOKEN`, `APP_SLACK_SIGNING_SECRET`를 사용한다. workflow가 기존 backend-secrets와 함께 봉인해 운영에 전달한다. 기능 플래그 기본값은 false이며 활성화에 필요한 값이 없으면 배포 설정 생성이 실패한다. 프론트의 두 build variable은 backend 배포 설정과 함께 확인한다.
+
+Socket Mode 추가 설정은 repository variable `SLACK_SOCKET_MODE_ENABLED=true`와 production environment secret `APP_SLACK_APP_TOKEN`이다. 기본값은 false이며 true일 때 app token이 없으면 배포를 중단한다. 토큰은 Git·스킬·Obsidian에 저장하지 않는다. [Slack 공식 Socket Mode 문서](https://docs.slack.dev/apis/events-api/using-socket-mode/).
 
 초기 배포 순서는 consistency → backend → frontend다. 각 PR CI를 통과한 SHA를 병합하고, 해당 이미지가 Ready이며 공개 인증 경계가 정상인지 확인한 뒤 다음 서비스를 진행한다. pipeline 회귀 수정은 자체 CI와 이미지 검증 후 별도로 병합한다. 장애 시 이전 이미지로 되돌리고 기능 플래그를 false로 재배포한다. 추가 migration은 즉시 역삭제하지 않는다. 이미 발행한 snapshot·승인 이력을 보존하고, 데이터 호환성을 확인한 뒤 rollback 범위를 결정한다.
 
