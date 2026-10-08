@@ -6,6 +6,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import java.time.Duration;
+import com.timiroom.domain.integrationjob.service.JobTimeBudget;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +30,7 @@ public class DocumentEditClient {
         var response = editor.post().uri("/api/v1/document/{type}/edit", docType)
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(Map.of("document", document, "instruction", instruction, "history", List.of()))
-            .retrieve().bodyToMono(JsonNode.class).timeout(Duration.ofSeconds(240)).block();
+            .retrieve().bodyToMono(JsonNode.class).timeout(JobTimeBudget.limit(Duration.ofSeconds(240))).block();
         if (response == null || !response.path("success").asBoolean() || !response.path("data").isObject())
             throw new IllegalStateException("문서 수정 서비스의 응답이 올바르지 않습니다");
         return response.get("data");
@@ -40,7 +41,7 @@ public class DocumentEditClient {
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(Map.of("messages", List.of(Map.of("role", "user", "content", payload.toString())),
                 "systemPrompt", systemPrompt))
-            .retrieve().bodyToMono(JsonNode.class).timeout(Duration.ofSeconds(90)).block();
+            .retrieve().bodyToMono(JsonNode.class).timeout(JobTimeBudget.limit(Duration.ofSeconds(90))).block();
         if (response == null || !response.path("content").isTextual())
             throw new IllegalStateException("영향 분석 서비스의 응답이 올바르지 않습니다");
         return response;

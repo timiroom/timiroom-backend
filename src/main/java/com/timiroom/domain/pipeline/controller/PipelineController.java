@@ -20,6 +20,7 @@ import java.util.Map;
 public class PipelineController {
 
     private final PipelineService pipelineService;
+    private final com.timiroom.domain.spec.service.LegacyDocumentWriteService documentWrites;
 
     /**
      * 파이프라인 시작
@@ -103,7 +104,7 @@ public class PipelineController {
             @PathVariable Long artifactId,
             @RequestBody Map<String, String> body
     ) {
-        pipelineService.updateArtifact(memberId(session), artifactId, body.get("content"));
+        documentWrites.artifact(memberId(session), artifactId, body.get("content"));
         return ResponseEntity.ok().build();
     }
 

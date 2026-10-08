@@ -2,20 +2,10 @@ package com.timiroom.domain.graph.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.timiroom.domain.github.GithubPullRequestReviewRecord;
-import com.timiroom.domain.github.GithubPullRequestReviewRecordRepository;
-import com.timiroom.domain.github.ProjectRepoLink;
-import com.timiroom.domain.github.ProjectRepoLinkRepository;
-import com.timiroom.domain.github.dto.PullRequestTouchPoints;
 import com.timiroom.domain.graph.dto.GraphResponse;
 import com.timiroom.domain.pipeline.entity.PipelineArtifact;
-import com.timiroom.domain.pipeline.repository.ArtifactRevisionRepository;
-import com.timiroom.domain.pipeline.service.PipelineService;
-import com.timiroom.domain.project.service.ProjectService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;

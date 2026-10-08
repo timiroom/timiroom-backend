@@ -14,6 +14,7 @@ import com.timiroom.domain.notification.service.NotificationService;
 import com.timiroom.domain.notification.enums.NotificationType;
 import com.timiroom.domain.pipeline.entity.PipelineArtifact;
 import com.timiroom.domain.pipeline.service.PipelineService;
+import com.timiroom.domain.spec.dto.SpecSnapshotDto;
 import com.timiroom.domain.project.entity.mapping.ProjectMember;
 import com.timiroom.domain.project.repository.ProjectMemberRepository;
 import com.timiroom.domain.project.enums.ProjectRole;
@@ -116,6 +117,46 @@ public class PullRequestConsistencyService {
     public PullRequestConsistencyResult checkAndReviewFromWebhook(Long projectId, Long repoId, int pullNumber) {
         GithubRepo repo = findLinkedRepoWithoutMember(projectId, repoId);
         return checkAndReview(projectId, repo, pullNumber);
+    }
+
+    /** Read-only MCP analysis: immutable specs and commit-pinned files, with no posting or fallback PASS. */
+    public SnapshotAnalysis analyzeSnapshot(Long memberId,SpecSnapshotDto snapshot,Long repoId,int pullNumber,String expectedHeadSha) {
+        if(pullNumber<1 || expectedHeadSha==null || expectedHeadSha.isBlank()) throw new IllegalArgumentException("INVALID_PR_REQUEST");
+        GithubRepo repo=findSnapshotRepo(snapshot.projectId(),memberId,repoId);
+        var pull=githubClient.getPullRequest(repo.getFullName(),repo.getInstallationId(),pullNumber);
+        if(!expectedHeadSha.equals(pull.headSha())) throw new IllegalStateException("PR_CHANGED");
+        if(pull.baseSha()==null || pull.baseSha().isBlank()) throw new IllegalStateException("PR_BASE_UNAVAILABLE");
+        var specifications=new LinkedHashMap<PipelineArtifact.ArtifactType,String>();
+        for(var document:snapshot.documents()) {
+            if(specifications.putIfAbsent(document.type(),document.content())!=null) throw new IllegalArgumentException("DUPLICATE_SPEC_DOCUMENT");
+        }
+        var files=withFullFileContext(repo,pull,githubClient.listPullRequestFiles(repo.getFullName(),repo.getInstallationId(),pullNumber));
+        var analysis=analyzeWithAgent(repo,pull,files,specifications,true);
+        var current=githubClient.getPullRequest(repo.getFullName(),repo.getInstallationId(),pullNumber);
+        if(!expectedHeadSha.equals(current.headSha()) || !pull.baseSha().equals(current.baseSha())) throw new IllegalStateException("PR_CHANGED");
+        boolean passed=analysis.findings().stream().anyMatch(f->"PASS".equals(f.severity()))
+            && analysis.findings().stream().noneMatch(f->Set.of("WARNING","INCONCLUSIVE").contains(f.severity()));
+        return new SnapshotAnalysis(snapshot.snapshotId(),repoId,pullNumber,pull.headSha(),pull.baseSha(),passed,
+            analysis.evaluator(),analysis.summary(),analysis.findings(),List.of(new com.timiroom.domain.graph.dto.PrTouchPoint(
+                "pr:"+repoId+":"+pullNumber+":"+pull.headSha(),pull.title(),pullNumber,pull.htmlUrl(),null,repo.getFullName(),
+                passed?100:0,analysis.evaluator(),(int)analysis.findings().stream().filter(f->!Set.of("PASS","INFO").contains(f.severity())).count(),
+                extractTouchPoints(files),pull.headSha())));
+    }
+    public record SnapshotAnalysis(java.util.UUID snapshotId,Long repoId,int pullNumber,String headSha,String baseSha,
+                                   boolean passed,String evaluator,String summary,List<ConsistencyFinding> findings,
+                                   List<com.timiroom.domain.graph.dto.PrTouchPoint> touchPoints) {}
+    public GithubPullRequestInfo pinPullRequest(Long projectId,Long actorId,Long repoId,int pullNumber,String expectedHeadSha) {
+        var repo=findSnapshotRepo(projectId,actorId,repoId);
+        var pull=githubClient.getPullRequest(repo.getFullName(),repo.getInstallationId(),pullNumber);
+        if(!java.util.Objects.equals(expectedHeadSha,pull.headSha()) || pull.baseSha()==null || pull.baseSha().isBlank())
+            throw new IllegalStateException("PR_CHANGED");
+        return pull;
+    }
+    public String evaluatorVersion() {return normalizedAgentRuntime()+":"+agentModel+":FACT_GATE_V1";}
+    private GithubRepo findSnapshotRepo(Long project,Long actor,Long repo) {
+        projectService.getById(project,actor);
+        projectRepoLinkRepository.findByProjectIdAndGithubRepoId(project,repo).orElseThrow(()->new IllegalArgumentException("REPO_NOT_LINKED"));
+        return githubRepoRepository.findById(repo).orElseThrow(()->new IllegalArgumentException("REPO_NOT_LINKED"));
     }
 
     private PullRequestConsistencyResult checkAndReview(Long projectId, GithubRepo repo, int pullNumber) {
@@ -236,7 +277,7 @@ public class PullRequestConsistencyService {
                             file.filename(), pullRequest.headSha()).orElse(null);
             String baseContent = "added".equalsIgnoreCase(file.status()) ? null
                     : githubClient.getRepositoryFileContent(repo.getFullName(), repo.getInstallationId(),
-                            file.filename(), pullRequest.baseRef()).orElse(null);
+                            file.filename(), pullRequest.baseSha()!=null ? pullRequest.baseSha() : pullRequest.baseRef()).orElse(null);
             return file.withContents(content, baseContent);
         }).toList();
     }
@@ -245,7 +286,14 @@ public class PullRequestConsistencyService {
                                              GithubPullRequestInfo pullRequest,
                                              List<GithubPullRequestFileInfo> files,
                                              Map<PipelineArtifact.ArtifactType, String> specifications) {
+        return analyzeWithAgent(repo,pullRequest,files,specifications,false);
+    }
+    private AnalysisOutcome analyzeWithAgent(GithubRepo repo,
+                                             GithubPullRequestInfo pullRequest,
+                                             List<GithubPullRequestFileInfo> files,
+                                             Map<PipelineArtifact.ArtifactType, String> specifications,boolean strict) {
         if (!agentEnabled) {
+            if(strict) throw new IllegalStateException("CONSISTENCY_UNAVAILABLE");
             List<ConsistencyFinding> findings = analyzeWithRules(files, specifications);
             return new AnalysisOutcome(findings, "RULES", defaultReviewSummary(findings));
         }
@@ -255,10 +303,12 @@ public class PullRequestConsistencyService {
             JsonNode response = "PYTHON".equals(runtime)
                     ? consistencyServiceClient.reviewPullRequestConsistency(request)
                     : ragPipelineClient.reviewPullRequestConsistency(request);
+            if(strict && !Set.of("OPENAI_COMPATIBLE_FACT_GATE","EXAONE_FACT_GATE").contains(response.path("evaluationMode").asText()))
+                throw new IllegalStateException("Fact Gate validation is required");
             List<ConsistencyFinding> findings = new ArrayList<>();
             for (JsonNode finding : response.path("findings")) {
                 String severity = finding.path("severity").asText("INFO").toUpperCase();
-                if (!Set.of("PASS", "INFO", "WARNING", "INCONCLUSIVE").contains(severity)) severity = "INFO";
+                if (!Set.of("PASS", "INFO", "WARNING", "INCONCLUSIVE").contains(severity)) severity = strict ? "INCONCLUSIVE" : "INFO";
                 String area = finding.path("area").asText("Agent").trim();
                 String message = finding.path("message").asText("").trim();
                 List<String> evidence = new ArrayList<>();
@@ -301,6 +351,7 @@ public class PullRequestConsistencyService {
             return new AnalysisOutcome(List.copyOf(findings), evaluator,
                     response.path("summary").asText(defaultReviewSummary(findings)).trim());
         } catch (Exception e) {
+            if(strict) throw new IllegalStateException("CONSISTENCY_PROVIDER_FAILED",e);
             log.warn("PR Consistency Agent 실패 — 규칙 엔진 fallback: {}", e.getMessage());
             List<ConsistencyFinding> findings = new ArrayList<>(analyzeWithRules(files, specifications));
             findings.add(new ConsistencyFinding("INFO", "검사기",

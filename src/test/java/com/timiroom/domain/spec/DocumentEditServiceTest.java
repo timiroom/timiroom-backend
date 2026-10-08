@@ -14,7 +14,14 @@ import static org.mockito.Mockito.*;
 class DocumentEditServiceTest {
     final ObjectMapper mapper = new ObjectMapper();
     final DocumentEditClient client = mock(DocumentEditClient.class);
-    final DocumentEditService service = new DocumentEditService(client, mock(ConsistencyServiceClient.class), mapper);
+    final ConsistencyServiceClient consistency=mock(ConsistencyServiceClient.class);
+    final DocumentEditService service = new DocumentEditService(client, consistency, mapper);
+    @Test void explicitWholeDocumentInstructionUsesExistingRevisionEngine() throws Exception {
+        when(consistency.reviseArtifact(anyMap())).thenReturn(mapper.readTree("{\"revisedContent\":{\"endpoints\":[{\"path\":\"/new\"}],\"note\":\"keep\"},\"changeSummary\":\"수정\"}"));
+        var result=service.propose(base(),List.of(API_SPEC),"문서 전체 재작성: 경로 수정",List.of("note 보존"));
+        assertThat(result.executor()).isEqualTo("CONSISTENCY_REVISION_AGENT");
+        verifyNoInteractions(client);verify(consistency).reviseArtifact(anyMap());
+    }
     DocumentBundle base() {
         return new DocumentBundle(1L, UUID.randomUUID(), List.of(
             new SpecDocumentDto(API_SPEC, 10L, 5L, 2, "hash", "{\"endpoints\":[{\"path\":\"/old\"}],\"note\":\"keep\"}")));
@@ -48,5 +55,15 @@ class DocumentEditServiceTest {
         assertThat(DocumentEditService.docType(API_SPEC)).isEqualTo("api");
         assertThat(DocumentEditService.docType(DB_SCHEMA)).isEqualTo("erd");
         assertThatThrownBy(() -> DocumentEditService.docType(QA_REPORT)).isInstanceOf(IllegalArgumentException.class);
+    }
+    @Test void featureArrayPreservesItsOriginalStorageShape() throws Exception {
+        var bundle=new DocumentBundle(1L,UUID.randomUUID(),List.of(new SpecDocumentDto(FEATURE_LIST,10L,5L,1,"h","[{\"name\":\"목록\",\"description\":\"old\"}]")));
+        when(client.edit(eq("features"),any(),anyString())).thenReturn(mapper.readTree("""
+            {"intent":"edit","reply":"설명 수정","edits":[{"section":"features","before":[{"name":"목록","description":"old"}],"after":[{"name":"목록","description":"new"}],"diff":[]}]}
+            """));
+        var result=service.propose(bundle,List.of(FEATURE_LIST),"설명 변경",List.of());
+        assertThat(result.changes().getFirst().document().isArray()).isTrue();
+        assertThat(result.changes().getFirst().document().get(0).path("description").asText()).isEqualTo("new");
+        verify(client).edit(eq("features"),argThat(doc->doc.path("features").isArray()),anyString());
     }
 }

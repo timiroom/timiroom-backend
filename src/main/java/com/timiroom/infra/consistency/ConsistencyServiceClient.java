@@ -9,6 +9,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientException;
 
 import java.time.Duration;
+import com.timiroom.domain.integrationjob.service.JobTimeBudget;
 
 /** Friendli K-EXAONE을 사용하는 독립 Python 정합성 서비스 클라이언트. */
 @Slf4j
@@ -50,7 +51,7 @@ public class ConsistencyServiceClient {
                     .bodyValue(requestBody)
                     .retrieve()
                     .bodyToMono(JsonNode.class)
-                    .timeout(Duration.ofSeconds(95))
+                    .timeout(JobTimeBudget.limit(Duration.ofSeconds(95)))
                     .block();
             if (response == null || !response.hasNonNull(requiredField)
                     || ("findings".equals(requiredField) && !response.get(requiredField).isArray())) {

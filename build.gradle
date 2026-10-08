@@ -36,6 +36,9 @@ dependencies {
 
 	// OAuth2.0
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-authorization-server'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+	implementation 'io.modelcontextprotocol.sdk:mcp:0.17.2'
 
 	// JPA & PostgreSQL
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -85,4 +88,11 @@ tasks.named('test') {
 // 실행 불가능한 plain jar 생성 비활성화 (Docker COPY build/libs/*.jar 충돌 방지)
 jar {
 	enabled = false
+}
+
+// Local integration fixture; test classes are never included in the production bootJar.
+tasks.register('runClientFixture', JavaExec) {
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'com.timiroom.domain.spec.ClientFixture'
 }

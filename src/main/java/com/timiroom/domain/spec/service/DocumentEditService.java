@@ -35,10 +35,18 @@ public class DocumentEditService {
             docType(target);
             if (!docs.containsKey(target)) throw new IllegalArgumentException("기준 명세에 대상 문서가 없습니다");
         }
+        if(instruction.startsWith("문서 전체 재작성:")) {
+            String request=instruction.substring("문서 전체 재작성:".length()).trim();
+            if(request.isBlank()) throw new IllegalArgumentException("수정 요청이 필요합니다");
+            var rewritten=new ArrayList<DocumentEditResult.Change>();
+            for(var target:targets) rewritten.addAll(proposeWholeDocument(base,target,request,constraints).changes());
+            return new DocumentEditResult(rewritten,"CONSISTENCY_REVISION_AGENT");
+        }
         var changes = new ArrayList<DocumentEditResult.Change>();
         var request = instruction + (constraints == null || constraints.isEmpty() ? "" : "\n제약 사항:\n" + String.join("\n", constraints));
         for (var target : targets) {
-            var original = docs.get(target);
+            var stored = docs.get(target);
+            var original = DocumentShape.forEditor(target,stored,mapper);
             var response = client.edit(docType(target), original.deepCopy(), request);
             if ("chat".equals(response.path("intent").asText())) continue;
             if (!"edit".equals(response.path("intent").asText()) || !response.path("edits").isArray())
@@ -52,7 +60,7 @@ public class DocumentEditService {
                     throw new IllegalStateException("기준 문서와 수정 diff가 일치하지 않습니다");
                 proposed.set(section, edit.get("after").deepCopy());
             }
-            if (!proposed.equals(original)) changes.add(new DocumentEditResult.Change(target, proposed,
+            if (!proposed.equals(original)) changes.add(new DocumentEditResult.Change(target, DocumentShape.restore(target,stored,proposed),
                 response.get("edits").deepCopy(), response.path("reply").asText("문서 수정")));
         }
         return new DocumentEditResult(changes, "PIPELINE_SECTION_EDITOR");
@@ -70,7 +78,8 @@ public class DocumentEditService {
             "currentContent", current, "instruction", instruction, "siblingArtifacts", siblings,
             "constraints", constraints == null ? List.of() : constraints));
         var revised = response.path("revisedContent");
-        if (!revised.isObject()) throw new IllegalStateException("수정 문서가 객체가 아닙니다");
+        revised=DocumentShape.restore(target,current,revised);
+        if (!DocumentShape.valid(target,revised)) throw new IllegalStateException("수정 문서의 형식이 올바르지 않습니다");
         return new DocumentEditResult(revised.equals(current) ? List.of() : List.of(new DocumentEditResult.Change(
             target, revised.deepCopy(), mapper.createArrayNode(), response.path("changeSummary").asText())), "CONSISTENCY_REVISION_AGENT");
     }
@@ -79,7 +88,7 @@ public class DocumentEditService {
         for (var doc : bundle.documents()) {
             try {
                 var parsed = mapper.readTree(doc.content());
-                if (!parsed.isObject() || result.putIfAbsent(doc.type(), parsed) != null)
+                if (!DocumentShape.valid(doc.type(),parsed) || result.putIfAbsent(doc.type(), parsed) != null)
                     throw new IllegalArgumentException("중복 문서 또는 JSON 객체가 아닌 문서입니다");
             } catch (java.io.IOException e) { throw new IllegalArgumentException("문서 JSON이 올바르지 않습니다", e); }
         }

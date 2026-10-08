@@ -20,6 +20,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 
 import java.net.URI;
+import java.time.Duration;
+import com.timiroom.domain.integrationjob.service.JobTimeBudget;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -299,7 +301,8 @@ public class GithubClient {
                 node.path("base").path("ref").asText(null),
                 node.path("html_url").asText(null),
                 node.path("user").path("login").asText(null),
-                node.path("updated_at").asText(null));
+                node.path("updated_at").asText(null),
+                node.path("base").path("sha").asText(null));
     }
 
     private String repositoryPath(String repositoryFullName) {
@@ -335,6 +338,7 @@ public class GithubClient {
                             .map(b -> new IllegalStateException(
                                     "GitHub API 호출 실패 (" + r.statusCode() + " " + pathWithQuery + "): " + b)))
                     .bodyToMono(JsonNode.class)
+                    .timeout(JobTimeBudget.limit(Duration.ofSeconds(30)))
                     .block();
         } catch (WebClientRequestException e) {
             throw new IllegalStateException("GitHub API에 연결할 수 없습니다: " + e.getMessage(), e);
@@ -355,6 +359,7 @@ public class GithubClient {
                                             "GitHub API 호출 실패 (" + response.statusCode() + " "
                                                     + requestDescription + "): " + body)))
                     .bodyToMono(JsonNode.class)
+                    .timeout(JobTimeBudget.limit(Duration.ofSeconds(30)))
                     .block();
         } catch (WebClientRequestException e) {
             throw new IllegalStateException("GitHub API에 연결할 수 없습니다: " + e.getMessage(), e);

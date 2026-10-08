@@ -70,9 +70,9 @@ public class DocumentImpactService {
                 ArtifactType type;
                 try { type = ArtifactType.valueOf(update.path("type").asText()); }
                 catch (IllegalArgumentException e) { throw new IllegalStateException("대상 밖 문서 수정입니다", e); }
-                if (!targets.contains(type) || updates.containsKey(type) || !update.path("document").isObject())
+                if (!targets.contains(type) || updates.containsKey(type) || !DocumentShape.valid(type,update.path("document")))
                     throw new IllegalStateException("대상 밖 또는 중복 문서 수정입니다");
-                var proposed = update.get("document");
+                var proposed = DocumentShape.restore(type,json(oldDocs.get(type)),update.get("document"));
                 preserveStructure(json(oldDocs.get(type)), proposed);
                 if (!proposed.equals(json(oldDocs.get(type)))) updates.put(type, new DocumentImpactResult.Update(
                     type, update.path("reason").asText(), proposed.deepCopy()));
@@ -90,7 +90,7 @@ public class DocumentImpactService {
     private JsonNode json(SpecDocumentDto document) {
         try {
             var parsed = mapper.readTree(document.content());
-            if (!parsed.isObject()) throw new IllegalArgumentException("문서는 JSON 객체여야 합니다");
+            if (!DocumentShape.valid(document.type(),parsed)) throw new IllegalArgumentException("문서 JSON 형식이 올바르지 않습니다");
             return parsed;
         } catch (java.io.IOException e) { throw new IllegalArgumentException("잘못된 JSON 문서입니다", e); }
     }
