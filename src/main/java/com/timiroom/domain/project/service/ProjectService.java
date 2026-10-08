@@ -51,6 +51,7 @@ public class ProjectService {
     private final PipelineExecutionRepository pipelineExecutionRepository;
     private final PipelineArtifactRepository pipelineArtifactRepository;
     private final TeamService teamService;
+    private final com.timiroom.domain.spec.service.ArtifactWriteService artifactWriteService;
 
     @Transactional
     public Project create(Long teamId, Long memberId, String projectName, String description) {
@@ -220,8 +221,7 @@ public class ProjectService {
         Optional<PipelineArtifact> existing = getDocument(project.getProjectId(), memberId, type);
         if (existing.isPresent()) {
             PipelineArtifact artifact = existing.get();
-            artifact.updateContent(content);
-            return pipelineArtifactRepository.save(artifact);
+            return artifactWriteService.write(projectId, memberId, artifact.getArtifactId(), artifact.getVersion(), content);
         }
         // 실행 이력이 없는 경우 — 가장 최근 execution에 저장
         List<Long> requirementIds = requirementRepository.findRequirementIdsByProjectId(projectId);

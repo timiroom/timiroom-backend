@@ -39,6 +39,8 @@ public class PipelineService {
     private final RequirementService requirementService;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
+    private final com.timiroom.domain.spec.service.ArtifactWriteService artifactWriteService;
+    private final com.timiroom.domain.spec.service.DocumentAccessService documentAccessService;
 
     /**
      * 파이프라인 시작
@@ -213,7 +215,8 @@ public class PipelineService {
         return executionRepository.findByMemberIdOrderByCreatedAtDesc(memberId);
     }
 
-    public List<PipelineArtifact> getArtifactsByExecution(Long executionId) {
+    public List<PipelineArtifact> getArtifactsByExecution(Long executionId, Long memberId) {
+        documentAccessService.requireRead(documentAccessService.projectIdForExecution(executionId), memberId);
         return artifactRepository.findByExecutionIdOrderByArtifactType(executionId);
     }
 
@@ -224,25 +227,13 @@ public class PipelineService {
      * "직전 대비 무엇이 바뀌었고 그 변경이 어디에 영향을 주는지"를 계산할 수 있다.
      */
     @Transactional
-    public void updateArtifact(Long artifactId, String content) {
-        PipelineArtifact artifact = artifactRepository.findById(artifactId)
-                .orElseThrow(() -> new IllegalArgumentException("Artifact not found: " + artifactId));
+    public void updateArtifact(Long memberId, Long artifactId, String content) {
+        artifactWriteService.writeCurrent(memberId, artifactId, content);
+    }
 
-        // 내용이 그대로면 이력을 늘리지 않는다 — 저장 버튼만 눌러도 버전이 오르면 이력이 무의미해진다
-        if (content == null || content.equals(artifact.getContent())) {
-            return;
-        }
-
-        revisionRepository.save(ArtifactRevision.builder()
-                .artifactId(artifactId)
-                .version(artifact.getVersion())
-                .content(artifact.getContent())
-                .build());
-
-        artifact.updateContent(content);
-        artifactRepository.save(artifact);
-        log.info("Artifact 수정 | artifactId: {}, version: {} → {}",
-                artifactId, artifact.getVersion() - 1, artifact.getVersion());
+    public List<PipelineArtifact> getLatestArtifactsByProject(Long projectId, Long memberId) {
+        documentAccessService.requireRead(projectId, memberId);
+        return getLatestArtifactsByProject(projectId);
     }
 
     public List<PipelineArtifact> getLatestArtifactsByProject(Long projectId) {
