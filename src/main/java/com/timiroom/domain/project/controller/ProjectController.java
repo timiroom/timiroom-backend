@@ -17,6 +17,7 @@ import java.util.Map;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final com.timiroom.domain.spec.service.LegacyDocumentWriteService documentWrites;
 
     /** 프로젝트 생성 */
     @PostMapping
@@ -271,7 +272,7 @@ public class ProjectController {
         }
 
         try {
-            return ResponseEntity.ok(projectService.saveDocument(projectId, memberId, artifactType, content));
+            return ResponseEntity.ok(documentWrites.project(projectId, memberId, artifactType, content));
         } catch (IllegalArgumentException e) {
             return badRequest(e.getMessage());
         } catch (IllegalStateException e) {

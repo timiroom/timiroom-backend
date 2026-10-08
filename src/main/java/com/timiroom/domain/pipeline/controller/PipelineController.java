@@ -20,6 +20,7 @@ import java.util.Map;
 public class PipelineController {
 
     private final PipelineService pipelineService;
+    private final com.timiroom.domain.spec.service.LegacyDocumentWriteService documentWrites;
 
     /**
      * 파이프라인 시작
@@ -64,8 +65,8 @@ public class PipelineController {
      * GET /api/v1/pipeline/executions/{executionId}/artifacts
      */
     @GetMapping("/executions/{executionId}/artifacts")
-    public ResponseEntity<List<PipelineArtifact>> artifacts(@PathVariable Long executionId) {
-        return ResponseEntity.ok(pipelineService.getArtifactsByExecution(executionId));
+    public ResponseEntity<List<PipelineArtifact>> artifacts(HttpSession session, @PathVariable Long executionId) {
+        return ResponseEntity.ok(pipelineService.getArtifactsByExecution(executionId, memberId(session)));
     }
 
     /**
@@ -73,8 +74,8 @@ public class PipelineController {
      * GET /api/v1/pipeline/projects/{projectId}/artifacts
      */
     @GetMapping("/projects/{projectId}/artifacts")
-    public ResponseEntity<List<PipelineArtifact>> artifactsByProject(@PathVariable Long projectId) {
-        return ResponseEntity.ok(pipelineService.getLatestArtifactsByProject(projectId));
+    public ResponseEntity<List<PipelineArtifact>> artifactsByProject(HttpSession session, @PathVariable Long projectId) {
+        return ResponseEntity.ok(pipelineService.getLatestArtifactsByProject(projectId, memberId(session)));
     }
 
     /**
@@ -99,10 +100,22 @@ public class PipelineController {
      */
     @PatchMapping("/artifacts/{artifactId}")
     public ResponseEntity<Void> updateArtifact(
+            HttpSession session,
             @PathVariable Long artifactId,
             @RequestBody Map<String, String> body
     ) {
-        pipelineService.updateArtifact(artifactId, body.get("content"));
+        documentWrites.artifact(memberId(session), artifactId, body.get("content"));
         return ResponseEntity.ok().build();
+    }
+
+    private Long memberId(HttpSession session) {
+        var memberId = (Long) session.getAttribute("memberId");
+        if (memberId == null) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED);
+        return memberId;
+    }
+
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<Map<String,String>> forbidden() {
+        return ResponseEntity.status(403).body(Map.of("error","ACCESS_DENIED"));
     }
 }

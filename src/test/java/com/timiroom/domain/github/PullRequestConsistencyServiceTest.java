@@ -29,11 +29,17 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.time.Instant;
+import com.timiroom.domain.spec.dto.SpecSnapshotDto;
+import com.timiroom.domain.spec.dto.SpecDocumentDto;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
@@ -62,7 +68,7 @@ class PullRequestConsistencyServiceTest {
     @InjectMocks PullRequestConsistencyService service;
 
     private void givenLinkedPm() {
-        when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, MEMBER_ID))
+        lenient().when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, MEMBER_ID))
                 .thenReturn(Optional.of(ProjectMember.builder().projectId(PROJECT_ID).memberId(MEMBER_ID)
                         .projectRole(ProjectRole.PM).build()));
         when(projectRepoLinkRepository.findByProjectIdAndGithubRepoId(PROJECT_ID, REPO_ID))
@@ -76,6 +82,45 @@ class PullRequestConsistencyServiceTest {
         lenient().when(githubClient.listPullRequestFiles("timiroom/timiroom-backend", INSTALLATION_ID, 42))
                 .thenReturn(List.of(new GithubPullRequestFileInfo("TaskController.java", "modified", 3, 0,
                         "+ @GetMapping(\"/api/v1/tasks\")")));
+    }
+
+    private SpecSnapshotDto fixedSnapshot() {
+        return new SpecSnapshotDto(UUID.randomUUID(),PROJECT_ID,1,MEMBER_ID,Instant.now(),List.of(
+            new SpecDocumentDto(PipelineArtifact.ArtifactType.API_SPEC,1L,1L,1,"h","{\"endpoints\":[]}"),
+            new SpecDocumentDto(PipelineArtifact.ArtifactType.DB_SCHEMA,2L,1L,1,"h2","{\"tables\":[]}")));
+    }
+    @Test void snapshotAnalysisHasNoGithubWriteOrLatestDocumentRead() throws Exception {
+        givenLinkedPm();
+        ReflectionTestUtils.setField(service,"agentEnabled",true);
+        ReflectionTestUtils.setField(service,"agentRuntime","PYTHON");
+        when(githubClient.getPullRequest("timiroom/timiroom-backend",INSTALLATION_ID,42)).thenReturn(
+            new GithubPullRequestInfo(42,"title","","open",false,"head-sha","feature/x","develop","https://pr","dev","now","base-sha"));
+        var response=objectMapper.readTree("""
+            {"evaluationMode":"OPENAI_COMPATIBLE_FACT_GATE","findings":[{"severity":"INCONCLUSIVE","area":"API","message":"원문 부족"}]}
+            """);
+        when(consistencyServiceClient.reviewPullRequestConsistency(any())).thenReturn(response);
+        var result=service.analyzeSnapshot(MEMBER_ID,fixedSnapshot(),REPO_ID,42,"head-sha");
+        assertThat(result.passed()).isFalse();
+        assertThat(result.baseSha()).isEqualTo("base-sha");
+        verify(githubClient,never()).createPullRequestCommentReview(any(),anyLong(),anyInt(),any(),any());
+        verify(githubClient,never()).createCompletedConsistencyCheckRun(any(),anyLong(),any(),anyInt(),anyBoolean(),any());
+        verify(pipelineService,never()).getLatestArtifactsByProject(anyLong());
+    }
+    @Test void snapshotAnalysisRejectsChangedHeadBeforeProviderCall() {
+        givenLinkedPm();
+        assertThatThrownBy(()->service.analyzeSnapshot(MEMBER_ID,fixedSnapshot(),REPO_ID,42,"different-head"))
+            .isInstanceOf(IllegalStateException.class).hasMessage("PR_CHANGED");
+        verify(consistencyServiceClient,never()).reviewPullRequestConsistency(any());
+    }
+    @Test void snapshotAnalysisProviderFailureCannotBecomeRulePass() {
+        givenLinkedPm();
+        ReflectionTestUtils.setField(service,"agentEnabled",true);
+        ReflectionTestUtils.setField(service,"agentRuntime","PYTHON");
+        when(githubClient.getPullRequest("timiroom/timiroom-backend",INSTALLATION_ID,42)).thenReturn(
+            new GithubPullRequestInfo(42,"title","","open",false,"head-sha","feature/x","develop","https://pr","dev","now","base-sha"));
+        when(consistencyServiceClient.reviewPullRequestConsistency(any())).thenThrow(new IllegalStateException("provider down"));
+        assertThatThrownBy(()->service.analyzeSnapshot(MEMBER_ID,fixedSnapshot(),REPO_ID,42,"head-sha"))
+            .isInstanceOf(IllegalStateException.class).hasMessage("CONSISTENCY_PROVIDER_FAILED");
     }
 
     @Test
