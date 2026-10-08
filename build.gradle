@@ -39,6 +39,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-authorization-server'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	implementation 'io.modelcontextprotocol.sdk:mcp:0.17.2'
+	implementation 'com.slack.api:slack-api-client:1.52.0'
+	implementation 'org.java-websocket:Java-WebSocket:1.6.0'
 
 	// JPA & PostgreSQL
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'

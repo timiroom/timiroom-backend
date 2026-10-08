@@ -57,6 +57,10 @@ jobs:
               fi
             done
           fi
+          if [ "$APP_SLACK_SOCKET_MODE_ENABLED" = true ]; then
+            test "$APP_INTEGRATION_SLACK_ENABLED" = true
+            test -n "$APP_SLACK_APP_TOKEN"
+          fi
           git clone https://x-access-token:${GH_PAT}@github.com/timiroom/timiroom-ops.git
           cd timiroom-ops/apps/backend
           
@@ -96,6 +100,8 @@ jobs:
             printf 'INTEGRATION_SLACK_APP_ID=%s\n' "$APP_SLACK_APP_ID"
             printf 'INTEGRATION_SLACK_BOT_TOKEN=%s\n' "$APP_SLACK_BOT_TOKEN"
             printf 'INTEGRATION_SLACK_SIGNING_SECRET=%s\n' "$APP_SLACK_SIGNING_SECRET"
+            printf 'INTEGRATION_SLACK_SOCKET_MODE_ENABLED=%s\n' "$APP_SLACK_SOCKET_MODE_ENABLED"
+            printf 'INTEGRATION_SLACK_APP_TOKEN=%s\n' "$APP_SLACK_APP_TOKEN"
           } > temp-secrets.env
           
           kubectl create secret generic backend-secrets -n timiroom --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
@@ -139,3 +145,5 @@ jobs:
           APP_SLACK_APP_ID: ${{ vars.SLACK_APP_ID }}
           APP_SLACK_BOT_TOKEN: ${{ secrets.APP_SLACK_BOT_TOKEN }}
           APP_SLACK_SIGNING_SECRET: ${{ secrets.APP_SLACK_SIGNING_SECRET }}
+          APP_SLACK_SOCKET_MODE_ENABLED: ${{ vars.SLACK_SOCKET_MODE_ENABLED || 'false' }}
+          APP_SLACK_APP_TOKEN: ${{ secrets.APP_SLACK_APP_TOKEN }}
