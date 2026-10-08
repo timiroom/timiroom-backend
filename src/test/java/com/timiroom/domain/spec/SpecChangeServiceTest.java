@@ -15,6 +15,33 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class SpecChangeServiceTest {
+    @Test void approvedProposalPreservesItsSuccessfulHistoricalReview() throws Exception {
+        var proposal=ready(); var approvedSnapshot=UUID.randomUUID(); proposal.approve(approvedSnapshot);
+        when(proposals.findByProposalIdAndProjectId(proposal.getProposalId(),1L)).thenReturn(Optional.of(proposal));
+        when(snapshots.latest(1L,2L)).thenReturn(new SpecSnapshotDto(approvedSnapshot,1L,2,2L,Instant.now(),snapshot().documents()));
+        when(reviews.hasPass(proposal.getProposalId(),1,proposal.getResultHash())).thenReturn(true);
+        var view=service.view(1L,2L,proposal.getProposalId());
+        assertThat(view.stale()).isFalse(); assertThat(view.artifactReviewPassed()).isTrue();
+        assertThat(view.approvedSnapshotId()).isEqualTo(approvedSnapshot);
+    }
+    @Test void previouslyPassedProposalShowsStaleAfterAnotherBaselineIsPublished() throws Exception {
+        var proposal=ready();
+        when(proposals.findByProposalIdAndProjectId(proposal.getProposalId(),1L)).thenReturn(Optional.of(proposal));
+        when(snapshots.latest(1L,2L)).thenReturn(new SpecSnapshotDto(UUID.randomUUID(),1L,2,2L,Instant.now(),snapshot().documents()));
+        when(reviews.hasPass(proposal.getProposalId(),1,proposal.getResultHash())).thenReturn(true);
+        var view=mapper.valueToTree(service.view(1L,2L,proposal.getProposalId()));
+        assertThat(view.path("stale").asBoolean()).isTrue();
+        assertThat(view.path("artifactReviewPassed").asBoolean()).isFalse();
+    }
+    @Test void projectProposalListRemainsAvailableAfterClosingEditor() {
+        var proposal=new SpecChangeProposal(1L,2L,snapshotId,"{}","{}","수정 근거");
+        when(proposals.findByProjectId(eq(1L),any(org.springframework.data.domain.Pageable.class)))
+            .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(proposal)));
+        assertThat(service.listForProject(1L,2L,0).getContent().getFirst().proposalId()).isEqualTo(proposal.getProposalId());
+        verify(access).requireRead(1L,2L);
+        doThrow(new SecurityException("ACCESS_DENIED")).when(access).requireRead(1L,3L);
+        assertThatThrownBy(()->service.listForProject(1L,3L,0)).isInstanceOf(SecurityException.class);
+    }
     @Test void manualProposalPreservesFixedBeforeAndDoesNotSaveOriginal() throws Exception {
         when(snapshots.get(1L,2L,snapshotId)).thenReturn(snapshot());
         when(snapshots.latest(1L,2L)).thenReturn(snapshot());

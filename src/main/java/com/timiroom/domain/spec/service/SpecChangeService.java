@@ -13,6 +13,15 @@ import java.util.*;
 
 @Service @RequiredArgsConstructor
 public class SpecChangeService {
+    @Transactional(readOnly=true)
+    public org.springframework.data.domain.Page<SpecChangeSummary> listForProject(Long project,Long actor,int page) {
+        access.requireRead(project,actor);
+        if(page<0 || page>10000) throw new IllegalArgumentException("INVALID_INPUT");
+        return proposals.findByProjectId(project,org.springframework.data.domain.PageRequest.of(page,20,
+            org.springframework.data.domain.Sort.by("createdAt","proposalId").descending())).map(p->new SpecChangeSummary(
+                p.getProposalId(),p.getSnapshotId(),p.getProposalRevision(),p.getState(),
+                p.getInstruction().substring(0,Math.min(300,p.getInstruction().length())),p.getCreatedAt()));
+    }
     private final SpecChangeProposalRepository proposals;
     private final SpecSnapshotService snapshots;
     private final ArtifactWriteService writer;
@@ -62,11 +71,13 @@ public class SpecChangeService {
     @Transactional(readOnly=true)
     public SpecChangeProposalDto view(Long projectId,Long actorId,UUID proposalId) {
         var proposal=get(projectId,actorId,proposalId);
+        boolean reviewable=proposal.getState()==SpecChangeProposal.State.GENERATING || proposal.getState()==SpecChangeProposal.State.READY;
+        boolean stale=proposal.getState()==SpecChangeProposal.State.STALE || (reviewable && !Objects.equals(snapshots.latest(projectId,actorId).snapshotId(),proposal.getSnapshotId()));
         try { return new SpecChangeProposalDto(proposal.getProposalId(),projectId,proposal.getSnapshotId(),proposal.getProposalRevision(),
             proposal.getState(),readBase(proposal),tree(proposal.getDocumentsJson()),tree(proposal.getDiffsJson()),tree(proposal.getImpactJson()),
             proposal.getExecutor(),proposal.getResultHash(),proposal.getApprovedSnapshotId(),
-            proposal.getResultHash()!=null && reviews.hasPass(proposalId,proposal.getProposalRevision(),proposal.getResultHash()),
-            proposal.getResultHash()==null?mapper.nullNode():reviews.latest(proposalId,proposal.getProposalRevision(),proposal.getResultHash())); }
+            !stale && proposal.getResultHash()!=null && reviews.hasPass(proposalId,proposal.getProposalRevision(),proposal.getResultHash()),
+            proposal.getResultHash()==null?mapper.nullNode():reviews.latest(proposalId,proposal.getProposalRevision(),proposal.getResultHash()),stale); }
         catch(JsonProcessingException e) {throw new IllegalStateException("Invalid stored proposal",e);}
     }
     private JsonNode tree(String value) throws JsonProcessingException {return value==null?mapper.nullNode():mapper.readTree(value);}

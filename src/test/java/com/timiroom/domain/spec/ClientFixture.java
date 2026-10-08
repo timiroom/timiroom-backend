@@ -51,15 +51,18 @@ public class ClientFixture {
     static final UUID SNAPSHOT=UUID.fromString("12345678-1234-1234-1234-123456789abc");
     public static void main(String[] args) throws Exception {
         if(!"true".equals(System.getenv("TIMIROOM_TEST_POSTGRES"))) throw new IllegalStateException("Test database flag required");
-        String schema="timiroom_client_"+UUID.randomUUID().toString().replace("-","");
+        String schema=System.getenv().getOrDefault("TIMIROOM_TEST_SCHEMA","timiroom_client_"+UUID.randomUUID().toString().replace("-",""));
+        if(!schema.matches("timiroom_client_[a-f0-9]{32}")) throw new IllegalArgumentException("Invalid test schema");
+        String port=System.getenv().getOrDefault("TIMIROOM_TEST_PORT","56380");
+        if(!Set.of("56380","56384").contains(port)) throw new IllegalArgumentException("Invalid fixture port");
         String url="jdbc:postgresql://127.0.0.1:55439/timiroom_integration_test";
         try(var c=java.sql.DriverManager.getConnection(url,"timiroom_test","");var s=c.createStatement()) {
             try(var r=s.executeQuery("select current_database()")){r.next();if(!r.getString(1).equals("timiroom_integration_test")) throw new IllegalStateException();}
-            s.execute("create schema "+schema);
+            s.execute("create schema if not exists "+schema);
         }
         var application=new SpringApplication(ClientFixture.class);
         var settings=Map.ofEntries(
-            Map.entry("server.address","127.0.0.1"),Map.entry("server.port","56380"),Map.entry("integration.enabled","true"),
+            Map.entry("server.address","127.0.0.1"),Map.entry("server.port",port),Map.entry("integration.enabled","true"),
             Map.entry("integration.issuer","http://127.0.0.1:56380"),Map.entry("integration.cursor-secret","fixture-only-key-at-least-32-bytes"),
             Map.entry("spring.datasource.url",url+"?currentSchema="+schema),Map.entry("spring.datasource.username","timiroom_test"),Map.entry("spring.datasource.password",""),
             Map.entry("spring.jpa.hibernate.ddl-auto","none"),Map.entry("spring.flyway.schemas",schema),Map.entry("spring.flyway.default-schema",schema),

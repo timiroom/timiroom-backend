@@ -13,6 +13,15 @@ import static org.mockito.Mockito.*;
 import static org.assertj.core.api.Assertions.*;
 
 class IntegrationJobServiceTest {
+    @Test void webProjectHistoryIsRecoverableButRechecksProjectAccess() {
+        var job=new IntegrationJob(1L,2L,IntegrationJob.Kind.PR_REVIEW,"key","h","{}","b",Instant.now());
+        when(jobs.findById(job.getJobId())).thenReturn(Optional.of(job));
+        assertThat(service.getForProject(1L,3L,job.getJobId()).jobId()).isEqualTo(job.getJobId());
+        assertThatThrownBy(()->service.getForProject(4L,3L,job.getJobId())).isInstanceOf(SecurityException.class);
+        doThrow(new SecurityException("ACCESS_DENIED")).when(access).requireRead(1L,3L);
+        assertThatThrownBy(()->service.listForProject(1L,3L,0)).isInstanceOf(SecurityException.class);
+        assertThatThrownBy(()->service.getForProject(1L,3L,job.getJobId())).isInstanceOf(SecurityException.class);
+    }
     final ObjectMapper mapper=new ObjectMapper();
     final IntegrationJobRepository jobs=mock(IntegrationJobRepository.class);
     final ProjectRepository projects=mock(ProjectRepository.class);

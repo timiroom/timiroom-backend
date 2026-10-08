@@ -32,6 +32,9 @@ public class SlackCommandService {
     public String reviewLink(Long project,UUID proposal) {
         return projectLink(project).replace("/dashboard?","/spec-review?")+"&proposalId="+proposal;
     }
+    public String jobLink(Long project,UUID job) {
+        return projectLink(project).replace("/dashboard?","/spec-changes?")+"&jobId="+job;
+    }
     @Transactional
     public Map<String,String> accept(SlackCommand command,String requestId) {
         var arguments=SlackCommand.parse(command.text());
@@ -69,12 +72,12 @@ public class SlackCommandService {
             }
             case PR -> {
                 var job=tasks.beginPullRequestReview(project,actor,args.id(),args.repo(),args.pull(),args.head(),"slack:"+requestId);
-                yield "PR 정합성 검증 요청: "+job.jobId()+"\n"+link;
+                yield "PR 정합성 검증 요청: "+job.jobId()+"\n"+jobLink(project,job.jobId());
             }
             case STATUS -> {
                 var job=jobs.get(project,actor,args.id());
                 String label=switch(job.kind()) { case SPEC_CHANGE -> "변경안 생성";case ARTIFACT_REVIEW -> "문서 교차검증";case PR_REVIEW -> "PR 정합성 검증"; };
-                yield label+" · "+job.status()+"\n"+link;
+                yield label+" · "+job.status()+"\n"+jobLink(project,job.jobId());
             }
             default -> HELP;
         };

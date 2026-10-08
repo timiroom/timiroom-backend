@@ -44,7 +44,7 @@ import static org.mockito.Mockito.*;
     "spring.datasource.username=timiroom_test","spring.datasource.password=",
     "spring.datasource.driver-class-name=org.postgresql.Driver",
     "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect",
-    "spring.jpa.hibernate.ddl-auto=create-drop","spring.flyway.enabled=true"
+    "spring.jpa.hibernate.ddl-auto=update","spring.flyway.enabled=true"
 })
 @AutoConfigureTestDatabase(replace=AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation=Propagation.NOT_SUPPORTED)
@@ -56,8 +56,7 @@ class SpecPostgresIntegrationTest {
     private static final String TEST_URL="jdbc:postgresql://127.0.0.1:55439/timiroom_integration_test";
     private static final String SCHEMA="timiroom_spec_"+UUID.randomUUID().toString().replace("-", "");
     @DynamicPropertySource static void isolatedSchema(DynamicPropertyRegistry registry) throws Exception {
-        // A fresh schema makes every test run execute all migrations, without stale Flyway history
-        // surviving Hibernate create-drop from a previous run.
+        // Preserve migration constraints; Hibernate adds legacy tables in this fresh schema.
         try(var connection=java.sql.DriverManager.getConnection(TEST_URL,"timiroom_test","");var statement=connection.createStatement()) {
             try(var result=statement.executeQuery("select current_database()")) {
                 result.next(); if(!"timiroom_integration_test".equals(result.getString(1))) throw new IllegalStateException("Wrong test database");
@@ -98,6 +97,12 @@ class SpecPostgresIntegrationTest {
     @MockitoBean com.timiroom.domain.github.PullRequestConsistencyService pullRequests;
     Long projectId;
     List<PipelineArtifact> docs;
+
+    @Test void migrationForeignKeysRemainActiveDuringDomainTests() {
+        assertThat(jdbc.queryForObject("select count(*) from pg_constraint where conrelid='spec_change_proposal'::regclass and contype='f'",Integer.class)).isEqualTo(2);
+        assertThatThrownBy(()->jdbc.update("update spec_change_proposal set snapshot_id=? where proposal_id=?",UUID.randomUUID(),readyProposal()))
+            .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
 
     @BeforeEach void fixture(){
         assertThat(jdbc.queryForObject("select current_database()",String.class)).isEqualTo("timiroom_integration_test");

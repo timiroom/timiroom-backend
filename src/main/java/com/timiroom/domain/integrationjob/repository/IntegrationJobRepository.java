@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.*;
 import java.time.Instant;
 import java.util.*;
 public interface IntegrationJobRepository extends JpaRepository<IntegrationJob,UUID> {
+    org.springframework.data.domain.Page<IntegrationJob> findByProjectId(Long project,org.springframework.data.domain.Pageable pageable);
     Optional<IntegrationJob> findByProjectIdAndActorIdAndKindAndIdempotencyKey(Long project,Long actor,IntegrationJob.Kind kind,String key);
     long countByProjectIdAndActorIdAndStateIn(Long project,Long actor,List<IntegrationJob.State> states);
     long countByProjectIdAndActorIdAndCreatedAtAfter(Long project,Long actor,Instant after);

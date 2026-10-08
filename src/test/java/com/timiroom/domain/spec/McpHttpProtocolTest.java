@@ -41,7 +41,8 @@ class McpHttpProtocolTest {
             {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"fixture","version":"1"}}}
             """);
         assertThat(initialize.statusCode()).isEqualTo(200);assertThat(initialize.body()).contains("timiroom","2025-06-18");
-        var session=initialize.headers().firstValue("Mcp-Session-Id").orElseThrow();
+        assertThat(initialize.headers().firstValue("Mcp-Session-Id")).isEmpty();
+        String session=null;
         send("fixture-a",session,"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}");
         var list=send("fixture-a",session,"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}");
         assertThat(list.statusCode()).isEqualTo(200);assertThat(list.body()).contains("timiroom_read_spec","timiroom_start_consistency_check");
@@ -50,6 +51,12 @@ class McpHttpProtocolTest {
         String payload=call.body().lines().filter(line->line.startsWith("data:")).map(line->line.substring(5).trim()).findFirst().orElse(call.body());
         assertThat(mapper.readTree(payload).path("result").path("structuredContent").path("data").path("actorId").asLong()).isEqualTo(3L);
         assertThat(send(null,session,"{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/list\"}").statusCode()).isEqualTo(401);
+    }
+    @Test void authorizedRequestWorksOnAReplicaWithoutAnyPriorSession() throws Exception {
+        var response=send("fixture-a",null,"{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/list\"}");
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("timiroom_read_spec");
+        assertThat(response.headers().firstValue("Mcp-Session-Id")).isEmpty();
     }
     @Configuration @EnableAutoConfiguration(exclude={
         org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration.class,

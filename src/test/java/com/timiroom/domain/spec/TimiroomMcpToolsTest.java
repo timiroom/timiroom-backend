@@ -29,10 +29,11 @@ class TimiroomMcpToolsTest {
         var view=new SpecChangeProposalDto(proposal,1L,snapshot,1,
             com.timiroom.domain.spec.entity.SpecChangeProposal.State.READY,base,mapper.createObjectNode(),
             mapper.createArrayNode(),mapper.createObjectNode(),"test","hash",null,false,
-            mapper.createObjectNode().put("summary","restricted finding"));
+            mapper.createObjectNode().put("summary","restricted finding"),false);
         when(changes.view(1L,2L,proposal)).thenReturn(view);
         var page=tools.invoke("timiroom_get_spec_change",actor,Map.of("projectId",1,"proposalId",proposal.toString()));
         assertThat(mapper.readTree(page.path("content").asText()).has("artifactReview")).isFalse();
+        assertThat(mapper.readTree(page.path("content").asText()).has("artifactReviewPassed")).isFalse();
     }
     @Test void runOnlyIdempotentSubmissionNeverReturnsStoredReviewResults() {
         var principal=new IntegrationPrincipal(2L,"client",UUID.randomUUID(),Set.of("consistency:run"));

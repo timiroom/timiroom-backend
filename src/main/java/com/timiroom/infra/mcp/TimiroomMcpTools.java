@@ -188,7 +188,7 @@ public class TimiroomMcpTools {
     private JsonNode proposal(IntegrationPrincipal actor,Long project,JsonNode input) {
         var proposal=changes.view(project,actor.memberId(),id(input,"proposalId"));var result=(ObjectNode)mapper.valueToTree(proposal);
         if(actor.scopes().contains(IntegrationScope.CONSISTENCY_READ.value())) access.require(actor,project,IntegrationScope.CONSISTENCY_READ);
-        else result.remove("artifactReview");
+        else result.remove(List.of("artifactReview","artifactReviewPassed"));
         if(frontend!=null) result.put("approvalUrl",frontend.replaceAll("/+$","")+"/spec-review?projectId="+project+"&proposalId="+proposal.proposalId());
         if(input.has("documentType")) {
             String type=input.path("documentType").asText();var selected=mapper.createObjectNode();

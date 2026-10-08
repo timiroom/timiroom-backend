@@ -50,7 +50,7 @@ public class SlackQueueService {
         for(var row:rows) {
             String job=row.get("job_id").toString(),kind=(String)row.get("kind"),state=(String)row.get("state");
             Long project=((Number)row.get("project_id")).longValue(),actor=((Number)row.get("actor_id")).longValue();
-            String text,link=commands.projectLink(project);
+            String text,link=commands.jobLink(project,UUID.fromString(job));
             try {
                 if(kind.equals("SPEC_CHANGE") && state.equals("COMPLETED")) {
                     String proposal=mapper.readTree((String)row.get("request_json")).path("proposalId").asText();

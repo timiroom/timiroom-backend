@@ -25,6 +25,12 @@ public class SpecChangeController {
         Map<ArtifactType,JsonNode> documents,Map<ArtifactType,String> expectedHashes,String idempotencyKey) {}
     public record Revision(int revision) {public Revision { if(revision<=0) throw new IllegalArgumentException("INVALID_INPUT"); }}
     public record Review(int revision,String idempotencyKey) {public Review { if(revision<=0) throw new IllegalArgumentException("INVALID_INPUT"); }}
+    @GetMapping public org.springframework.data.domain.Page<SpecChangeSummary> list(Authentication auth,@PathVariable Long project,@RequestParam(defaultValue="0") int page) {
+        return changes.listForProject(project,actors.memberId(auth),page);
+    }
+    @GetMapping("/jobs") public org.springframework.data.domain.Page<IntegrationJobService.JobSummary> jobs(Authentication auth,@PathVariable Long project,@RequestParam(defaultValue="0") int page) {
+        return jobs.listForProject(project,actors.memberId(auth),page);
+    }
     @PostMapping public JobDto create(Authentication auth,@PathVariable Long project,@RequestBody Create input) {
         if(input.snapshotId()==null) throw new IllegalArgumentException("INVALID_INPUT");
         var instruction=new ChangeInstruction(input.targets(),input.instruction(),input.constraints());
@@ -35,7 +41,7 @@ public class SpecChangeController {
         return changes.view(project,actors.memberId(auth),id);
     }
     @GetMapping("/jobs/{id}") public JobDto job(Authentication auth,@PathVariable Long project,@PathVariable UUID id) {
-        return jobs.get(project,actors.memberId(auth),id);
+        return jobs.getForProject(project,actors.memberId(auth),id);
     }
     @PostMapping("/{id}/approve") public SpecSnapshotDto approve(Authentication auth,@PathVariable Long project,@PathVariable UUID id,@RequestBody Revision input) {
         return changes.approve(project,actors.memberId(auth),id,input.revision());

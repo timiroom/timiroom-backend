@@ -22,7 +22,13 @@ integration:
 
 cursor-secret은 32바이트 이상인 무작위 비밀 값이다. 파일·저장소·로그·스킬에 실값을 넣지 않는다. 기존 문서 수정·영향 분석·정합성 서비스 주소와 인증 설정은 기존 엔진 설정을 그대로 사용한다. 전용 개발 AI 모델을 새로 운영하지 않는다.
 
-프론트는 `NEXT_PUBLIC_INTEGRATION_ENABLED=true`로 연결·승인 화면을 켠다. Slack 화면은 `NEXT_PUBLIC_SLACK_ENABLED=true`로 켠다. 서버 기능을 먼저 구성하고 프론트 빌드 플래그를 맞춘다. 최초 기준 발행 전에는 기존 문서 편집을 사용하며, PM이 기준을 발행한 뒤 저장은 변경안→교차검증→승인으로 처리한다. 발행된 문서의 기존 저장 API는 직접 변경을 거절한다.
+MCP 전송은 stateless HTTP다. 연결마다 특정 서버 메모리에 의존하지 않으며 백엔드 replica들은 같은 PostgreSQL·Redis·issuer·cursor-secret을 사용한다. 매 요청마다 Bearer 토큰과 현재 권한을 검사한다. 웹 세션 쿠키가 함께 오더라도 MCP 인증이 웹 로그인 세션 ID를 회전시키지 않으며, 쿠키만으로 MCP에 접근할 수 없다. 일반 OAuth 웹 로그인 체인의 세션 보호는 유지한다.
+
+프론트는 `NEXT_PUBLIC_INTEGRATION_ENABLED=true`로 연결·승인 화면을 켠다. Slack 화면은 `NEXT_PUBLIC_SLACK_ENABLED=true`로 켠다. Docker build ARG와 배포 workflow의 같은 이름 GitHub variable을 지원하며 기본값은 false다. 값은 빌드할 때 반영되므로 서버 기능을 먼저 구성하고 프론트를 다시 빌드한다. 최초 기준 발행 전에는 기존 문서 편집을 사용하며, PM이 기준을 발행한 뒤 저장은 변경안→교차검증→승인으로 처리한다. 발행된 문서의 기존 저장 API는 직접 변경을 거절한다.
+
+프로젝트의 `변경안·검사 기록`에서 화면을 닫은 뒤에도 변경안과 검사 작업을 다시 열 수 있다. 페이지당 20개이며 검사 링크는 해당 작업 당시의 snapshot/revision/head 결과를 보여 준다. 프로젝트 문서 읽기 권한을 가진 팀원은 웹에서 결과를 공유하고, MCP의 작업 조회는 여전히 요청자 본인과 승인된 scope로 제한한다. 로그인 전 링크를 열면 로그인 후 같은 경로로 복귀한다. MCP 로그인도 기존 계정에 맞게 Google 또는 GitHub를 선택한다.
+
+변경안 화면은 외부 AI나 Slack이 요청한 문서 검사 완료를 자동으로 반영한다. 발행 기준이 바뀐 미승인 변경안은 오래된 기준임을 표시하고 승인을 막는다. `이 변경안 보완하기`는 수정 후 문서를 이어 사용해 별도의 변경안을 만든다. 원래 변경안을 덮어쓰지 않으며 새 변경안에도 문서 교차검증과 PM 승인이 필요하다.
 
 문서 승인 검증은 consistency 엔진의 `inputComplete: true` 응답을 요구한다. 기존 엔진과 새 백엔드가 섞이면 승인 검증이 실패하도록 처리한다. 전체 산출물 컨텍스트가 55,000자를 넘으면 잘라서 PASS를 만들지 않고 검사를 거절한다. 문서 범위를 축소하거나 전체 입력을 지원하는 검증 방식이 필요하다. 검사 시작 MCP 도구는 접수 정보만 반환하며 판정 상세 조회는 `consistency:read`가 필요하다. PM 화면에는 같은 변경안 revision/hash에 묶인 최신 완료 검사의 요약·근거·권장 수정을 표시한다.
 
@@ -75,6 +81,6 @@ Bot을 테스트 채널에 초대한다. `/timiroom connect`의 일회용 코드
 
 계정 연결 해제는 해당 사용자가 설정한 채널도 해제한다. 전송 실패가 검사 결과를 바꾸지 않는다. 전송 결과가 불명확하면 자동 재전송하지 않는다. DB의 slack_command_request/slack_notification 상태와 안전한 error_code로 점검한다. request body·response_url·토큰·연결 코드를 로그에 남기지 않는다.
 
-Slack 설치·실제 채널 송수신은 아직 미확인이다. 워크스페이스와 테스트 채널이 정해지면 격리 환경부터 확인한다. 기능 개발 승인과 develop 배포 승인은 구분한다.
+Slack 설치·실제 봇 송수신은 배포 전 검증 항목이다. Slack UI에서 사람이 게시한 채널 안내 메시지는 봇 전송이나 slash command callback 성공의 증거가 아니다. callback URL의 새 엔드포인트가 공개 환경에 배포되지 않았다면 명령 수신 E2E는 아직 확인할 수 없다. 기능 개발 승인과 develop 배포 승인은 구분한다.
 
 공식 프로토콜 근거: [Slack 서명 검증](https://docs.slack.dev/authentication/verifying-requests-from-slack/), [Slack 명령](https://docs.slack.dev/interactivity/implementing-slash-commands/), [Codex MCP 설정](https://developers.openai.com/codex/mcp/).

@@ -13,6 +13,23 @@ import java.util.*;
 
 @Service @RequiredArgsConstructor
 public class IntegrationJobService {
+    public record JobSummary(UUID jobId,IntegrationJob.Kind kind,IntegrationJob.State status,Instant createdAt) {}
+    @Transactional(readOnly=true)
+    public org.springframework.data.domain.Page<JobSummary> listForProject(Long project,Long actor,int page) {
+        access.requireRead(project,actor);
+        if(page<0 || page>10000) throw new IllegalArgumentException("INVALID_INPUT");
+        return jobs.findByProjectId(project,org.springframework.data.domain.PageRequest.of(page,20,
+            org.springframework.data.domain.Sort.by("createdAt","jobId").descending()))
+            .map(j->new JobSummary(j.getJobId(),j.getKind(),j.getState(),j.getCreatedAt()));
+    }
+    /** Web project review uses the same current project read permission as document review. MCP stays owner-scoped. */
+    @Transactional(readOnly=true)
+    public JobDto getForProject(Long project,Long actor,UUID id) {
+        access.requireRead(project,actor);
+        var job=jobs.findById(id).orElseThrow(()->new IllegalArgumentException("JOB_NOT_FOUND"));
+        if(!Objects.equals(job.getProjectId(),project)) throw new SecurityException("ACCESS_DENIED");
+        return dto(job);
+    }
     private final IntegrationJobRepository jobs;
     private final ProjectRepository projects;
     private final DocumentAccessService access;

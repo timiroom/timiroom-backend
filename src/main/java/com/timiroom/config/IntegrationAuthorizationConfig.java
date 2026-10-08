@@ -193,7 +193,7 @@ public class IntegrationAuthorizationConfig {
                     providers.set(i,transactional(providers.get(i),jdbc,authorizations,grants,transactions));
             })));
         http.authorizeHttpRequests(a->a.anyRequest().authenticated())
-            .exceptionHandling(e->e.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/oauth2/authorization/github")))
+            .exceptionHandling(e->e.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/integrations/login")))
             .addFilterAfter(normalize(actors),SecurityContextHolderFilter.class)
             .addFilterAfter(new AuthorizationIssuerFilter(clients,issuer),SecurityContextHolderFilter.class);
         // The AS configurer excludes its endpoints from the default CSRF filter; protect consent POST explicitly.
@@ -251,7 +251,9 @@ public class IntegrationAuthorizationConfig {
     SecurityFilterChain integrationResourceChain(HttpSecurity http,OpaqueTokenIntrospector introspector) throws Exception {
         return http.securityMatcher("/mcp","/.well-known/oauth-protected-resource","/.well-known/oauth-protected-resource/mcp")
             .cors(org.springframework.security.config.Customizer.withDefaults())
-            .csrf(c->c.disable()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .csrf(c->c.disable()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                // Bearer authentication must not rotate an unrelated browser SESSION cookie.
+                .sessionAuthenticationStrategy(new org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy()))
             .authorizeHttpRequests(a->a.requestMatchers("/.well-known/**").permitAll().anyRequest().authenticated())
             .oauth2ResourceServer(oauth->oauth.opaqueToken(t->t.introspector(introspector)).authenticationEntryPoint((request,response,error)->{
                 response.setStatus(401);response.setHeader("WWW-Authenticate","Bearer resource_metadata=\""+issuer+"/.well-known/oauth-protected-resource/mcp\"");
@@ -263,7 +265,7 @@ public class IntegrationAuthorizationConfig {
             .cors(org.springframework.security.config.Customizer.withDefaults())
             .csrf(c->c.csrfTokenRepository(new HttpSessionCsrfTokenRepository()))
             .exceptionHandling(e->e.authenticationEntryPoint((request,response,error)->response.setStatus(401)))
-            .authorizeHttpRequests(a->a.anyRequest().authenticated()).build();
+            .authorizeHttpRequests(a->a.requestMatchers("/integrations/login").permitAll().anyRequest().authenticated()).build();
     }
     @Bean(name="integrationJobScheduler") ThreadPoolTaskScheduler integrationScheduler() {
         var scheduler=new ThreadPoolTaskScheduler();scheduler.setPoolSize(1);scheduler.setThreadNamePrefix("timiroom-integration-");return scheduler;

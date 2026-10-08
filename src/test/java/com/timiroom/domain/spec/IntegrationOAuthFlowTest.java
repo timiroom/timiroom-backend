@@ -46,6 +46,17 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 @AutoConfigureMockMvc
 @EnabledIfEnvironmentVariable(named="TIMIROOM_TEST_POSTGRES",matches="true")
 class IntegrationOAuthFlowTest {
+    @Test void anonymousMcpLoginOffersBothExistingAccountProviders() throws Exception {
+        String challenge=Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)));
+        var response=mvc.perform(get("/oauth2/authorize").queryParam("response_type","code").queryParam("client_id","timiroom-codex")
+            .queryParam("redirect_uri",redirect).queryParam("scope","specs:read").queryParam("state","fixture-state")
+            .queryParam("resource","http://127.0.0.1:56380/mcp").queryParam("code_challenge",challenge).queryParam("code_challenge_method","S256"))
+            .andExpect(status().is3xxRedirection()).andReturn().getResponse();
+        assertThat(response.getRedirectedUrl()).endsWith("/integrations/login");
+        mvc.perform(get("/integrations/login")).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("/oauth2/authorization/google")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("/oauth2/authorization/github")));
+    }
     static final String URL="jdbc:postgresql://127.0.0.1:55439/timiroom_integration_test";
     static final String SCHEMA="timiroom_oauth_"+UUID.randomUUID().toString().replace("-","");
     @DynamicPropertySource static void database(DynamicPropertyRegistry r) throws Exception {
@@ -56,8 +67,13 @@ class IntegrationOAuthFlowTest {
     @Configuration @EnableAutoConfiguration(exclude=org.springframework.boot.autoconfigure.session.SessionAutoConfiguration.class)
     @EntityScan(basePackageClasses=IntegrationGrant.class)
     @EnableJpaRepositories(basePackageClasses=IntegrationGrantRepository.class)
-    @Import({IntegrationAuthorizationConfig.class,IntegrationAccessService.class,IntegrationActorResolver.class})
+    @Import({IntegrationAuthorizationConfig.class,IntegrationAccessService.class,IntegrationActorResolver.class,
+        com.timiroom.domain.integration.controller.IntegrationLoginController.class,BearerProbe.class})
     static class Fixture {}
+    @org.springframework.web.bind.annotation.RestController
+    static class BearerProbe {
+        @org.springframework.web.bind.annotation.GetMapping("/mcp") String resource(){return "authenticated";}
+    }
     @Autowired MockMvc mvc;
     @Autowired IntegrationGrantRepository grants;
     @MockitoBean DocumentAccessService access;
@@ -134,6 +150,19 @@ class IntegrationOAuthFlowTest {
         assertThat(mapper.readTree(rotated.getResponse().getContentAsString()).path("refresh_token").asText()).isNotEqualTo(token.path("refresh_token").asText());
         mvc.perform(post("/oauth2/token").param("grant_type","refresh_token").param("client_id","timiroom-codex")
             .param("refresh_token",token.path("refresh_token").asText())).andExpect(status().isBadRequest());
+    }
+    @Test void bearerResourceNeitherRotatesNorAcceptsTheBrowserSession() throws Exception {
+        var first=mvc.perform(post("/oauth2/token").param("grant_type","authorization_code").param("client_id","timiroom-codex")
+            .param("code",authorize()).param("redirect_uri",redirect).param("code_verifier",verifier))
+            .andExpect(status().isOk()).andReturn();
+        String token=mapper.readTree(first.getResponse().getContentAsString()).path("access_token").asText();
+        var browserSession=new MockHttpSession(); String sessionId=browserSession.getId();
+        var context=org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();context.setAuthentication(user);
+        browserSession.setAttribute("SPRING_SECURITY_CONTEXT",context);browserSession.setAttribute("browserMarker","preserved");
+        mvc.perform(get("/mcp").session(browserSession).header("Authorization","Bearer "+token)).andExpect(status().isOk());
+        assertThat(browserSession.getId()).isEqualTo(sessionId);
+        assertThat(browserSession.getAttribute("browserMarker")).isEqualTo("preserved");
+        mvc.perform(get("/mcp").session(browserSession)).andExpect(status().isUnauthorized());
     }
     @Test void missingPkceCannotAuthorize() throws Exception {
         mvc.perform(get("/oauth2/authorize").with(authentication(user)).queryParam("client_id","timiroom-codex")
