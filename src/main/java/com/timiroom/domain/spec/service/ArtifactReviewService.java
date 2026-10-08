@@ -22,6 +22,8 @@ public class ArtifactReviewService {
             changed.fields().forEachRemaining(entry->documents.set(entry.getKey(),entry.getValue()));
         } catch(java.io.IOException e) { throw new IllegalStateException("Invalid proposal document",e); }
         var response=client.reviewArtifacts(Map.of("projectId",projectId,"artifacts",documents,"focus",List.of()));
+        if(!response.path("inputComplete").isBoolean() || !response.path("inputComplete").asBoolean())
+            throw new IllegalStateException("ARTIFACT_INPUT_INCOMPLETE");
         if(!response.isObject() || !response.path("passed").isBoolean() || !response.path("findings").isArray())
             throw new IllegalStateException("INVALID_ARTIFACT_REVIEW");
         var result=response.deepCopy();

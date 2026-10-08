@@ -85,10 +85,14 @@ public class TimiroomMcpTools {
             case "timiroom_get_spec_change" -> proposal(actor,project,input);
             case "timiroom_propose_spec_change" -> mapper.valueToTree(tasks.beginChange(project,actor.memberId(),id(input,"snapshotId"),
                 new ChangeInstruction(strings(input,"targetDocumentTypes").stream().map(ArtifactType::valueOf).toList(),input.path("instruction").asText(),strings(input,"constraints")),input.path("idempotencyKey").asText()));
-            case "timiroom_start_artifact_review" -> mapper.valueToTree(tasks.beginArtifactReview(project,actor.memberId(),id(input,"proposalId"),input.path("proposalRevision").asInt(),input.path("idempotencyKey").asText()));
-            case "timiroom_start_consistency_check" -> mapper.valueToTree(tasks.beginPullRequestReview(project,actor.memberId(),id(input,"snapshotId"),input.path("repoId").asLong(),input.path("pullNumber").asInt(),input.path("expectedHeadSha").asText(),input.path("idempotencyKey").asText()));
+            case "timiroom_start_artifact_review" -> receipt(tasks.beginArtifactReview(project,actor.memberId(),id(input,"proposalId"),input.path("proposalRevision").asInt(),input.path("idempotencyKey").asText()));
+            case "timiroom_start_consistency_check" -> receipt(tasks.beginPullRequestReview(project,actor.memberId(),id(input,"snapshotId"),input.path("repoId").asLong(),input.path("pullNumber").asInt(),input.path("expectedHeadSha").asText(),input.path("idempotencyKey").asText()));
             default -> throw new IllegalArgumentException("UNKNOWN_TOOL");
         };
+    }
+    private JsonNode receipt(com.timiroom.domain.integrationjob.dto.JobDto job) {
+        return mapper.createObjectNode().put("jobId",job.jobId().toString()).put("kind",job.kind().name())
+            .put("status",job.status().name()).put("bindingKey",job.bindingKey()).put("attempts",job.attempts());
     }
     private JsonNode list(IntegrationPrincipal actor,JsonNode input) {
         var grant=access.requireGrant(actor,IntegrationScope.PROJECTS_READ);var items=mapper.createArrayNode();
@@ -183,6 +187,8 @@ public class TimiroomMcpTools {
     }
     private JsonNode proposal(IntegrationPrincipal actor,Long project,JsonNode input) {
         var proposal=changes.view(project,actor.memberId(),id(input,"proposalId"));var result=(ObjectNode)mapper.valueToTree(proposal);
+        if(actor.scopes().contains(IntegrationScope.CONSISTENCY_READ.value())) access.require(actor,project,IntegrationScope.CONSISTENCY_READ);
+        else result.remove("artifactReview");
         if(frontend!=null) result.put("approvalUrl",frontend.replaceAll("/+$","")+"/spec-review?projectId="+project+"&proposalId="+proposal.proposalId());
         if(input.has("documentType")) {
             String type=input.path("documentType").asText();var selected=mapper.createObjectNode();

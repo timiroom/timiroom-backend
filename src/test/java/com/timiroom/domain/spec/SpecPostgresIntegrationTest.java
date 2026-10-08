@@ -241,6 +241,7 @@ class SpecPostgresIntegrationTest {
         for(var doc:docs) assertThat(artifacts.findById(doc.getArtifactId()).orElseThrow().getVersion()).isEqualTo(2);
         var reader=new PersistedArtifactReviewResultReader(jobs,mapper);
         when(reviewResults.hasPass(eq(proposalId),eq(1),anyString())).thenAnswer(call->reader.hasPass(call.getArgument(0),call.getArgument(1),call.getArgument(2)));
+        when(reviewResults.latest(eq(proposalId),eq(1),anyString())).thenAnswer(call->reader.latest(call.getArgument(0),call.getArgument(1),call.getArgument(2)));
         assertThatThrownBy(()->changes.approve(projectId,2L,proposalId,1)).hasMessage("ARTIFACT_REVIEW_REQUIRED");
         // A synthetic PR PASS with the same binding cannot authorize a document approval.
         String binding=proposalId+":1:"+proposal.getResultHash();
@@ -248,11 +249,13 @@ class SpecPostgresIntegrationTest {
         claimed=jobService.claim().orElseThrow();
         jobService.complete(pr.jobId(),claimed.getLeaseId(),mapper.readTree("{\"passed\":true,\"findings\":[{\"severity\":\"PASS\"}]}"));
         assertThat(reader.hasPass(proposalId,1,proposal.getResultHash())).isFalse();
-        when(consistency.reviewArtifacts(anyMap())).thenReturn(mapper.readTree("{\"passed\":true,\"findings\":[{\"severity\":\"PASS\"}]}"));
+        when(consistency.reviewArtifacts(anyMap())).thenReturn(mapper.readTree("{\"passed\":true,\"inputComplete\":true,\"summary\":\"검사 완료\",\"findings\":[{\"severity\":\"PASS\"}]}"));
         var review=tasks.beginArtifactReview(projectId,2L,proposalId,1,"artifact-review");
         claimed=jobService.claim().orElseThrow();jobService.providerStarted(claimed.getJobId(),claimed.getLeaseId());
         jobService.complete(review.jobId(),claimed.getLeaseId(),handler.execute(claimed));
         assertThat(reader.hasPass(proposalId,1,proposal.getResultHash())).isTrue();
+        assertThat(changes.view(projectId,2L,proposalId).artifactReview().path("summary").asText()).isEqualTo("검사 완료");
+        assertThat(reader.latest(proposalId,2,proposal.getResultHash()).isNull()).isTrue();
         var published=changes.approve(projectId,2L,proposalId,1);
         assertThat(published.revision()).isEqualTo(2);
         assertThat(changes.get(projectId,2L,proposalId).getState()).isEqualTo(SpecChangeProposal.State.APPROVED);

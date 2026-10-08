@@ -23,6 +23,32 @@ import static com.timiroom.domain.pipeline.entity.PipelineArtifact.ArtifactType.
 
 @ExtendWith(MockitoExtension.class)
 class TimiroomMcpToolsTest {
+    @Test void specReadCannotReadNewBoundReviewDetailWithoutConsistencyRead() throws Exception {
+        var proposal=UUID.randomUUID();
+        var base=new SpecSnapshotDto(snapshot,1L,1,2L,Instant.now(),List.of());
+        var view=new SpecChangeProposalDto(proposal,1L,snapshot,1,
+            com.timiroom.domain.spec.entity.SpecChangeProposal.State.READY,base,mapper.createObjectNode(),
+            mapper.createArrayNode(),mapper.createObjectNode(),"test","hash",null,false,
+            mapper.createObjectNode().put("summary","restricted finding"));
+        when(changes.view(1L,2L,proposal)).thenReturn(view);
+        var page=tools.invoke("timiroom_get_spec_change",actor,Map.of("projectId",1,"proposalId",proposal.toString()));
+        assertThat(mapper.readTree(page.path("content").asText()).has("artifactReview")).isFalse();
+    }
+    @Test void runOnlyIdempotentSubmissionNeverReturnsStoredReviewResults() {
+        var principal=new IntegrationPrincipal(2L,"client",UUID.randomUUID(),Set.of("consistency:run"));
+        var proposal=UUID.randomUUID();
+        var stored=new com.timiroom.domain.integrationjob.dto.JobDto(UUID.randomUUID(),
+            com.timiroom.domain.integrationjob.entity.IntegrationJob.Kind.ARTIFACT_REVIEW,
+            com.timiroom.domain.integrationjob.entity.IntegrationJob.State.COMPLETED,"binding",1,
+            mapper.createObjectNode().put("privateFinding","restricted result"),null);
+        when(tasks.beginArtifactReview(1L,2L,proposal,1,"same-key")).thenReturn(stored);
+        var result=tools.invoke("timiroom_start_artifact_review",principal,Map.of("projectId",1,
+            "proposalId",proposal.toString(),"proposalRevision",1,"idempotencyKey","same-key"));
+        assertThat(result.has("result")).isFalse();
+        assertThat(result.has("error")).isFalse();
+        assertThat(result.path("jobId").asText()).isEqualTo(stored.jobId().toString());
+        assertThat(result.path("status").asText()).isEqualTo("COMPLETED");
+    }
     @Test void invalidIntermediateShaLengthNeverStartsAReview() {
         assertThatThrownBy(()->tools.invoke("timiroom_start_consistency_check",actor,Map.of("projectId",1,"snapshotId",snapshot.toString(),
             "repoId",1,"pullNumber",1,"expectedHeadSha","a".repeat(41),"idempotencyKey","key"))).isInstanceOf(IllegalArgumentException.class);

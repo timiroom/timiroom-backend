@@ -65,7 +65,8 @@ public class SpecChangeService {
         try { return new SpecChangeProposalDto(proposal.getProposalId(),projectId,proposal.getSnapshotId(),proposal.getProposalRevision(),
             proposal.getState(),readBase(proposal),tree(proposal.getDocumentsJson()),tree(proposal.getDiffsJson()),tree(proposal.getImpactJson()),
             proposal.getExecutor(),proposal.getResultHash(),proposal.getApprovedSnapshotId(),
-            proposal.getResultHash()!=null && reviews.hasPass(proposalId,proposal.getProposalRevision(),proposal.getResultHash())); }
+            proposal.getResultHash()!=null && reviews.hasPass(proposalId,proposal.getProposalRevision(),proposal.getResultHash()),
+            proposal.getResultHash()==null?mapper.nullNode():reviews.latest(proposalId,proposal.getProposalRevision(),proposal.getResultHash())); }
         catch(JsonProcessingException e) {throw new IllegalStateException("Invalid stored proposal",e);}
     }
     private JsonNode tree(String value) throws JsonProcessingException {return value==null?mapper.nullNode():mapper.readTree(value);}
