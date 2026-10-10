@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringJUnitWebConfig(SlackBrowserSecurityTest.Config.class)
+@org.springframework.test.context.TestPropertySource(properties="frontend.url=https://timiroom.kro.kr")
 class SlackBrowserSecurityTest {
     @Configuration @EnableWebMvc @EnableWebSecurity
     static class Config {
@@ -32,8 +33,7 @@ class SlackBrowserSecurityTest {
         @Bean SlackBrowserConnection flow(){return mock(SlackBrowserConnection.class);}
         @Bean IntegrationActorResolver actors(){var actors=mock(IntegrationActorResolver.class);when(actors.memberId(any())).thenReturn(7L);return actors;}
         @Bean SlackBrowserController controller(SlackBrowserConnection flow,IntegrationActorResolver actors){
-            var controller=new SlackBrowserController(flow,actors);
-            org.springframework.test.util.ReflectionTestUtils.setField(controller,"frontend","https://timiroom.kro.kr");return controller;
+            return new SlackBrowserController(flow,actors);
         }
     }
     @Autowired WebApplicationContext context;
@@ -52,7 +52,13 @@ class SlackBrowserSecurityTest {
             .param("state","a".repeat(43)).param("code","code")).andExpect(status().isSeeOther());
         mvc.perform(get("/integrations/slack/oauth/complete").param("state","a".repeat(43)).param("code","code"))
             .andExpect(status().isUnauthorized());
-        mvc.perform(get("/integrations/slack/oauth/callback")).andExpect(status().isForbidden());
+        mvc.perform(get("/integrations/slack/oauth/callback").param("state","a".repeat(43)).param("code","code"))
+            .andExpect(status().isSeeOther())
+            .andExpect(redirectedUrl("/integrations/slack/oauth/complete?state="+"a".repeat(43)+"&code=code"))
+            .andExpect(header().doesNotExist("Set-Cookie"));
+        mvc.perform(get("/integrations/slack/oauth/callback"))
+            .andExpect(redirectedUrl("https://timiroom.kro.kr/mypage?slack=failed"));
+        mvc.perform(put("/integrations/slack/oauth/callback")).andExpect(status().isForbidden());
         verifyNoInteractions(flow);
     }
 }
