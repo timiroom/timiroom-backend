@@ -12,7 +12,7 @@ OAuth·MCP·명세 변경안·Slack 기본 기능은 develop에 병합된 구현
 
 Slack OAuth & Permissions에 `https://api.timiroom.kro.kr/integrations/slack/oauth/callback`을 Redirect URL로 등록하고 Sign in with Slack의 `openid` 범위를 사용할 수 있게 설정한다. 개발 서버는 해당 환경의 integration.issuer에 같은 경로를 붙인다. 이메일·프로필·추가 봇 권한은 요청하지 않는다.
 
-Slack의 form_post 응답은 쿠키를 생성하지 않는 공개 POST relay를 거쳐 동일 API origin의 인증된 GET으로 돌아온다. 여기서 원래 세션, 티미룸 회원, 5분 유효 state, nonce, 서명·issuer·audience·만료와 허용된 Slack team을 검증한다. relay는 계정을 연결하지 않으며 no-store/no-referrer를 적용한다. 프록시 접근 로그에서도 callback/complete의 query string을 기록하지 않는다. 기존 계정 연결을 조용히 교체하지 않으며 실패·취소 시 알림 설정을 바꾸지 않는다.
+Slack 콜백은 GET query와 POST form_post를 모두 받는다. form_post를 요청해도 실제 승인 후 GET으로 돌아올 수 있다. 두 방식 모두 쿠키를 생성하지 않는 공개 relay를 거쳐 동일 API origin의 인증된 GET으로 돌아온다. 여기서 원래 세션, 티미룸 회원, 5분 유효 state, nonce, 서명·issuer·audience·만료와 허용된 Slack team을 검증한다. relay는 계정을 연결하지 않으며 no-store/no-referrer를 적용한다. 프록시 접근 로그에서도 callback/complete의 query string을 기록하지 않는다. 기존 계정 연결을 조용히 교체하지 않으며 실패·취소 시 알림 설정을 바꾸지 않는다.
 
 운영 확인: 미연결 버튼 → Slack 승인 → 복귀 후 서버 `connected=true` 확인, 취소/만료/다른 workspace 거절, 연결 해제 후 `연결` 재표시를 확인한다. 로컬·CI 테스트 통과와 실제 Slack 승인은 별도 검증이다.
 

@@ -26,6 +26,12 @@ public class SlackBrowserController {
         catch(IllegalStateException unavailable) {return ResponseEntity.status(503)
             .body(Map.of("code","SLACK_CONNECT_UNAVAILABLE"));}
     }
+    // Slack can return a query callback even when form_post was requested.
+    @GetMapping("/integrations/slack/oauth/callback")
+    public ResponseEntity<Void> queryCallback(@RequestParam(required=false) String state,
+            @RequestParam(required=false) String code,@RequestParam(required=false) String error) {
+        return callback(state,code,error);
+    }
     // Slack form_post is cross-site: do not create/replace a session here. A top-level
     // GET restores the existing SameSite=Lax cookie before validating its state.
     @PostMapping(value="/integrations/slack/oauth/callback",consumes=MediaType.APPLICATION_FORM_URLENCODED_VALUE)

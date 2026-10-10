@@ -19,7 +19,9 @@ public class SlackConfiguration {
             .csrf(csrf->csrf.disable()).requestCache(cache->cache.disable())
             .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(a->a.requestMatchers(org.springframework.http.HttpMethod.POST,
-                "/integrations/slack/oauth/callback").permitAll().anyRequest().denyAll()).build();
+                "/integrations/slack/oauth/callback").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET,"/integrations/slack/oauth/callback").permitAll()
+                .anyRequest().denyAll()).build();
     }
     @Bean(name="slackScheduler") org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler slackScheduler() {
         var scheduler=new org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler();
