@@ -1,0 +1,66 @@
+name: Rag-Pipeline CI/CD
+
+on:
+  push:
+    branches: [ develop ]
+    paths:
+      - 'rag-pipeline/**'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set Image Tag
+        run: echo "IMAGE_TAG=sha-${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v4
+        with:
+          context: rag-pipeline
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/timiroom-rag-pipeline:${{ env.IMAGE_TAG }}
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Install kubeseal
+        run: |
+          wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.27.3/kubeseal-0.27.3-linux-amd64.tar.gz
+          tar -xvzf kubeseal-0.27.3-linux-amd64.tar.gz kubeseal
+          sudo mv kubeseal /usr/local/bin/
+
+      - name: Update Ops Repo with Sealed Secrets
+        run: |
+          git clone https://${{ secrets.GH_PAT }}@github.com/timiroom/timiroom-ops.git
+          cd timiroom-ops/apps/rag-pipeline
+
+          if [ ! -f pub-cert.pem ]; then
+            echo "❌ ERROR: pub-cert.pem not found in timiroom-ops/apps/rag-pipeline/"
+            exit 1
+          fi
+
+          kustomize edit set image rag-pipeline-image=${{ secrets.DOCKER_USERNAME }}/timiroom-rag-pipeline:${{ env.IMAGE_TAG }}
+
+          rm -f temp-secrets.env
+          echo "$ALL_SECRETS_JSON" | jq -r 'to_entries[] | select(.key | startswith("RAG_")) | "\(.key | sub("^RAG_"; ""))=\(.value)"' > temp-secrets.env
+
+          kubectl create secret generic rag-pipeline-secrets -n timiroom --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
+          kubeseal --format=yaml --cert=pub-cert.pem < plain-secret.yaml > sealed-secret.yaml
+          rm -f temp-secrets.env plain-secret.yaml
+
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add kustomization.yaml sealed-secret.yaml
+          git commit -m "chore: deploy rag-pipeline image [${{ env.IMAGE_TAG }}]"
+          git push
+        env:
+          ALL_SECRETS_JSON: ${{ toJson(secrets) }}

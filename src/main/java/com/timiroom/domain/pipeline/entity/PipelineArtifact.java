@@ -1,0 +1,53 @@
+package com.timiroom.domain.pipeline.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "pipeline_artifact")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
+public class PipelineArtifact {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "artifact_id")
+    private Long artifactId;
+
+    @Column(name = "execution_id", nullable = false)
+    private Long executionId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "artifact_type", nullable = false, length = 30)
+    private ArtifactType artifactType;
+
+    @Column(columnDefinition = "TEXT", nullable = false)
+    private String content;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private int version = 1;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    /**
+     * 내용을 바꾸고 버전을 하나 올린다.
+     * 이전 내용은 호출하는 쪽에서 ArtifactRevision으로 옮겨 둔 뒤여야 한다 —
+     * 그래야 무엇이 바뀌었는지 나중에 비교할 수 있다.
+     */
+    public void updateContent(String content) {
+        this.content = content;
+        this.version += 1;
+    }
+
+    public enum ArtifactType {
+        PRD, DB_SCHEMA, API_SPEC, FEATURE_LIST, FEATURE_SPEC, MARKET_RESEARCH, QA_REPORT
+    }
+}
