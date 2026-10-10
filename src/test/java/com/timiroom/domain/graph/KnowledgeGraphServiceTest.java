@@ -324,20 +324,19 @@ class KnowledgeGraphServiceTest {
         assertThat(nodeById(graph, "api:GET:/api/v1/banners").orphan()).isTrue();
         // 구현하는 API가 없는 기능
         assertThat(nodeById(graph, "feature:포인트 정산").orphan()).isTrue();
-        // 쓰는 API가 없는 테이블
+        // 어떤 관계도 없는 테이블
         assertThat(nodeById(graph, "table:audit_logs").orphan()).isTrue();
 
-        // members는 reviews와 외래키로 이어져 있지만 이 테이블을 다루는 API가 없다.
-        // 같은 계층끼리의 연결은 고아 판정을 풀어주지 않는다 —
-        // 저장만 되고 아무도 꺼내 쓰지 않는 테이블이야말로 설계 구멍이기 때문이다.
-        assertThat(nodeById(graph, "table:members").orphan()).isTrue();
+        // members는 reviews와 외래키로 이어져 있으므로 API가 직접 가리키지 않아도
+        // 그래프에서는 연결된 노드로 본다.
+        assertThat(nodeById(graph, "table:members").orphan()).isFalse();
 
         // 정상적으로 이어진 노드는 표시되지 않는다
         assertThat(nodeById(graph, "api:GET:/api/v1/reviews").orphan()).isFalse();
 
         assertThat(graph.summary().orphanApis()).isEqualTo(1);
         assertThat(graph.summary().orphanFeatures()).isEqualTo(1);
-        assertThat(graph.summary().orphanTables()).isEqualTo(2);
+        assertThat(graph.summary().orphanTables()).isEqualTo(1);
     }
 
     @Test

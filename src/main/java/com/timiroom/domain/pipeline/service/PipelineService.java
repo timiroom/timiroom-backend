@@ -164,6 +164,7 @@ public class PipelineService {
             saveArtifact(execution.getExecutionId(), PipelineArtifact.ArtifactType.DB_SCHEMA,       result.get("dbSchema"));
             saveArtifact(execution.getExecutionId(), PipelineArtifact.ArtifactType.API_SPEC,        result.get("apiSpec"));
             saveArtifact(execution.getExecutionId(), PipelineArtifact.ArtifactType.FEATURE_LIST,    result.get("featureList"));
+            saveArtifact(execution.getExecutionId(), PipelineArtifact.ArtifactType.FEATURE_SPEC,    result.get("featureSpecDocument"));
             saveArtifact(execution.getExecutionId(), PipelineArtifact.ArtifactType.MARKET_RESEARCH, result.get("marketResearch"));
 
             // Requirement 상태 업데이트 + 알림 생성

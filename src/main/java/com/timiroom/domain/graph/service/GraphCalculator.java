@@ -62,6 +62,10 @@ public class GraphCalculator {
     private static final Pattern RELATION = Pattern.compile(
             "([A-Za-z_][A-Za-z0-9_]*)\\s*\\(\\s*([0-9NM]+\\s*:\\s*[0-9NM]+)\\s*\\)\\s*([A-Za-z_][A-Za-z0-9_]*)");
 
+    /** 컬럼 constraints에 기록된 명시적 FK 대상 */
+    private static final Pattern FK_REFERENCE = Pattern.compile(
+            "\\bREFERENCES\\s+([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
+
     /**
      * @param memberId 요청자. 이 프로젝트 사람이 맞는지 먼저 확인한다 —
      *                 응답이 곧 명세 전체라 소속 확인 없이는 남의 프로젝트가 그대로 읽힌다.
@@ -81,6 +85,8 @@ public class GraphCalculator {
     public GraphResponse calculateMaps(Map<PipelineArtifact.ArtifactType,JsonNode> artifacts,
         Map<PipelineArtifact.ArtifactType,JsonNode> previous,List<PrTouchPoint> pullRequests) {
         List<String> features = readFeatures(artifacts.get(PipelineArtifact.ArtifactType.FEATURE_LIST));
+        JsonNode featureSpec = artifacts.get(PipelineArtifact.ArtifactType.FEATURE_SPEC);
+        mergeFeatureSpecNames(features, featureSpec);
         List<ApiNode> apis = readApis(artifacts.get(PipelineArtifact.ArtifactType.API_SPEC));
         List<TableNode> tables = readTables(artifacts.get(PipelineArtifact.ArtifactType.DB_SCHEMA));
 
@@ -119,6 +125,9 @@ public class GraphCalculator {
             }
         }
 
+        // 기능명·API 경로 추론보다 Feature Spec의 featureId 계약을 우선한다.
+        addContractEdges(featureSpec, apis, tables, edges, connected);
+
         // ── 테이블 → 테이블 ─────────────────────────────────────────
         Map<String, TableNode> tableByName = new LinkedHashMap<>();
         tables.forEach(t -> tableByName.put(t.name, t));
@@ -126,6 +135,8 @@ public class GraphCalculator {
         for (Edge relation : readRelations(artifacts.get(PipelineArtifact.ArtifactType.DB_SCHEMA), tableByName)) {
             edges.add(new GraphResponse.Edge(
                     "e:" + relation.from + "->" + relation.to, relation.from, relation.to, "REFERENCES"));
+            connected.add(relation.from);
+            connected.add(relation.to);
         }
 
         // ── PR(코드) → API·테이블 ───────────────────────────────────
@@ -578,6 +589,7 @@ public class GraphCalculator {
                     id,
                     method,
                     path,
+                    endpoint.path("featureId").asText(""),
                     endpoint.path("description").asText(""),
                     endpoint.path("authRequired").asBoolean(false),
                     groupKeyOfPath(path),
@@ -602,13 +614,127 @@ public class GraphCalculator {
             if (name.isBlank()) continue;
 
             List<String> columns = new ArrayList<>();
+            List<String> referencedTables = new ArrayList<>();
             for (JsonNode column : table.path("columns")) {
                 String columnName = column.isTextual() ? column.asText() : column.path("name").asText("");
                 if (!columnName.isBlank()) columns.add(columnName);
+                if (!column.isTextual()) {
+                    Matcher matcher = FK_REFERENCE.matcher(column.path("constraints").asText(""));
+                    while (matcher.find() && !referencedTables.contains(matcher.group(1))) {
+                        referencedTables.add(matcher.group(1));
+                    }
+                }
             }
-            tables.add(new TableNode("table:" + name, name, columns, groupKeyOfName(name)));
+            List<String> featureIds = new ArrayList<>();
+            for (JsonNode featureId : table.path("featureIds")) {
+                if (featureId.isTextual() && !featureId.asText().isBlank()) {
+                    featureIds.add(featureId.asText());
+                }
+            }
+            tables.add(new TableNode("table:" + name, name, columns, groupKeyOfName(name), featureIds,
+                    referencedTables));
         }
         return tables;
+    }
+
+    /** Feature Spec의 featureId를 기준으로 기능·API·DB를 직접 연결한다. */
+    private void addContractEdges(JsonNode featureSpec, List<ApiNode> apis, List<TableNode> tables,
+                                  List<GraphResponse.Edge> edges, Set<String> connected) {
+        if (featureSpec == null) return;
+        JsonNode featureArray = featureSpec.isArray() ? featureSpec : featureSpec.path("features");
+        if (!featureArray.isArray()) return;
+
+        Map<String, ApiNode> apiByKey = apis.stream().collect(Collectors.toMap(
+                api -> api.method + ":" + api.path, api -> api, (a, b) -> a, LinkedHashMap::new));
+        Map<String, TableNode> tableByName = tables.stream().collect(Collectors.toMap(
+                table -> table.name, table -> table, (a, b) -> a, LinkedHashMap::new));
+
+        for (JsonNode feature : featureArray) {
+            String featureId = feature.path("featureId").asText("").trim();
+            String name = feature.path("name").asText("").trim();
+            if (featureId.isBlank() || name.isBlank()) continue;
+            String featureNode = "feature:" + name;
+            List<ApiNode> featureApis = new ArrayList<>();
+
+            apis.stream()
+                    .filter(api -> sameFeatureContract(featureId, api.featureId))
+                    .forEach(featureApis::add);
+
+            JsonNode apiContracts = feature.path("apiContract");
+            if (apiContracts.isArray()) {
+                for (JsonNode contract : apiContracts) {
+                    String method = contract.path("method").asText("GET").toUpperCase();
+                    String path = contract.path("path").asText("");
+                    ApiNode api = apiByKey.get(method + ":" + path);
+                    if (api != null) featureApis.add(api);
+                }
+            }
+            featureApis.stream().distinct().forEach(api -> {
+                addUniqueEdge(edges, featureNode, api.id, "IMPLEMENTS");
+                connected.add(featureNode);
+                connected.add(api.id);
+            });
+
+            Set<String> contractTables = new LinkedHashSet<>();
+            JsonNode tableArray = feature.path("dbContract").path("tables");
+            if (tableArray.isArray()) {
+                for (JsonNode table : tableArray) {
+                    String tableName = table.isTextual() ? table.asText("") : table.path("name").asText("");
+                    if (!tableName.isBlank()) contractTables.add(tableName);
+                }
+            }
+            for (String tableName : contractTables) {
+                TableNode table = tableByName.get(tableName);
+                if (table == null) continue;
+                connectFeatureTable(featureNode, table, featureApis, edges, connected);
+            }
+
+            tables.stream()
+                    .filter(table -> table.featureIds.stream()
+                            .anyMatch(tableFeatureId -> sameFeatureContract(featureId, tableFeatureId)))
+                    .forEach(table -> connectFeatureTable(featureNode, table, featureApis, edges, connected));
+        }
+    }
+
+    private void connectFeatureTable(String featureNode, TableNode table, List<ApiNode> featureApis,
+                                     List<GraphResponse.Edge> edges, Set<String> connected) {
+        addUniqueEdge(edges, featureNode, table.id, "USES");
+        connected.add(featureNode);
+        connected.add(table.id);
+        featureApis.forEach(api -> {
+            addUniqueEdge(edges, api.id, table.id, "STORES");
+            connected.add(api.id);
+            connected.add(table.id);
+        });
+    }
+
+    private boolean sameFeatureContract(String featureId, String candidate) {
+        if (featureId == null || candidate == null) return false;
+        String expected = featureId.trim();
+        String actual = candidate.trim();
+        return !expected.isBlank() && (expected.equals(actual) || actual.startsWith(expected + "."));
+    }
+
+    private void addUniqueEdge(List<GraphResponse.Edge> edges, String source, String target, String type) {
+        boolean exists = edges.stream().anyMatch(edge -> edge.source().equals(source)
+                && edge.target().equals(target) && edge.type().equals(type));
+        if (!exists) edges.add(new GraphResponse.Edge("e:" + source + "->" + target + ":" + type,
+                source, target, type));
+    }
+
+    private void mergeFeatureSpecNames(List<String> features, JsonNode featureSpec) {
+        if (featureSpec == null) return;
+        JsonNode featureArray = featureSpec.isArray() ? featureSpec : featureSpec.path("features");
+        if (!featureArray.isArray()) return;
+        List<String> specNames = new ArrayList<>();
+        for (JsonNode feature : featureArray) {
+            String name = feature.path("name").asText("").trim();
+            if (!name.isBlank() && !specNames.contains(name)) specNames.add(name);
+        }
+        if (!specNames.isEmpty()) {
+            features.clear();
+            features.addAll(specNames);
+        }
     }
 
     /** relationships 서술과 외래키 컬럼에서 테이블 간 참조를 뽑는다 */
@@ -629,6 +755,13 @@ public class GraphCalculator {
 
         // {테이블}_id 컬럼은 그 테이블을 참조한다고 본다
         for (TableNode table : tableByName.values()) {
+            for (String referenced : table.referencedTables) {
+                tableByName.values().stream()
+                        .filter(t -> !t.id.equals(table.id))
+                        .filter(t -> t.name.equalsIgnoreCase(referenced))
+                        .findFirst()
+                        .ifPresent(t -> relations.add(new Edge(table.id, t.id)));
+            }
             for (String column : table.columns) {
                 if (!column.endsWith("_id")) continue;
                 String referenced = column.substring(0, column.length() - 3);
@@ -692,15 +825,16 @@ public class GraphCalculator {
     /* ── 내부 표현 ── */
 
     /** @param duplicates 명세에 이 엔드포인트가 적힌 횟수. 1이면 정상 */
-    private record ApiNode(String id, String method, String path, String description,
+    private record ApiNode(String id, String method, String path, String featureId, String description,
                            boolean authRequired, String group, int duplicates) {
 
         ApiNode withDuplicates(int count) {
-            return new ApiNode(id, method, path, description, authRequired, group, count);
+            return new ApiNode(id, method, path, featureId, description, authRequired, group, count);
         }
     }
 
-    private record TableNode(String id, String name, List<String> columns, String group) {}
+    private record TableNode(String id, String name, List<String> columns, String group,
+                             List<String> featureIds, List<String> referencedTables) {}
 
     private record Edge(String from, String to) {}
 
