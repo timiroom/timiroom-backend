@@ -12,6 +12,15 @@ import java.time.Clock;
 @Configuration
 @ConditionalOnProperty(name={"integration.enabled","integration.slack.enabled"},havingValue="true")
 public class SlackConfiguration {
+    @Bean @Order(-1)
+    SecurityFilterChain slackOidcCallbackChain(HttpSecurity http) throws Exception {
+        // Only this relay is public; it never links an account or consumes a state.
+        return http.securityMatcher("/integrations/slack/oauth/callback")
+            .csrf(csrf->csrf.disable()).requestCache(cache->cache.disable())
+            .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(a->a.requestMatchers(org.springframework.http.HttpMethod.POST,
+                "/integrations/slack/oauth/callback").permitAll().anyRequest().denyAll()).build();
+    }
     @Bean(name="slackScheduler") org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler slackScheduler() {
         var scheduler=new org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler();
         scheduler.setPoolSize(1);scheduler.setThreadNamePrefix("timiroom-slack-");return scheduler;

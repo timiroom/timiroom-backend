@@ -42,13 +42,21 @@ public class SlackAccountService {
         if(rows.size()!=1 || rows.getFirst().get("consumed_at")!=null
             || !((Timestamp)rows.getFirst().get("expires_at")).toInstant().isAfter(now)) throw new SecurityException("SLACK_LINK_INVALID");
         String user=(String)rows.getFirst().get("user_id");
+        linkIdentity(member,team,user);
+        jdbc.update("update slack_link_code set consumed_at=? where code_hash=?",Timestamp.from(now),DocumentHash.of(code));
+    }
+    @Transactional
+    public void linkIdentity(Long member,String identityTeam,String user) {
+        if(member==null || !team.equals(identityTeam) || user==null || !user.matches("[UW][A-Z0-9]{1,63}"))
+            throw new SecurityException("SLACK_IDENTITY_INVALID");
+        jdbc.queryForObject("select pg_advisory_xact_lock(hashtextextended(?,0))",Object.class,team+":"+user);
+        var now=Instant.now();
         // No silent replacement of another member's or another Slack identity's link.
         var existing=jdbc.queryForList("select * from slack_account_link where team_id=? and (user_id=? or member_id=?)",team,user,member);
         if(!existing.isEmpty() && existing.stream().anyMatch(r->!user.equals(r.get("user_id")) || !member.equals(((Number)r.get("member_id")).longValue())))
             throw new IllegalStateException("SLACK_LINK_CONFLICT");
         jdbc.update("insert into slack_account_link(team_id,user_id,member_id,linked_at) values(?,?,?,?) on conflict(team_id,user_id) do nothing",
             team,user,member,Timestamp.from(now));
-        jdbc.update("update slack_link_code set consumed_at=? where code_hash=?",Timestamp.from(now),DocumentHash.of(code));
     }
     public Optional<Map<String,Object>> connection(Long member) {
         return jdbc.queryForList("select team_id,user_id,linked_at from slack_account_link where team_id=? and member_id=?",team,member).stream().findFirst();

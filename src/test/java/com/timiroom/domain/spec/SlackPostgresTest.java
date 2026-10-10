@@ -53,6 +53,15 @@ class SlackPostgresTest {
     }
     private SlackCommand command(String text) {return new SlackCommand("TTEST","UTEST","CTEST",text);}
     private void linked() {accounts.link(2L,accounts.issueCode(command("connect")));accounts.configure(7L,2L,"CTEST");}
+    @Test void browserIdentityPreservesExistingChannelsAndRejectsReplacement() {
+        linked();
+        accounts.linkIdentity(2L,"TTEST","UTEST");
+        assertThat(accounts.channels(2L)).hasSize(1);
+        assertThatThrownBy(()->accounts.linkIdentity(3L,"TTEST","UTEST")).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(()->accounts.linkIdentity(2L,"TTEST","UOTHER")).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(()->accounts.linkIdentity(2L,"TOTHER","UTEST")).isInstanceOf(SecurityException.class);
+        assertThat(accounts.actor(command("spec"))).isEqualTo(2L);
+    }
     @Test void codeIsHashedSingleUseExpiresAndNeverReplacesAnotherAccount() {
         String code=accounts.issueCode(command("connect"));
         assertThat(jdbc.queryForObject("select code_hash from slack_link_code",String.class)).isNotEqualTo(code);
