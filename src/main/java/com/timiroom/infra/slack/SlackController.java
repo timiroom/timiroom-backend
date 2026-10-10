@@ -17,6 +17,7 @@ public class SlackController {
     private final SlackCommandService commands;
     private final SlackAccountService accounts;
     private final IntegrationActorResolver actors;
+    private final SlackOidcClient oidc;
     @Value("${integration.slack.team-id}") private String team;
     @Value("${integration.slack.app-id}") private String app;
     @PostMapping(value="/integrations/slack/commands",consumes=MediaType.APPLICATION_FORM_URLENCODED_VALUE)
@@ -33,7 +34,7 @@ public class SlackController {
     public Map<String,Object> connection(Authentication auth) {
         Long member=actors.memberId(auth);
         return Map.of("connected",accounts.connection(member).isPresent(),"account",accounts.connection(member).orElse(Map.of()),
-            "channels",accounts.channels(member));
+            "channels",accounts.channels(member),"connectAvailable",oidc.ready());
     }
     public record LinkRequest(String code) {}
     @PostMapping("/api/v1/integrations/slack/link")

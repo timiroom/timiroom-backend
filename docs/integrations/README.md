@@ -4,6 +4,18 @@ OAuth·MCP·명세 변경안·Slack 기본 기능은 develop에 병합된 구현
 
 ## 서버 설정
 
+### 웹에서 Slack 계정 연결
+
+마이페이지의 Slack `연결` 버튼은 서버에서 일회성 state와 nonce를 만든 뒤 Slack OpenID 승인 화면을 연다. 승인 후 현재 로그인한 티미룸 계정에 Slack 사용자 ID를 연결한다. 봇 설치·Socket Mode 설정은 기존 것을 사용하며, 개인 계정 연결에서 봇 권한을 다시 요청하지 않는다. 기존 `/timiroom connect` 코드 API도 유지한다.
+
+추가 설정은 `INTEGRATION_SLACK_CLIENT_ID`, `INTEGRATION_SLACK_CLIENT_SECRET`이다. Slack 앱 Basic Information의 OAuth Client ID와 Client Secret이며 bot token/signing secret과 다른 값이다. GitHub에서는 repository variable `SLACK_CLIENT_ID`와 production environment secret `APP_SLACK_CLIENT_SECRET`로 제공한다. 두 값이 없으면 기존 Slack 기능은 유지되고 웹 연결 시작은 503으로 명확히 실패한다.
+
+Slack OAuth & Permissions에 `https://api.timiroom.kro.kr/integrations/slack/oauth/callback`을 Redirect URL로 등록하고 Sign in with Slack의 `openid` 범위를 사용할 수 있게 설정한다. 개발 서버는 해당 환경의 integration.issuer에 같은 경로를 붙인다. 이메일·프로필·추가 봇 권한은 요청하지 않는다.
+
+Slack의 form_post 응답은 쿠키를 생성하지 않는 공개 POST relay를 거쳐 동일 API origin의 인증된 GET으로 돌아온다. 여기서 원래 세션, 티미룸 회원, 5분 유효 state, nonce, 서명·issuer·audience·만료와 허용된 Slack team을 검증한다. relay는 계정을 연결하지 않으며 no-store/no-referrer를 적용한다. 프록시 접근 로그에서도 callback/complete의 query string을 기록하지 않는다. 기존 계정 연결을 조용히 교체하지 않으며 실패·취소 시 알림 설정을 바꾸지 않는다.
+
+운영 확인: 미연결 버튼 → Slack 승인 → 복귀 후 서버 `connected=true` 확인, 취소/만료/다른 workspace 거절, 연결 해제 후 `연결` 재표시를 확인한다. 로컬·CI 테스트 통과와 실제 Slack 승인은 별도 검증이다.
+
 Java 21 / PostgreSQL / Redis를 사용한다. `integration.enabled` 기본값은 false다. 아래 설정을 격리 환경의 외부 설정으로 제공한다. issuer는 실제 공개 API의 HTTPS origin이며 path·query·fragment가 없어야 한다. localhost 테스트만 HTTP를 허용한다.
 
 ```yaml
