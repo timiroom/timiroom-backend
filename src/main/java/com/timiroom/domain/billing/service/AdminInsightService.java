@@ -127,6 +127,112 @@ public class AdminInsightService {
         }, arg);
     }
 
+    /**
+     * AI 사용 현황: 이번 달 비용과 매출 대비 원가율, 월말 예상, 30일·24시간 추이, 기능별 비중, 비용 상위 회원, 추가 사용량 금액.
+     * 비용은 우리가 내는 원가(서버 키)이며, 회원 키 호출은 0원이다.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> aiUsage() {
+        ZoneId zone = ZoneId.of(properties.getZone());
+        LocalDate today = LocalDate.now(zone);
+        Timestamp monthStart = ts(today.withDayOfMonth(1), zone);
+        Timestamp trendStart = ts(today.minusDays(TREND_DAYS - 1), zone);
+        String tz = properties.getZone();
+
+        BigDecimal cost = decimal("select coalesce(sum(cost_krw), 0) from ai_usage_event where byok = false and created_at >= ?", monthStart);
+        long calls = count("select coalesce(sum(calls), 0) from ai_usage_event where created_at >= ?", monthStart);
+        long serverCalls = count("select coalesce(sum(calls), 0) from ai_usage_event where byok = false and created_at >= ?", monthStart);
+        long tokens = count("select coalesce(sum(input_tokens + output_tokens), 0) from ai_usage_event where created_at >= ?", monthStart);
+        long members = count("select count(distinct member_id) from ai_usage_event where created_at >= ?", monthStart);
+        long revenue = count("select coalesce(sum(amount_krw - refunded_krw), 0) from billing_payment "
+                + "where status in ('PAID','PARTIAL_CANCELLED') and paid_at >= ?", monthStart);
+        long creditSold = count("select coalesce(sum(amount_krw - refunded_krw), 0) from billing_payment "
+                + "where kind = 'CREDIT' and status in ('PAID','PARTIAL_CANCELLED') and paid_at >= ?", monthStart);
+        BigDecimal creditCovered = decimal("select coalesce(sum(credit_krw), 0) from ai_usage_event where created_at >= ?", monthStart);
+        int day = today.getDayOfMonth();
+        int daysInMonth = today.lengthOfMonth();
+
+        Map<String, Object> money = new LinkedHashMap<>();
+        money.put("costMonthKrw", cost.setScale(0, RoundingMode.HALF_UP));
+        money.put("projectedMonthKrw", cost.multiply(BigDecimal.valueOf(daysInMonth)).divide(BigDecimal.valueOf(day), 0, RoundingMode.HALF_UP));
+        money.put("revenueMonthKrw", revenue);
+        money.put("costRatioPercent", revenue == 0 ? null
+                : cost.multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(revenue), 1, RoundingMode.HALF_UP));
+        money.put("avgCostPerCallKrw", serverCalls == 0 ? BigDecimal.ZERO : cost.divide(BigDecimal.valueOf(serverCalls), 2, RoundingMode.HALF_UP));
+        money.put("avgCostPerMemberKrw", members == 0 ? BigDecimal.ZERO : cost.divide(BigDecimal.valueOf(members), 0, RoundingMode.HALF_UP));
+        money.put("creditSoldKrw", creditSold);
+        money.put("creditDeductedKrw", creditCovered.multiply(properties.getCreditRate()).setScale(0, RoundingMode.HALF_UP));
+        money.put("callsMonth", calls);
+        money.put("tokensMonth", tokens);
+        money.put("membersMonth", members);
+        money.put("byokCallsMonth", calls - serverCalls);
+
+        // 30일 추이
+        Map<LocalDate, Map<String, Object>> days = new LinkedHashMap<>();
+        for (int i = TREND_DAYS - 1; i >= 0; i--) {
+            LocalDate d = today.minusDays(i);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", d.toString());
+            row.put("costKrw", 0L);
+            row.put("calls", 0L);
+            row.put("byokCalls", 0L);
+            row.put("tokens", 0L);
+            row.put("members", 0L);
+            days.put(d, row);
+        }
+        jdbc.query("select (created_at at time zone '" + tz + "')::date as d, sum(case when byok then 0 else cost_krw end) as cost, "
+                + "sum(calls) as calls, sum(case when byok then calls else 0 end) as byok, sum(input_tokens + output_tokens) as tokens, "
+                + "count(distinct member_id) as members from ai_usage_event where created_at >= ? group by 1", rs -> {
+            Map<String, Object> row = days.get(rs.getDate("d").toLocalDate());
+            if (row == null) return;
+            row.put("costKrw", rs.getBigDecimal("cost").setScale(0, RoundingMode.HALF_UP).longValue());
+            row.put("calls", rs.getLong("calls"));
+            row.put("byokCalls", rs.getLong("byok"));
+            row.put("tokens", rs.getLong("tokens"));
+            row.put("members", rs.getLong("members"));
+        }, trendStart);
+
+        // 최근 24시간(한 시간 단위)
+        Instant hourNow = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS);
+        Map<Instant, Map<String, Object>> hours = new LinkedHashMap<>();
+        for (int i = 23; i >= 0; i--) {
+            Instant h = hourNow.minusSeconds(i * 3600L);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:00").withZone(zone).format(h));
+            row.put("calls", 0L);
+            row.put("costKrw", 0L);
+            hours.put(h, row);
+        }
+        jdbc.query("select date_trunc('hour', created_at) as h, sum(calls) as calls, sum(case when byok then 0 else cost_krw end) as cost "
+                + "from ai_usage_event where created_at >= ? group by 1", rs -> {
+            Map<String, Object> row = hours.get(rs.getTimestamp("h").toInstant());
+            if (row == null) return;
+            row.put("calls", rs.getLong("calls"));
+            row.put("costKrw", rs.getBigDecimal("cost").setScale(0, RoundingMode.HALF_UP).longValue());
+        }, Timestamp.from(hourNow.minusSeconds(23 * 3600L)));
+
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("money", money);
+        view.put("daily", new ArrayList<>(days.values()));
+        view.put("hourly", new ArrayList<>(hours.values()));
+        view.put("features", jdbc.queryForList(
+                "select feature, coalesce(sum(calls), 0) as calls, count(distinct member_id) as members, "
+                        + "coalesce(sum(input_tokens + output_tokens), 0) as tokens, "
+                        + "coalesce(sum(case when byok then 0 else cost_krw end), 0) as \"costKrw\" "
+                        + "from ai_usage_event where created_at >= ? group by feature order by 5 desc", monthStart));
+        view.put("topMembers", jdbc.queryForList(
+                "select e.member_id as \"memberId\", m.email, coalesce(m.nickname, m.member_name) as name, "
+                        + "coalesce(sum(e.calls), 0) as calls, coalesce(sum(case when e.byok then 0 else e.cost_krw end), 0) as \"costKrw\", "
+                        + "coalesce(sum(e.credit_krw), 0) as \"creditKrw\" from ai_usage_event e left join member m on m.member_id = e.member_id "
+                        + "where e.created_at >= ? group by e.member_id, m.email, m.nickname, m.member_name order by 5 desc limit 10", monthStart));
+        return view;
+    }
+
+    private BigDecimal decimal(String sql, Object... args) {
+        BigDecimal value = jdbc.queryForObject(sql, BigDecimal.class, args);
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
     /** 회원 한 명의 상세: 기본 정보, 요금제, 사용량, 기능별 비용, 최근 AI 호출, 결제 */
     @Transactional(readOnly = true)
     public Map<String, Object> memberDetail(Long memberId) {

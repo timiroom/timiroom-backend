@@ -51,6 +51,11 @@ public class AdminBillingController {
         return asAdmin(session, () -> insights.usageEvents(feature, query, page, size));
     }
 
+    @GetMapping("/ai")
+    public ResponseEntity<?> ai(HttpSession session) {
+        return asAdmin(session, insights::aiUsage);
+    }
+
     @GetMapping("/system")
     public ResponseEntity<?> system(HttpSession session) {
         return asAdmin(session, system::status);
