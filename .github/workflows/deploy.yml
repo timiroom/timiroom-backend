@@ -108,6 +108,13 @@ jobs:
             printf 'INTEGRATION_SLACK_APP_TOKEN=%s\n' "$APP_SLACK_APP_TOKEN"
             printf 'INTEGRATION_SLACK_CLIENT_ID=%s\n' "$APP_SLACK_CLIENT_ID"
             printf 'INTEGRATION_SLACK_CLIENT_SECRET=%s\n' "$APP_SLACK_CLIENT_SECRET"
+            printf 'RAG_INTERNAL_TOKEN=%s\n' "$APP_RAG_INTERNAL_TOKEN"
+            printf 'USAGE_SECRET_KEY=%s\n' "$APP_USAGE_SECRET_KEY"
+            printf 'PORTONE_ENABLED=%s\n' "$APP_PORTONE_ENABLED"
+            printf 'PORTONE_STORE_ID=%s\n' "$APP_PORTONE_STORE_ID"
+            printf 'PORTONE_CHANNEL_KEY=%s\n' "$APP_PORTONE_CHANNEL_KEY"
+            printf 'PORTONE_API_SECRET=%s\n' "$APP_PORTONE_API_SECRET"
+            printf 'PORTONE_WEBHOOK_SECRET=%s\n' "$APP_PORTONE_WEBHOOK_SECRET"
           } > temp-secrets.env
           
           kubectl create secret generic backend-secrets -n timiroom --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
@@ -155,3 +162,10 @@ jobs:
           APP_SLACK_APP_TOKEN: ${{ secrets.APP_SLACK_APP_TOKEN }}
           APP_SLACK_CLIENT_ID: ${{ vars.SLACK_CLIENT_ID }}
           APP_SLACK_CLIENT_SECRET: ${{ secrets.APP_SLACK_CLIENT_SECRET }}
+          APP_RAG_INTERNAL_TOKEN: ${{ secrets.APP_RAG_INTERNAL_TOKEN }}
+          APP_USAGE_SECRET_KEY: ${{ secrets.APP_USAGE_SECRET_KEY }}
+          APP_PORTONE_ENABLED: ${{ vars.PORTONE_ENABLED || 'false' }}
+          APP_PORTONE_STORE_ID: ${{ secrets.APP_PORTONE_STORE_ID }}
+          APP_PORTONE_CHANNEL_KEY: ${{ secrets.APP_PORTONE_CHANNEL_KEY }}
+          APP_PORTONE_API_SECRET: ${{ secrets.APP_PORTONE_API_SECRET }}
+          APP_PORTONE_WEBHOOK_SECRET: ${{ secrets.APP_PORTONE_WEBHOOK_SECRET }}

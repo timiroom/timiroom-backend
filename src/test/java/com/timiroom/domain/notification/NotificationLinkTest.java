@@ -34,7 +34,7 @@ class NotificationLinkTest {
         var notifications = mock(NotificationService.class);
         var pipeline = new PipelineService(mock(RagPipelineClient.class), executions, mock(PipelineArtifactRepository.class),
                 mock(ArtifactRevisionRepository.class), requirements, notifications, new ObjectMapper(),
-                mock(ArtifactWriteService.class), mock(DocumentAccessService.class));
+                mock(ArtifactWriteService.class), mock(DocumentAccessService.class), mock(com.timiroom.domain.usage.service.AiCallService.class));
         var execution = PipelineExecution.builder().executionId(9L).requirementId(30L).memberId(8L).pipelineId("p-1").build();
         when(executions.findByPipelineId("p-1")).thenReturn(Optional.of(execution));
         when(requirements.getById(30L)).thenReturn(Requirement.builder().requirementId(30L).projectId(5L).build());

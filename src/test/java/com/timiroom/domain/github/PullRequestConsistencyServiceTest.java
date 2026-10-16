@@ -19,6 +19,9 @@ import com.timiroom.infra.ragpipeline.RagPipelineClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import com.timiroom.domain.usage.service.AiCallService;
+import com.timiroom.domain.usage.service.UsageLimitExceededException;
+import org.junit.jupiter.api.BeforeEach;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -65,7 +68,14 @@ class PullRequestConsistencyServiceTest {
     @Mock RagPipelineClient ragPipelineClient;
     @Mock ConsistencyServiceClient consistencyServiceClient;
     @Spy ObjectMapper objectMapper = new ObjectMapper();
+    @Mock AiCallService aiCalls;
     @InjectMocks PullRequestConsistencyService service;
+
+    @BeforeEach
+    void passThroughUsageTracking() {
+        lenient().when(aiCalls.track(any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
+    }
 
     private void givenLinkedPm() {
         lenient().when(projectMemberRepository.findByProjectIdAndMemberId(PROJECT_ID, MEMBER_ID))
@@ -88,6 +98,25 @@ class PullRequestConsistencyServiceTest {
         return new SpecSnapshotDto(UUID.randomUUID(),PROJECT_ID,1,MEMBER_ID,Instant.now(),List.of(
             new SpecDocumentDto(PipelineArtifact.ArtifactType.API_SPEC,1L,1L,1,"h","{\"endpoints\":[]}"),
             new SpecDocumentDto(PipelineArtifact.ArtifactType.DB_SCHEMA,2L,1L,1,"h2","{\"tables\":[]}")));
+    }
+    @Test void webhookReviewBillsProjectPmAndFallsBackToRulesWhenLimitIsReached() {
+        givenLinkedPm();
+        ReflectionTestUtils.setField(service,"agentEnabled",true);
+        ReflectionTestUtils.setField(service,"agentRuntime","PYTHON");
+        when(projectMemberRepository.findByProjectId(PROJECT_ID)).thenReturn(List.of(
+            ProjectMember.builder().projectId(PROJECT_ID).memberId(MEMBER_ID+1).projectRole(ProjectRole.BACKEND).build(),
+            ProjectMember.builder().projectId(PROJECT_ID).memberId(MEMBER_ID).projectRole(ProjectRole.PM).build()));
+        org.mockito.Mockito.doThrow(new UsageLimitExceededException(Instant.now(),"FREE"))
+            .when(aiCalls).track(eq(MEMBER_ID),eq(PROJECT_ID),any(),any(),any());
+        when(githubClient.createCompletedConsistencyCheckRun(any(),anyLong(),any(),anyInt(),anyBoolean(),any()))
+            .thenReturn(new GithubCheckRunInfo(1L,"https://check","success"));
+        when(githubClient.createPullRequestCommentReview(any(),anyLong(),anyInt(),any(),any()))
+            .thenReturn(new GithubPullRequestReviewInfo(1L,"https://review","COMMENTED"));
+
+        var result=service.checkAndReviewFromWebhook(PROJECT_ID,REPO_ID,42);
+
+        assertThat(result.evaluator()).isEqualTo("RULE_FALLBACK");
+        verify(consistencyServiceClient,never()).reviewPullRequestConsistency(any());
     }
     @Test void snapshotAnalysisHasNoGithubWriteOrLatestDocumentRead() throws Exception {
         givenLinkedPm();

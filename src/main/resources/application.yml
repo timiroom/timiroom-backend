@@ -77,6 +77,46 @@ server:
 # ── rag-pipeline 연동 URL ─────────────────────────────────────────
 rag-pipeline:
   base-url: ${RAG_PIPELINE_URL:http://localhost:8081}
+  # AI 서버의 INTERNAL_API_TOKEN과 같은 값. 비우면 보내지 않는다(로컬).
+  internal-token: ${RAG_INTERNAL_TOKEN:}
+
+# ── AI 사용량·요금제 ────────────────────────────────────────────────
+# 금액은 모두 원. 모델 단가는 "100만 토큰당 원"이며 운영 전 실제 단가로 맞춘다(추정치).
+usage:
+  enforce: ${USAGE_ENFORCE:true}
+  zone: Asia/Seoul
+  # 사용자 AI 키·결제 빌링키 암호화 키(32바이트 base64). 비우면 AI 키 등록과 정기결제가 꺼진다.
+  secret-key: ${USAGE_SECRET_KEY:}
+  plans:
+    FREE: { name: 무료, price-krw: 0, monthly-limit-krw: 3000 }
+    PRO: { name: 프로, price-krw: 9900, monthly-limit-krw: 30000 }
+  reserve-krw:
+    PROJECT_GENERATION: 300
+  # 추가 사용량 충전: 요금제 한도를 다 쓰면 내부 비용 × credit-rate만큼 잔액(원)에서 차감한다.
+  credit-rate: ${USAGE_CREDIT_RATE:1.0}
+  credit-presets-krw: [5000, 10000, 30000]
+  credit-min-krw: 5000
+  credit-max-krw: 500000
+  # 단가(원/100만 토큰): OpenAI 공식 표준 요금(2026-10 확인) x 1달러 1,450원(환율 여유분 포함).
+  # 표에 없는 모델은 가장 비싼 모델 값으로 잡아 손해를 보지 않게 한다. 위에서부터 먼저 맞는 것을 쓴다.
+  default-price: { model: "*", input-krw-per-million: 7250, output-krw-per-million: 43500 }
+  models:
+    - { model: "gpt-5.5*", input-krw-per-million: 7250, output-krw-per-million: 43500 }       # $5 / $30
+    - { model: "gpt-5.4-mini*", input-krw-per-million: 1100, output-krw-per-million: 6600 }   # $0.75 / $4.50
+    - { model: "gpt-5.4*", input-krw-per-million: 3650, output-krw-per-million: 21750 }       # $2.50 / $15
+    # 전용 엔드포인트(시간 과금)라 토큰 단가는 추정치다.
+    - { model: "LGAI-EXAONE*", input-krw-per-million: 1300, output-krw-per-million: 1300 }
+    - { model: "dep*", input-krw-per-million: 1300, output-krw-per-million: 1300 }
+    - { model: "solar-embedding*", input-krw-per-million: 150, output-krw-per-million: 0 }
+
+# ── PortOne 정기결제 (V2) ───────────────────────────────────────────
+portone:
+  enabled: ${PORTONE_ENABLED:false}
+  api-base-url: https://api.portone.io
+  store-id: ${PORTONE_STORE_ID:}
+  channel-key: ${PORTONE_CHANNEL_KEY:}
+  api-secret: ${PORTONE_API_SECRET:}
+  webhook-secret: ${PORTONE_WEBHOOK_SECRET:}
 
 # 후속 정합성/수정 전용 Python 서비스 (사용 모델은 서비스가 정하고 응답의 evaluationMode로 알려 준다)
 consistency-service:

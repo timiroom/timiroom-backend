@@ -25,6 +25,7 @@ public class ChatService {
     private final ChatSessionRepository sessionRepo;
     private final ChatMessageRepository messageRepo;
     private final RagPipelineClient ragPipelineClient;
+    private final com.timiroom.domain.usage.service.AiCallService aiCallService;
 
     // 시스템 프롬프트의 Step 1 질문과 일치해야 함 — 변경 시 rag-pipeline SYSTEM_PROMPT도 함께 수정
     static final String INITIAL_GREETING =
@@ -91,7 +92,7 @@ public class ChatService {
         }
         history.add(Map.of("role", "user", "content", fullContent));
 
-        Map<String, Object> ragResponse = ragPipelineClient.chat(Map.of("messages", history));
+        Map<String, Object> ragResponse = chatWithUsage(memberId, sessionId, Map.of("messages", history));
 
         String assistantMessage = (String) ragResponse.get("message");
         boolean isComplete = Boolean.TRUE.equals(ragResponse.get("isComplete"));
@@ -157,7 +158,7 @@ public class ChatService {
                 .map(m -> Map.of("role", m.getRole(), "content", m.getContent()))
                 .collect(java.util.stream.Collectors.toList());
 
-        Map<String, Object> ragResponse = ragPipelineClient.chat(Map.of("messages", messages));
+        Map<String, Object> ragResponse = chatWithUsage(memberId, sessionId, Map.of("messages", messages));
 
 
         String assistantMessage = (String) ragResponse.get("message");
@@ -176,5 +177,13 @@ public class ChatService {
         }
 
         return ragResponse;
+    }
+
+    /** 기획 대화 한 턴: 한도 확인 → AI 호출 → 사용량 기록 */
+    private Map<String, Object> chatWithUsage(Long memberId, String sessionId, Object body) {
+        var call = aiCallService.begin(memberId, null, com.timiroom.domain.usage.enums.UsageFeature.PROJECT_CHAT);
+        RagPipelineClient.ChatReply reply = ragPipelineClient.chat(body, call.headers());
+        aiCallService.finish(call, aiCallService.parseHeader(reply.usageHeader()), "chat:" + sessionId);
+        return reply.data();
     }
 }

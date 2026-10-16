@@ -1,4 +1,6 @@
 package com.timiroom.domain.integrationjob.service;
+import com.timiroom.domain.usage.service.AiCallService;
+import com.timiroom.domain.usage.enums.UsageFeature;
 import com.fasterxml.jackson.databind.*;
 import com.timiroom.domain.integrationjob.entity.IntegrationJob;
 import com.timiroom.domain.spec.dto.*;
@@ -19,6 +21,7 @@ public class TimiroomJobHandler implements IntegrationJobHandler {
     private final SpecSnapshotService snapshots;
     private final PullRequestConsistencyService pullRequests;
     private final ObjectMapper mapper;
+    private final AiCallService aiCalls;
     @Override public boolean supports(IntegrationJob.Kind kind) { return true; }
     @Override public boolean requiresProvider(IntegrationJob job) {
         if(job.getKind()!=IntegrationJob.Kind.SPEC_CHANGE) return true;
@@ -36,6 +39,11 @@ public class TimiroomJobHandler implements IntegrationJobHandler {
         catch(java.io.IOException invalidPayload) { throw new IllegalStateException("INVALID_JOB_PAYLOAD",invalidPayload); }
     }
     @Override public JsonNode execute(IntegrationJob job) {
+        // 작업에서 쓴 AI 사용량은 작업을 요청한 사람 앞으로 남긴다.
+        var feature=job.getKind()==IntegrationJob.Kind.PR_REVIEW ? UsageFeature.PR_CONSISTENCY : UsageFeature.SPEC_REVIEW;
+        return aiCalls.track(job.getActorId(),job.getProjectId(),feature,"job:"+job.getJobId(),()->run(job));
+    }
+    private JsonNode run(IntegrationJob job) {
         try {
             var input=mapper.readTree(job.getRequestJson());
             return switch(job.getKind()) {

@@ -95,6 +95,7 @@ class SpecPostgresIntegrationTest {
     @MockitoBean DocumentImpactService impact;
     @MockitoBean com.timiroom.infra.consistency.ConsistencyServiceClient consistency;
     @MockitoBean com.timiroom.domain.github.PullRequestConsistencyService pullRequests;
+    @MockitoBean com.timiroom.domain.usage.service.AiCallService aiCalls;
     Long projectId;
     List<PipelineArtifact> docs;
 
@@ -105,6 +106,9 @@ class SpecPostgresIntegrationTest {
     }
 
     @BeforeEach void fixture(){
+        org.mockito.Mockito.lenient().when(aiCalls.track(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any()))
+            .thenAnswer(inv->((java.util.function.Supplier<?>)inv.getArgument(4)).get());
         assertThat(jdbc.queryForObject("select current_database()",String.class)).isEqualTo("timiroom_integration_test");
         var team=teams.save(Team.builder().teamName("fixture-"+UUID.randomUUID()).build());
         teamMembers.save(TeamMember.builder().teamId(team.getTeamId()).memberId(2L).build());
