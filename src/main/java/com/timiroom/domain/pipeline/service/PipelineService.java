@@ -173,6 +173,7 @@ public class PipelineService {
                 Requirement req = requirementService.getById(execution.getRequirementId());
                 notificationService.create(
                         execution.getMemberId(),
+                        req.getProjectId(),
                         NotificationType.PIPELINE_COMPLETE,
                         "파이프라인 완료: " + req.getTitle(),
                         "PRD, DB 스키마, API 스펙 생성이 완료되었습니다.",
@@ -202,6 +203,7 @@ public class PipelineService {
                 requirementService.updateStatus(execution.getRequirementId(), RequirementStatus.FAILED);
                 notificationService.create(
                         execution.getMemberId(),
+                        projectIdOf(execution.getRequirementId()),
                         NotificationType.PIPELINE_FAILED,
                         "파이프라인 실패",
                         errorMessage != null ? errorMessage : "알 수 없는 오류가 발생했습니다.",
@@ -238,13 +240,22 @@ public class PipelineService {
     }
 
     public List<PipelineArtifact> getLatestArtifactsByProject(Long projectId) {
-        return requirementService.getByProject(projectId).stream()
-                .flatMap(req -> executionRepository
-                        .findByRequirementIdOrderByCreatedAtDesc(req.getRequirementId()).stream())
-                .filter(exec -> exec.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED)
-                .findFirst()
+        List<Long> requirementIds = requirementService.getByProject(projectId).stream()
+                .map(Requirement::getRequirementId)
+                .toList();
+        return executionRepository.findCurrentCompleted(requirementIds)
                 .map(exec -> artifactRepository.findByExecutionIdOrderByArtifactType(exec.getExecutionId()))
                 .orElse(List.of());
+    }
+
+    /** 실패 알림은 화면 이동용 정보일 뿐이므로 조회 실패가 실패 처리 자체를 막지 않게 한다. */
+    private Long projectIdOf(Long requirementId) {
+        try {
+            return requirementService.getById(requirementId).getProjectId();
+        } catch (RuntimeException e) {
+            log.warn("알림용 projectId 조회 실패 | requirementId: {}", requirementId);
+            return null;
+        }
     }
 
     private void saveArtifact(Long executionId, PipelineArtifact.ArtifactType type, Object content) {

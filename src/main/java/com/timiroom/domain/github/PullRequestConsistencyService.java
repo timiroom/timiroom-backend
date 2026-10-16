@@ -249,11 +249,12 @@ public class PullRequestConsistencyService {
     private void notifyProjectMembers(Long projectId, GithubRepo repo, int pullNumber,
                                       long warningCount, long inconclusiveCount) {
         String title = "PR 정합성 확인 필요";
-        String detail = warningCount > 0 ? warningCount + "개의 명세 정합성 경고"
-                : "근거 부족으로 인한 판정 보류 " + inconclusiveCount + "건";
-        String content = repo.getFullName() + " #" + pullNumber + "에서 " + detail + "이 발견됐습니다.";
+        // 받침에 맞춰 조사를 고른다: "경고가", "N건이"
+        String detail = warningCount > 0 ? warningCount + "개의 명세 정합성 경고가"
+                : "근거 부족으로 인한 판정 보류 " + inconclusiveCount + "건이";
+        String content = repo.getFullName() + " #" + pullNumber + "에서 " + detail + " 발견됐습니다.";
         projectMemberRepository.findByProjectId(projectId).forEach(member -> notificationService.create(
-                member.getMemberId(), NotificationType.PR_CONSISTENCY_REVIEW, title, content,
+                member.getMemberId(), projectId, NotificationType.PR_CONSISTENCY_REVIEW, title, content,
                 NotificationReferenceType.PULL_REQUEST, (long) pullNumber));
     }
 

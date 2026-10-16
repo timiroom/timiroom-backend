@@ -48,8 +48,9 @@ class ProjectDocumentHistoryTest {
             .artifactType(PipelineArtifact.ArtifactType.API_SPEC).content("{\"path\":\"/items\"}").version(3).build();
         when(projects.findById(1L)).thenReturn(Optional.of(Project.builder().projectId(1L).teamId(5L).projectName("test").build()));
         when(members.findByProjectIdAndMemberId(1L,2L)).thenReturn(Optional.of(ProjectMember.builder().projectId(1L).memberId(2L).projectRole(ProjectRole.PM).build()));
-        when(requirements.findRequirementIdsByProjectId(1L)).thenReturn(List.of(30L));
-        when(executions.findByRequirementIdIn(List.of(30L))).thenReturn(List.of(PipelineExecution.builder().executionId(20L).status(PipelineExecution.ExecutionStatus.COMPLETED).build()));
+        when(requirements.findByProjectIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(Requirement.builder().requirementId(30L).projectId(1L).build()));
+        when(executions.findCurrentCompleted(List.of(30L))).thenCallRealMethod();
+        when(executions.findByRequirementIdOrderByCreatedAtDesc(30L)).thenReturn(List.of(PipelineExecution.builder().executionId(20L).status(PipelineExecution.ExecutionStatus.COMPLETED).build()));
         when(artifacts.findByExecutionIdsAndType(List.of(20L),PipelineArtifact.ArtifactType.API_SPEC)).thenReturn(List.of(document));
         when(artifacts.findForUpdate(10L)).thenReturn(Optional.of(document));
         when(executions.findById(20L)).thenReturn(Optional.of(PipelineExecution.builder().executionId(20L).requirementId(30L).build()));
