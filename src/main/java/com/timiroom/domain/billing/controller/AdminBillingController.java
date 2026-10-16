@@ -1,6 +1,8 @@
 package com.timiroom.domain.billing.controller;
 
 import com.timiroom.domain.billing.service.AdminBillingService;
+import com.timiroom.domain.billing.service.AdminInsightService;
+import com.timiroom.domain.billing.service.AdminSystemService;
 import com.timiroom.domain.billing.service.RefundService;
 import com.timiroom.domain.member.enums.Role;
 import com.timiroom.domain.member.repository.MemberRepository;
@@ -20,6 +22,8 @@ import java.util.function.Supplier;
 public class AdminBillingController {
 
     private final AdminBillingService adminBilling;
+    private final AdminInsightService insights;
+    private final AdminSystemService system;
     private final RefundService refundService;
     private final MemberRepository members;
 
@@ -28,6 +32,33 @@ public class AdminBillingController {
     @GetMapping("/overview")
     public ResponseEntity<?> overview(HttpSession session) {
         return asAdmin(session, adminBilling::overview);
+    }
+
+    @GetMapping("/insights")
+    public ResponseEntity<?> insights(HttpSession session) {
+        return asAdmin(session, insights::insights);
+    }
+
+    @GetMapping("/members/{memberId}")
+    public ResponseEntity<?> member(HttpSession session, @PathVariable Long memberId) {
+        return asAdmin(session, () -> insights.memberDetail(memberId));
+    }
+
+    @GetMapping("/usage")
+    public ResponseEntity<?> usage(HttpSession session, @RequestParam(required = false) String feature,
+                                   @RequestParam(required = false) String query,
+                                   @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size) {
+        return asAdmin(session, () -> insights.usageEvents(feature, query, page, size));
+    }
+
+    @GetMapping("/ai")
+    public ResponseEntity<?> ai(HttpSession session) {
+        return asAdmin(session, insights::aiUsage);
+    }
+
+    @GetMapping("/system")
+    public ResponseEntity<?> system(HttpSession session) {
+        return asAdmin(session, system::status);
     }
 
     @GetMapping("/members")

@@ -70,8 +70,10 @@ public class AdminBillingService {
         int offset = Math.max(page, 0) * limit;
         String like = "%" + (query == null ? "" : query.trim().toLowerCase(Locale.ROOT)) + "%";
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "select m.member_id as \"memberId\", m.email as email, coalesce(m.nickname, m.member_name) as name, m.role as role "
-                        + "from member m where lower(m.email) like ? or lower(coalesce(m.nickname, '')) like ? "
+                "select m.member_id as \"memberId\", m.email as email, coalesce(m.nickname, m.member_name) as name, m.role as role, "
+                        + "m.provider as provider, m.created_at as \"createdAt\", "
+                        + "(select max(e.created_at) from ai_usage_event e where e.member_id = m.member_id) as \"lastActiveAt\" "
+                        + "from member m where m.deleted_at is null and (lower(m.email) like ? or lower(coalesce(m.nickname, '')) like ?) "
                         + "order by m.member_id desc limit ? offset ?", like, like, limit + 1, offset);
         boolean hasNext = rows.size() > limit;
         List<Map<String, Object>> items = new ArrayList<>();
