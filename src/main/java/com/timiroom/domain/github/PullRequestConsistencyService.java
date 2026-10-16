@@ -645,7 +645,8 @@ public class PullRequestConsistencyService {
     private String evaluatorLabel(String evaluator) {
         return switch (evaluator) {
             case "PYTHON_OPENAI_COMPATIBLE_FACT_GATE" -> "OpenAI 호환 모델 + Fact Gate";
-            case "PYTHON_EXAONE" -> "🇰🇷 LG EXAONE Agent";
+            // PYTHON_EXAONE은 서비스가 evaluationMode를 주지 않았을 때의 기본값이라 모델을 단정하지 않는다
+            case "PYTHON_EXAONE" -> "Python Consistency Agent";
             case "PYTHON_EXAONE_FACT_GATE" -> "🇰🇷 LG EXAONE + Fact Gate";
             case "SPRING_FOUNDRY" -> "🌐 Foundry Agent";
             case "AGENT" -> "AI Consistency Agent";
@@ -657,7 +658,7 @@ public class PullRequestConsistencyService {
     private String evaluatorDescription(String evaluator) {
         return switch (evaluator) {
             case "PYTHON_OPENAI_COMPATIBLE_FACT_GATE" -> "독립 Python Agent가 OpenAI 호환 모델의 판단을 AST·SQL Fact Gate 원문 근거로 검증했습니다.";
-            case "PYTHON_EXAONE" -> "독립 Python PR Consistency Agent가 Friendli의 LG K-EXAONE으로 검토했습니다.";
+            case "PYTHON_EXAONE" -> "독립 Python PR Consistency Agent가 검토했습니다.";
             case "PYTHON_EXAONE_FACT_GATE" -> "독립 Python Agent가 LG K-EXAONE 판단을 AST·SQL Fact Gate 원문 근거로 검증했습니다.";
             case "SPRING_FOUNDRY" -> "Spring PR Consistency Agent가 해외 Foundry 모델로 검토했습니다.";
             case "AGENT" -> "전용 PR Consistency Agent가 의미 단위로 검토했습니다.";

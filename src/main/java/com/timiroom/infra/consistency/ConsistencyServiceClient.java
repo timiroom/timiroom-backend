@@ -12,7 +12,7 @@ import org.springframework.web.reactive.function.client.WebClientException;
 import java.time.Duration;
 import com.timiroom.domain.integrationjob.service.JobTimeBudget;
 
-/** Friendli K-EXAONE을 사용하는 독립 Python 정합성 서비스 클라이언트. */
+/** 독립 Python 정합성 서비스 클라이언트. 사용 모델은 서비스가 정하고 응답의 evaluationMode로 알려 준다. */
 @Slf4j
 @Component
 public class ConsistencyServiceClient {
