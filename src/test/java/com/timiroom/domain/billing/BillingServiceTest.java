@@ -119,7 +119,7 @@ class BillingServiceTest {
         assertThat(view.get("plan")).isEqualTo("PRO");
         assertThat(view.get("defaultCard")).isEqualTo("신한카드 ····5678");
         assertThat(methods).hasSize(1);
-        verify(payments, atLeastOnce()).save(argThat(p -> p.getAmountKrw() == 9900 && p.getKind() == BillingPayment.Kind.SUBSCRIPTION));
+        verify(payments, atLeastOnce()).save(argThat(p -> p.getAmountKrw() == 30000 && p.getKind() == BillingPayment.Kind.SUBSCRIPTION));
     }
 
     @Test
