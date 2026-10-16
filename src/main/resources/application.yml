@@ -115,6 +115,11 @@ usage:
   default-price: { model: "*", input-krw-per-million: 7250, output-krw-per-million: 43500 }
   models:
     - { model: "gpt-5.5*", input-krw-per-million: 7250, output-krw-per-million: 43500 }       # $5 / $30
+    # Codex 게이트웨이 모델. 공식 요금이 없어 같은 등급의 OpenAI 모델 단가로 셈한다(luna≈mini, terra·sol≈5.4, astra≈5.5).
+    - { model: "gpt-5.6-luna*", input-krw-per-million: 1100, output-krw-per-million: 6600 }
+    - { model: "gpt-5.6-terra*", input-krw-per-million: 3650, output-krw-per-million: 21750 }
+    - { model: "gpt-5.6-sol*", input-krw-per-million: 3650, output-krw-per-million: 21750 }
+    - { model: "gpt-6-astra*", input-krw-per-million: 7250, output-krw-per-million: 43500 }
     - { model: "gpt-5.4-mini*", input-krw-per-million: 1100, output-krw-per-million: 6600 }   # $0.75 / $4.50
     - { model: "gpt-5.4*", input-krw-per-million: 3650, output-krw-per-million: 21750 }       # $2.50 / $15
     # 전용 엔드포인트(시간 과금)라 토큰 단가는 추정치다.
