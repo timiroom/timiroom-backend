@@ -83,6 +83,8 @@ public class AiGatewayController {
 
         SseEmitter emitter = new SseEmitter(TIMEOUT.toMillis());
         List<AiUsageRow> usage = new ArrayList<>();
+        // 끝난 호출은 한 번만 기록한다. 사용자가 창을 닫아 중간에 끊기면 예약만 풀어 준다.
+        java.util.concurrent.atomic.AtomicBoolean finished = new java.util.concurrent.atomic.AtomicBoolean(false);
         Disposable subscription = ragPipelineClient.forwardStream("/api/agent/chat/stream", body, call.headers())
                 .subscribe(data -> {
                     JsonNode usageNode = usageNode(data);
@@ -95,14 +97,24 @@ public class AiGatewayController {
                     log.warn("AI 채팅 스트리밍 실패: {}", error.getMessage());
                     send(emitter, "{\"error\":\"AI 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.\"}");
                     send(emitter, "[DONE]");
-                    aiCallService.finish(call, usage, "chat-stream");
+                    if (finished.compareAndSet(false, true)) aiCallService.finish(call, usage, "chat-stream");
                     emitter.complete();
                 }, () -> {
-                    aiCallService.finish(call, usage, "chat-stream");
+                    if (finished.compareAndSet(false, true)) aiCallService.finish(call, usage, "chat-stream");
                     emitter.complete();
                 });
-        emitter.onTimeout(subscription::dispose);
-        emitter.onError(e -> subscription.dispose());
+        Runnable abandon = () -> {
+            subscription.dispose();
+            if (finished.compareAndSet(false, true)) aiCallService.abandon(call);
+        };
+        emitter.onTimeout(abandon);
+        emitter.onError(e -> abandon.run());
+        emitter.onCompletion(() -> {
+            if (finished.compareAndSet(false, true)) {
+                subscription.dispose();
+                aiCallService.abandon(call);
+            }
+        });
         return emitter;
     }
 

@@ -78,6 +78,19 @@ public class PipelineService {
 
         log.info("파이프라인 시작 | executionId: {}, requirementId: {}, pipelineId: {}",
                 saved.getExecutionId(), requirementId, pipelineId.substring(0, 8));
+        // 사용자가 진행 화면을 닫거나 나가도 결과가 저장되도록, 기록이 커밋되면 서버가 직접 결과를 받는다.
+        String startedId = pipelineId;
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            watch(startedId);
+                        }
+                    });
+        } else {
+            watch(startedId);
+        }
         return Map.of("executionId", saved.getExecutionId(), "pipelineId", pipelineId);
     }
 
@@ -88,6 +101,13 @@ public class PipelineService {
     public Map<String, Object> restartPipeline(Long memberId, String pipelineId, String mode) throws Exception {
         PipelineExecution prev = executionRepository.findByPipelineId(pipelineId)
                 .orElseThrow(() -> new IllegalArgumentException("파이프라인을 찾을 수 없습니다: " + pipelineId));
+        if (memberId == null || !memberId.equals(prev.getMemberId())) {
+            throw new IllegalArgumentException("파이프라인을 찾을 수 없습니다: " + pipelineId);
+        }
+        // 같은 요구사항으로 아직 생성 중인 실행이 있으면 두 번 돌리지 않는다(비용이 두 번 든다).
+        boolean running = executionRepository.findByRequirementIdOrderByCreatedAtDesc(prev.getRequirementId()).stream()
+                .anyMatch(e -> e.getStatus() == PipelineExecution.ExecutionStatus.RUNNING && !isStale(e));
+        if (running) throw new IllegalStateException("이미 생성 중입니다. 끝난 뒤에 다시 시도해 주세요.");
         return startPipeline(memberId, prev.getRequirementId(), null, mode);
     }
 
@@ -103,7 +123,7 @@ public class PipelineService {
                         sse -> {
                             String eventName = sse.event() != null ? sse.event() : "message";
 
-                            // complete/error: 브라우저 연결 여부와 무관하게 artifact 저장 먼저 수행
+                            // complete/error: 서버 쪽 감시와 같은 처리를 한 번 더 시도한다(이미 처리됐으면 건너뛴다).
                             if ("complete".equals(eventName)) {
                                 handleComplete(pipelineId, sse.data());
                                 sendToEmitter(emitter, eventName, sse.data());
@@ -111,8 +131,7 @@ public class PipelineService {
                                 return;
                             }
                             if ("error".equals(eventName)) {
-                                recordGenerationUsage(pipelineId, sse.data(), false);
-                                handleError(pipelineId, extractErrorMessage(sse.data()));
+                                handleErrorEvent(pipelineId, sse.data());
                                 sendToEmitter(emitter, eventName, sse.data());
                                 completeEmitter(emitter);
                                 return;
@@ -122,8 +141,8 @@ public class PipelineService {
                             sendToEmitter(emitter, eventName, sse.data());
                         },
                         error -> {
-                            log.error("SSE 오류 | pipelineId: {}", pipelineId, error);
-                            handleError(pipelineId, error.getMessage());
+                            // AI 서버와의 연결이 끊긴 것이지 생성이 실패한 것은 아니다. 결과는 서버 쪽 감시가 받는다.
+                            log.warn("진행 스트림 연결 오류 | pipelineId: {}, error: {}", pipelineId, error.getMessage());
                             completeEmitter(emitter);
                         },
                         () -> completeEmitter(emitter)
@@ -159,19 +178,20 @@ public class PipelineService {
             Map<String, Object> result = (Map<String, Object>) event.get("result");
             if (result == null) return;
 
-            PipelineExecution execution = executionRepository.findByPipelineId(pipelineId)
-                    .orElse(null);
+            int retryCount = result.containsKey("retryCount")
+                    ? ((Number) result.get("retryCount")).intValue() : 0;
+            // 서버 쪽 감시와 브라우저 구독이 모두 완료를 받을 수 있다. 진행 중 상태를 먼저 바꾼 한 곳만 저장한다.
+            if (executionRepository.finishIfRunning(pipelineId, PipelineExecution.ExecutionStatus.COMPLETED, retryCount, null) == 0) {
+                log.debug("이미 처리된 완료 | pipelineId: {}", pipelineId);
+                return;
+            }
+            PipelineExecution execution = executionRepository.findByPipelineId(pipelineId).orElse(null);
             if (execution == null) {
                 log.warn("PipelineExecution 없음 | pipelineId: {}", pipelineId);
                 return;
             }
 
             recordGenerationUsage(execution, objectMapper.valueToTree(result.get("usage")), true);
-
-            int retryCount = result.containsKey("retryCount")
-                    ? ((Number) result.get("retryCount")).intValue() : 0;
-            execution.complete(retryCount);
-            executionRepository.save(execution);
 
             saveArtifact(execution.getExecutionId(), PipelineArtifact.ArtifactType.PRD,             result.get("prdDocument"));
             saveArtifact(execution.getExecutionId(), PipelineArtifact.ArtifactType.DB_SCHEMA,       result.get("dbSchema"));
@@ -208,9 +228,31 @@ public class PipelineService {
      * - Notification 생성
      */
     public void handleError(String pipelineId, String errorMessage) {
+        handleError(pipelineId, errorMessage, null);
+    }
+
+    /** AI 서버의 error 이벤트(본문에 실패 전까지 쓴 사용량이 들어 있다) */
+    public void handleErrorEvent(String pipelineId, String errorDataJson) {
+        com.fasterxml.jackson.databind.JsonNode usage = null;
+        try {
+            usage = objectMapper.readTree(errorDataJson).path("usage");
+        } catch (Exception e) {
+            log.debug("실패 이벤트 사용량 없음 | pipelineId: {}", pipelineId);
+        }
+        String message = extractErrorMessage(errorDataJson);
+        // AI 서버가 진행 소식을 30분 받지 못해 보낸 타임아웃(서버 재시작 등)은 사용자가 이해할 문장으로 바꾼다.
+        if ("타임아웃".equals(message)) message = "생성이 중간에 멈췄습니다. 다시 시도해 주세요.";
+        handleError(pipelineId, message, usage);
+    }
+
+    private void handleError(String pipelineId, String errorMessage, com.fasterxml.jackson.databind.JsonNode usage) {
+        if (executionRepository.finishIfRunning(pipelineId, PipelineExecution.ExecutionStatus.FAILED, 0, truncate(errorMessage)) == 0) {
+            log.debug("이미 처리된 실행 | pipelineId: {}", pipelineId);
+            return;
+        }
         executionRepository.findByPipelineId(pipelineId).ifPresent(execution -> {
-            execution.fail(errorMessage);
-            executionRepository.save(execution);
+            // 실패한 생성은 기록만 남기고 한도에서 빼 준다.
+            recordGenerationUsage(execution, usage, false);
 
             if (execution.getRequirementId() != null) {
                 requirementService.updateStatus(execution.getRequirementId(), RequirementStatus.FAILED);
@@ -231,20 +273,8 @@ public class PipelineService {
      * 생성 파이프라인 사용량 기록. 완료는 한도에 넣고, 실패는 기록만 남기고 한도에서 빼 준다.
      * 사용자 키 여부는 AI 서버가 줄마다 표시해 보낸다.
      */
-    private void recordGenerationUsage(String pipelineId, String errorDataJson, boolean counted) {
-        try {
-            var data = objectMapper.readTree(errorDataJson);
-            executionRepository.findByPipelineId(pipelineId)
-                    .ifPresent(execution -> recordGenerationUsage(execution, data.path("usage"), counted));
-        } catch (Exception e) {
-            log.warn("생성 사용량을 읽지 못했습니다 | pipelineId: {}", pipelineId);
-        }
-    }
-
+    /** 끝난 생성의 사용량 기록. 결과 처리를 맡은 한 곳에서만 부른다(finishIfRunning). */
     private void recordGenerationUsage(PipelineExecution execution, com.fasterxml.jackson.databind.JsonNode usage, boolean counted) {
-        // 진행 스트림을 다시 구독하면 완료·실패 이벤트가 또 올 수 있어, 이미 끝난 실행은 다시 기록하지 않는다.
-        if (execution.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED
-                || execution.getStatus() == PipelineExecution.ExecutionStatus.FAILED) return;
         // 시작할 때 잡아 둔 예약은 결과가 따로 오므로 여기서 푼다.
         aiCallService.releaseGenerationHold(execution.getMemberId());
         var rows = aiCallService.parseNode(usage);
@@ -252,6 +282,78 @@ public class PipelineService {
         var call = aiCallService.background(execution.getMemberId(), projectIdOf(execution.getRequirementId()),
                 com.timiroom.domain.usage.enums.UsageFeature.PROJECT_GENERATION);
         aiCallService.finish(call, rows, "pipeline:" + execution.getPipelineId(), counted);
+    }
+
+    // ── 서버 쪽 감시와 복구 ─────────────────────────────────────────
+
+    /** 결과를 기다릴 최대 시간. AI 서버는 끝난 결과를 1시간 보관하고, 진행이 30분 멈추면 타임아웃을 보낸다. */
+    static final java.time.Duration STALE_AFTER = java.time.Duration.ofMinutes(70);
+
+    private final java.util.Set<String> watching = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * 브라우저와 상관없이 이 서버가 AI 서버의 결과를 받아 저장한다. 같은 생성은 서버마다 한 번만 지켜본다.
+     * 연결이 끊기면 그냥 멈추고, 복구 작업(recoverRunning)이 다시 붙거나 너무 오래되면 실패로 정리한다.
+     */
+    public void watch(String pipelineId) {
+        if (pipelineId == null || !watching.add(pipelineId)) return;
+        try {
+            ragPipelineClient.getProgressFlux(pipelineId)
+                    .publishOn(Schedulers.boundedElastic())
+                    .doFinally(signal -> watching.remove(pipelineId))
+                    .subscribe(sse -> {
+                        String eventName = sse.event() != null ? sse.event() : "message";
+                        if ("complete".equals(eventName)) handleComplete(pipelineId, sse.data());
+                        else if ("error".equals(eventName)) handleErrorEvent(pipelineId, sse.data());
+                    }, error -> log.warn("생성 감시 연결 끊김 | pipelineId: {}, error: {}", pipelineId, error.getMessage()));
+        } catch (RuntimeException e) {
+            watching.remove(pipelineId);
+            log.warn("생성 감시 시작 실패 | pipelineId: {}", pipelineId, e);
+        }
+    }
+
+    /**
+     * 진행 중으로 남은 생성 정리(서버 재시작·배포 뒤 등). 아직 기다릴 만하면 다시 지켜보고,
+     * 너무 오래됐으면 실패로 바꿔 사용자에게 알리고 다시 시도할 수 있게 한다(사용량은 한도에서 빼 준다).
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "${pipeline.recover-delay-ms:300000}", initialDelay = 60_000)
+    public void recoverRunning() {
+        try {
+            for (PipelineExecution execution : executionRepository.findByStatus(PipelineExecution.ExecutionStatus.RUNNING)) {
+                if (isStale(execution)) {
+                    log.warn("오래 멈춘 생성을 실패로 정리 | pipelineId: {}", execution.getPipelineId());
+                    handleError(execution.getPipelineId(), "생성이 중간에 멈췄습니다. 다시 시도해 주세요.", null);
+                } else {
+                    watch(execution.getPipelineId());
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("진행 중 생성 복구 실패: {}", e.getMessage());
+        }
+    }
+
+    /** 내 진행 중인 생성(새로고침하거나 다시 들어와도 진행 화면을 이어 보이게) */
+    public List<Map<String, Object>> activeRuns(Long memberId) {
+        return executionRepository.findByMemberIdAndStatus(memberId, PipelineExecution.ExecutionStatus.RUNNING).stream()
+                .filter(e -> !isStale(e))
+                .map(e -> {
+                    Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    row.put("pipelineId", e.getPipelineId());
+                    row.put("projectId", projectIdOf(e.getRequirementId()));
+                    row.put("startedAt", e.getStartedAt());
+                    return row;
+                })
+                .toList();
+    }
+
+    static boolean isStale(PipelineExecution execution) {
+        LocalDateTime started = execution.getStartedAt() != null ? execution.getStartedAt() : execution.getCreatedAt();
+        return started != null && started.isBefore(LocalDateTime.now().minus(STALE_AFTER));
+    }
+
+    private static String truncate(String message) {
+        if (message == null) return null;
+        return message.length() > 1000 ? message.substring(0, 1000) : message;
     }
 
     public List<PipelineExecution> getExecutionsByMember(Long memberId) {

@@ -83,6 +83,14 @@ public class PipelineController {
      * POST /api/v1/pipeline/restart/{pipelineId}
      * 응답: { pipelineId: String }
      */
+    /** 내 진행 중인 생성. 새로고침 뒤에도 진행 화면을 이어 보이는 데 쓴다. */
+    @GetMapping("/active")
+    public ResponseEntity<?> active(HttpSession session) {
+        Long memberId = (Long) session.getAttribute("memberId");
+        if (memberId == null) return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다"));
+        return ResponseEntity.ok(Map.of("runs", pipelineService.activeRuns(memberId)));
+    }
+
     @PostMapping("/restart/{pipelineId}")
     public ResponseEntity<Map<String, Object>> restart(
             HttpSession session,
