@@ -348,8 +348,9 @@ class PullRequestConsistencyServiceTest {
         var result = service.checkAndReview(PROJECT_ID, MEMBER_ID, REPO_ID, 42);
 
         assertThat(result.score()).isEqualTo(75);
-        verify(notificationService).create(eq(MEMBER_ID), eq(NotificationType.PR_CONSISTENCY_REVIEW),
-                any(), any(), eq(NotificationReferenceType.PULL_REQUEST), eq(42L));
+        verify(notificationService).create(eq(MEMBER_ID), eq(PROJECT_ID), eq(NotificationType.PR_CONSISTENCY_REVIEW),
+                any(), org.mockito.ArgumentMatchers.argThat(content -> content.endsWith("경고가 발견됐습니다.")),
+                eq(NotificationReferenceType.PULL_REQUEST), eq(42L));
     }
 
     @Test
