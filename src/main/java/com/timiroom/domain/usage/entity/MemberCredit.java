@@ -22,8 +22,20 @@ public class MemberCredit {
     @Column(name = "balance_krw", nullable = false, precision = 14, scale = 4)
     private BigDecimal balanceKrw;
 
+    @Column(nullable = false)
+    private boolean enabled;
+
+    @Column(name = "monthly_cap_krw")
+    private Long monthlyCapKrw;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    public void configure(boolean enabled, Long monthlyCapKrw) {
+        this.enabled = enabled;
+        this.monthlyCapKrw = monthlyCapKrw;
+        this.updatedAt = Instant.now();
+    }
 
     public static MemberCredit empty(Long memberId) {
         MemberCredit c = new MemberCredit();

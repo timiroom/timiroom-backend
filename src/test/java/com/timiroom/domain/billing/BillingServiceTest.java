@@ -169,7 +169,8 @@ class BillingServiceTest {
         paymentsSucceed();
         service.addPaymentMethod(1L, "bk-1", false);
         when(usageService.statusOf(1L)).thenReturn(new UsageService.Status(PlanType.FREE, "무료", 3000,
-                BigDecimal.ZERO, BigDecimal.valueOf(3000), 0, BigDecimal.ZERO, new UsageService.Period(Instant.now(), Instant.now())));
+                BigDecimal.ZERO, BigDecimal.valueOf(3000), 0, BigDecimal.ZERO, new UsageService.Period(Instant.now(), Instant.now()),
+                new UsageService.Credit(false, null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO)));
 
         service.buyCredit(1L, 10_000L, new PaySource(null, null));
 

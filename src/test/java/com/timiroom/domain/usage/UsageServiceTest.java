@@ -128,6 +128,10 @@ class UsageServiceTest {
         MemberCredit credit = MemberCredit.empty(1L);
         credit.add(new BigDecimal("1500"));
         when(credits.findById(1L)).thenReturn(Optional.of(credit));
+        // 꺼져 있으면 잔액이 있어도 막는다
+        assertThatThrownBy(() -> service.requireAllowance(1L, UsageFeature.AI_CHAT, false))
+                .isInstanceOf(UsageLimitExceededException.class);
+        credit.configure(true, null);
         service.requireAllowance(1L, UsageFeature.AI_CHAT, false);
         assertThat(service.statusOf(1L).creditKrw()).isEqualByComparingTo("1500");
     }
@@ -137,7 +141,9 @@ class UsageServiceTest {
         when(events.sumCountedCost(eq(1L), any(), any())).thenReturn(new BigDecimal("2900"));
         MemberCredit credit = MemberCredit.empty(1L);
         credit.add(new BigDecimal("1000"));
+        credit.configure(true, null);
         when(credits.findForUpdate(1L)).thenReturn(Optional.of(credit));
+        when(credits.findById(1L)).thenReturn(Optional.of(credit));
 
         // 1,000,000 입력 토큰 x 1000원 = 1000원 → 100원은 요금제, 900원은 추가 사용량
         service.record(1L, null, UsageFeature.AI_CHAT,
@@ -155,12 +161,34 @@ class UsageServiceTest {
         when(events.sumCountedCost(eq(1L), any(), any())).thenReturn(new BigDecimal("3000"));
         MemberCredit credit = MemberCredit.empty(1L);
         credit.add(new BigDecimal("3000"));
+        credit.configure(true, null);
         when(credits.findForUpdate(1L)).thenReturn(Optional.of(credit));
+        when(credits.findById(1L)).thenReturn(Optional.of(credit));
 
         // 비용 1000원 → 잔액에서 1500원 차감
         service.record(1L, null, UsageFeature.AI_CHAT,
                 List.of(new AiUsageRow("chat", "server", "gpt-5.4-mini", false, 1_000_000, 0, 1)), null, true);
 
         assertThat(credit.getBalanceKrw()).isEqualByComparingTo("1500");
+    }
+
+    @Test
+    void 월_상한을_넘는_추가_사용량은_쓰지_않는다() {
+        when(events.sumCountedCost(eq(1L), any(), any())).thenReturn(new BigDecimal("3000"));
+        when(events.sumCreditCovered(eq(1L), any(), any())).thenReturn(new BigDecimal("9500"));
+        MemberCredit credit = MemberCredit.empty(1L);
+        credit.add(new BigDecimal("50000"));
+        credit.configure(true, 10_000L);
+        when(credits.findForUpdate(1L)).thenReturn(Optional.of(credit));
+        when(credits.findById(1L)).thenReturn(Optional.of(credit));
+
+        // 이번 달 9,500원 썼고 상한 10,000원 → 1,000원짜리 호출은 500원만 차감
+        service.record(1L, null, UsageFeature.AI_CHAT,
+                List.of(new AiUsageRow("chat", "server", "gpt-5.4-mini", false, 1_000_000, 0, 1)), null, true);
+        assertThat(credit.getBalanceKrw()).isEqualByComparingTo("49500");
+
+        when(events.sumCreditCovered(eq(1L), any(), any())).thenReturn(new BigDecimal("10000"));
+        assertThatThrownBy(() -> service.requireAllowance(1L, UsageFeature.AI_CHAT, false))
+                .isInstanceOf(UsageLimitExceededException.class);
     }
 }

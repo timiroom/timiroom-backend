@@ -36,6 +36,8 @@ public class BillingController {
 
     public record CreditRequest(Long amountKrw, Long paymentMethodId, String billingKey) {}
 
+    public record CreditSettingsRequest(Boolean enabled, Long monthlyCapKrw) {}
+
     public record AdminPlanRequest(String plan, Integer months) {}
 
     @GetMapping("/api/v1/billing/config")
@@ -92,6 +94,14 @@ public class BillingController {
         Long memberId = memberId(session);
         if (memberId == null) return unauthorized();
         return ResponseEntity.ok(billingService.creditView(memberId));
+    }
+
+    @PatchMapping("/api/v1/billing/credits/settings")
+    public ResponseEntity<?> creditSettings(HttpSession session, @RequestBody CreditSettingsRequest request) {
+        Long memberId = memberId(session);
+        if (memberId == null) return unauthorized();
+        return ResponseEntity.ok(billingService.configureCredit(memberId, Boolean.TRUE.equals(request.enabled()),
+                request.monthlyCapKrw()));
     }
 
     @PostMapping("/api/v1/billing/credits")

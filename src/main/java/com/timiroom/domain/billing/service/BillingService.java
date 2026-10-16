@@ -197,13 +197,24 @@ public class BillingService {
     @Transactional(readOnly = true)
     public Map<String, Object> creditView(Long memberId) {
         UsageService.Status status = usageService.statusOf(memberId);
+        UsageService.Credit credit = status.credit();
         Map<String, Object> view = new LinkedHashMap<>();
-        view.put("balanceKrw", status.creditKrw().setScale(0, RoundingMode.DOWN).longValue());
+        view.put("balanceKrw", credit.balanceKrw().setScale(0, RoundingMode.DOWN).longValue());
+        view.put("enabled", credit.enabled());
+        view.put("monthlyCapKrw", credit.monthlyCapKrw());
+        view.put("spentKrw", credit.spentKrw().longValue());
+        view.put("resetAt", status.period().end());
         view.put("presetsKrw", usageProperties.getCreditPresetsKrw());
         view.put("minKrw", usageProperties.getCreditMinKrw());
         view.put("maxKrw", usageProperties.getCreditMaxKrw());
-        view.put("enabled", isReady());
+        view.put("paymentReady", isReady());
         return view;
+    }
+
+    @Transactional
+    public Map<String, Object> configureCredit(Long memberId, boolean enabled, Long monthlyCapKrw) {
+        usageService.configureCredit(memberId, enabled, monthlyCapKrw);
+        return creditView(memberId);
     }
 
     /** 원하는 금액만큼 충전한다(1,000원 단위). 결제가 끝나야 잔액이 늘어난다. */

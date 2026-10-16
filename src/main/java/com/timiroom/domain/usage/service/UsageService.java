@@ -41,7 +41,11 @@ public class UsageService {
     public record Period(Instant start, Instant end) {}
 
     public record Status(PlanType plan, String planName, long limitKrw, BigDecimal usedKrw,
-                         BigDecimal remainingKrw, int percent, BigDecimal creditKrw, Period period) {}
+                         BigDecimal remainingKrw, int percent, BigDecimal creditKrw, Period period,
+                         Credit credit) {}
+
+    /** 추가 사용량 설정과 이번 기간 쓴 금액(원). usableKrw는 지금 더 쓸 수 있는 잔액(꺼짐·상한 반영). */
+    public record Credit(boolean enabled, Long monthlyCapKrw, BigDecimal balanceKrw, BigDecimal spentKrw, BigDecimal usableKrw) {}
 
     @Transactional(readOnly = true)
     public MemberSubscription subscriptionOf(Long memberId) {
@@ -69,10 +73,23 @@ public class UsageService {
         BigDecimal used = Objects.requireNonNullElse(usageEvents.sumCountedCost(memberId, period.start(), period.end()), BigDecimal.ZERO);
         BigDecimal limit = BigDecimal.valueOf(planConfig.getMonthlyLimitKrw());
         BigDecimal remaining = limit.subtract(used).max(BigDecimal.ZERO);
-        BigDecimal credit = credits.findById(memberId).map(MemberCredit::getBalanceKrw).orElse(BigDecimal.ZERO);
+        Credit credit = creditOf(memberId, period);
         return new Status(plan, planConfig.getName(), planConfig.getMonthlyLimitKrw(),
                 used.setScale(0, RoundingMode.HALF_UP), remaining.setScale(0, RoundingMode.DOWN),
-                percentOf(used, limit, true), credit, period);
+                percentOf(used, limit, true), credit.balanceKrw(), period, credit);
+    }
+
+    /** 추가 사용량 상태. 꺼져 있거나 이번 달 상한을 다 썼으면 usableKrw는 0이다. */
+    Credit creditOf(Long memberId, Period period) {
+        MemberCredit row = credits.findById(memberId).orElse(null);
+        BigDecimal balance = row != null ? row.getBalanceKrw() : BigDecimal.ZERO;
+        boolean enabled = row != null && row.isEnabled();
+        Long cap = row != null ? row.getMonthlyCapKrw() : null;
+        BigDecimal spent = Objects.requireNonNullElse(usageEvents.sumCreditCovered(memberId, period.start(), period.end()),
+                BigDecimal.ZERO).multiply(rate());
+        BigDecimal usable = enabled ? balance : BigDecimal.ZERO;
+        if (enabled && cap != null) usable = usable.min(BigDecimal.valueOf(cap).subtract(spent).max(BigDecimal.ZERO));
+        return new Credit(enabled, cap, balance, spent.setScale(0, RoundingMode.HALF_UP), usable);
     }
 
     /** limit 대비 비율(%). capped면 100을 넘기지 않는다. */
@@ -93,7 +110,7 @@ public class UsageService {
         BigDecimal reserve = properties.getReserveKrw().getOrDefault(feature, BigDecimal.ZERO);
         // 추가 사용량 잔액(원)을 내부 비용 단위로 바꿔 더한다.
         BigDecimal available = BigDecimal.valueOf(status.limitKrw()).subtract(status.usedKrw()).max(BigDecimal.ZERO)
-                .add(status.creditKrw().divide(rate(), 4, RoundingMode.DOWN));
+                .add(status.credit().usableKrw().divide(rate(), 4, RoundingMode.DOWN));
         if (available.compareTo(reserve) <= 0) {
             throw new UsageLimitExceededException(status.period().end(), status.plan().name());
         }
@@ -111,6 +128,7 @@ public class UsageService {
             Instant now = Instant.now();
             BigDecimal planLeft = null;
             MemberCredit credit = null;
+            BigDecimal creditRoom = null; // 이번 기록에서 추가 사용량으로 더 뺄 수 있는 금액(원)
             for (AiUsageRow row : rows) {
                 BigDecimal cost = row.byok() ? BigDecimal.ZERO : costOf(row);
                 boolean countThis = counted && !row.byok();
@@ -120,10 +138,18 @@ public class UsageService {
                     BigDecimal over = cost.subtract(planLeft.max(BigDecimal.ZERO));
                     planLeft = planLeft.subtract(cost);
                     if (over.signum() > 0) {
-                        if (credit == null) credit = credits.findForUpdate(memberId).orElse(null);
-                        // 넘친 비용 × 비율만큼 잔액(원)에서 빼고, 기록에는 그만큼 덮은 비용을 남긴다.
-                        if (credit != null) fromCredit = credit.take(over.multiply(rate()))
-                                .divide(rate(), 4, RoundingMode.HALF_UP);
+                        if (credit == null) {
+                            credit = credits.findForUpdate(memberId).orElse(null);
+                            creditRoom = credit == null ? BigDecimal.ZERO
+                                    : creditOf(memberId, periodOf(subscriptionOf(memberId), now)).usableKrw();
+                        }
+                        // 넘친 비용 x 비율만큼 잔액(원)에서 빼고, 기록에는 그만큼 덮은 비용을 남긴다.
+                        // 꺼져 있거나 월 상한을 넘는 몫은 빼지 않는다(그 호출은 한도를 조금 넘긴 채 끝난다).
+                        if (credit != null && creditRoom.signum() > 0) {
+                            BigDecimal taken = credit.take(over.multiply(rate()).min(creditRoom));
+                            creditRoom = creditRoom.subtract(taken);
+                            fromCredit = taken.divide(rate(), 4, RoundingMode.HALF_UP);
+                        }
                     }
                 }
                 usageEvents.save(UsageEvent.builder()
@@ -148,11 +174,23 @@ public class UsageService {
         return limit.subtract(Objects.requireNonNullElse(usageEvents.sumCountedCost(memberId, period.start(), period.end()), BigDecimal.ZERO));
     }
 
-    /** 추가 사용량 충전(결제 성공 후) */
+    /** 추가 사용량 충전(결제 성공 후). 충전하면 사용을 켠다. */
     @Transactional
     public void addCredit(Long memberId, BigDecimal amount) {
         MemberCredit credit = credits.findForUpdate(memberId).orElseGet(() -> MemberCredit.empty(memberId));
         credit.add(amount);
+        if (!credit.isEnabled()) credit.configure(true, credit.getMonthlyCapKrw());
+        credits.save(credit);
+    }
+
+    /** 추가 사용량 켜기·끄기와 월 상한(null이면 제한 없음) */
+    @Transactional
+    public void configureCredit(Long memberId, boolean enabled, Long monthlyCapKrw) {
+        if (monthlyCapKrw != null && (monthlyCapKrw < 1_000 || monthlyCapKrw > 10_000_000)) {
+            throw new IllegalArgumentException("월 상한은 1,000원 이상으로 정해 주세요");
+        }
+        MemberCredit credit = credits.findForUpdate(memberId).orElseGet(() -> MemberCredit.empty(memberId));
+        credit.configure(enabled, monthlyCapKrw);
         credits.save(credit);
     }
 

@@ -53,6 +53,10 @@ CREATE INDEX member_subscription_billing_idx ON member_subscription(status, next
 CREATE TABLE member_credit (
     member_id BIGINT PRIMARY KEY,
     balance_krw NUMERIC(14, 4) NOT NULL DEFAULT 0,
+    -- 추가 사용량을 쓸지(사용자가 켜고 끈다). 꺼져 있으면 잔액이 있어도 한도에서 멈춘다.
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    -- 한 달(사용량 기간)에 추가 사용량으로 쓸 수 있는 최대 금액. 비우면 제한 없음.
+    monthly_cap_krw BIGINT,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
