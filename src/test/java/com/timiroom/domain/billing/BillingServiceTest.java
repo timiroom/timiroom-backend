@@ -169,12 +169,21 @@ class BillingServiceTest {
         paymentsSucceed();
         service.addPaymentMethod(1L, "bk-1", false);
         when(usageService.statusOf(1L)).thenReturn(new UsageService.Status(PlanType.FREE, "무료", 3000,
-                BigDecimal.ZERO, BigDecimal.valueOf(3000), 0, BigDecimal.ZERO, 0, new UsageService.Period(Instant.now(), Instant.now())));
+                BigDecimal.ZERO, BigDecimal.valueOf(3000), 0, BigDecimal.ZERO, new UsageService.Period(Instant.now(), Instant.now())));
 
-        service.buyCredit(1L, "small", new PaySource(null, null));
+        service.buyCredit(1L, 10_000L, new PaySource(null, null));
 
-        verify(usageService).addCredit(1L, new BigDecimal("1500"));
-        verify(payments, atLeastOnce()).save(argThat(p -> p.getKind() == BillingPayment.Kind.CREDIT && p.getAmountKrw() == 3300));
+        verify(usageService).addCredit(1L, new BigDecimal("10000"));
+        verify(payments, atLeastOnce()).save(argThat(p -> p.getKind() == BillingPayment.Kind.CREDIT && p.getAmountKrw() == 10_000));
+    }
+
+    @Test
+    void 충전_금액은_정한_범위와_천원_단위만_받는다() throws Exception {
+        billingKey("bk-1", 1, "신한카드");
+        service.addPaymentMethod(1L, "bk-1", false);
+        assertThatThrownBy(() -> service.buyCredit(1L, 4_000L, null)).hasMessageContaining("1,000원 단위");
+        assertThatThrownBy(() -> service.buyCredit(1L, 10_500L, null)).hasMessageContaining("1,000원 단위");
+        verify(portOne, never()).payWithBillingKey(any(), any(), any(), anyLong(), any(), any());
     }
 
     @Test
@@ -183,7 +192,7 @@ class BillingServiceTest {
         service.addPaymentMethod(1L, "bk-1", false);
         when(portOne.payWithBillingKey(any(), any(), any(), anyLong(), any(), any())).thenThrow(new PortOneException("잔액 부족"));
 
-        assertThatThrownBy(() -> service.buyCredit(1L, "small", null)).hasMessageContaining("잔액 부족");
+        assertThatThrownBy(() -> service.buyCredit(1L, 5_000L, null)).hasMessageContaining("잔액 부족");
         verify(usageService, never()).addCredit(anyLong(), any());
     }
 

@@ -129,7 +129,7 @@ class UsageServiceTest {
         credit.add(new BigDecimal("1500"));
         when(credits.findById(1L)).thenReturn(Optional.of(credit));
         service.requireAllowance(1L, UsageFeature.AI_CHAT, false);
-        assertThat(service.statusOf(1L).creditPercent()).isEqualTo(50);
+        assertThat(service.statusOf(1L).creditKrw()).isEqualByComparingTo("1500");
     }
 
     @Test
@@ -147,5 +147,20 @@ class UsageServiceTest {
         verify(events).save(saved.capture());
         assertThat(saved.getValue().getCreditKrw()).isEqualByComparingTo("900");
         assertThat(credit.getBalanceKrw()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void 차감_비율을_정하면_비용에_비율을_곱해_잔액에서_뺀다() {
+        properties.setCreditRate(new BigDecimal("1.5"));
+        when(events.sumCountedCost(eq(1L), any(), any())).thenReturn(new BigDecimal("3000"));
+        MemberCredit credit = MemberCredit.empty(1L);
+        credit.add(new BigDecimal("3000"));
+        when(credits.findForUpdate(1L)).thenReturn(Optional.of(credit));
+
+        // 비용 1000원 → 잔액에서 1500원 차감
+        service.record(1L, null, UsageFeature.AI_CHAT,
+                List.of(new AiUsageRow("chat", "server", "gpt-5.4-mini", false, 1_000_000, 0, 1)), null, true);
+
+        assertThat(credit.getBalanceKrw()).isEqualByComparingTo("1500");
     }
 }

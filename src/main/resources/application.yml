@@ -92,6 +92,11 @@ usage:
     PRO: { name: 프로, price-krw: 9900, monthly-limit-krw: 30000 }
   reserve-krw:
     PROJECT_GENERATION: 300
+  # 추가 사용량 충전: 요금제 한도를 다 쓰면 내부 비용 × credit-rate만큼 잔액(원)에서 차감한다.
+  credit-rate: ${USAGE_CREDIT_RATE:1.0}
+  credit-presets-krw: [5000, 10000, 30000]
+  credit-min-krw: 5000
+  credit-max-krw: 500000
   default-price: { model: "*", input-krw-per-million: 1500, output-krw-per-million: 6000 }
   models:
     - { model: "gpt-5.4-mini*", input-krw-per-million: 1100, output-krw-per-million: 6600 }

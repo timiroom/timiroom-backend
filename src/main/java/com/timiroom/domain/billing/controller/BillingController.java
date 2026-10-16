@@ -34,7 +34,7 @@ public class BillingController {
 
     public record CardRequest(String billingKey, Boolean makeDefault) {}
 
-    public record CreditRequest(String packId, Long paymentMethodId, String billingKey) {}
+    public record CreditRequest(Long amountKrw, Long paymentMethodId, String billingKey) {}
 
     public record AdminPlanRequest(String plan, Integer months) {}
 
@@ -98,7 +98,7 @@ public class BillingController {
     public ResponseEntity<?> buyCredit(HttpSession session, @RequestBody CreditRequest request) {
         Long memberId = memberId(session);
         if (memberId == null) return unauthorized();
-        return ResponseEntity.ok(billingService.buyCredit(memberId, request.packId(),
+        return ResponseEntity.ok(billingService.buyCredit(memberId, request.amountKrw(),
                 new BillingService.PaySource(request.paymentMethodId(), request.billingKey())));
     }
 

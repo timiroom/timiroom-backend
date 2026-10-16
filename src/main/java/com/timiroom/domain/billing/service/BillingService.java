@@ -193,32 +193,37 @@ public class BillingService {
 
     // ── 추가 사용량 ─────────────────────────────────────────
 
-    /** 상품 목록. 충전량은 지금 요금제 한 달 사용량 대비 비율로 보여 준다. */
+    /** 추가 사용량 잔액(원)과 충전 금액 선택지 */
     @Transactional(readOnly = true)
     public Map<String, Object> creditView(Long memberId) {
         UsageService.Status status = usageService.statusOf(memberId);
-        BigDecimal limit = BigDecimal.valueOf(Math.max(1, status.limitKrw()));
-        List<Map<String, Object>> packs = usageProperties.getCreditPacks().stream().map(p -> Map.<String, Object>of(
-                "id", p.getId(), "priceKrw", p.getPriceKrw(),
-                "percent", p.getCreditKrw().multiply(BigDecimal.valueOf(100)).divide(limit, 0, RoundingMode.HALF_UP).intValue()))
-                .toList();
-        return Map.of("balancePercent", status.creditPercent(), "packs", packs, "enabled", isReady());
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("balanceKrw", status.creditKrw().setScale(0, RoundingMode.DOWN).longValue());
+        view.put("presetsKrw", usageProperties.getCreditPresetsKrw());
+        view.put("minKrw", usageProperties.getCreditMinKrw());
+        view.put("maxKrw", usageProperties.getCreditMaxKrw());
+        view.put("enabled", isReady());
+        return view;
     }
 
+    /** 원하는 금액만큼 충전한다(1,000원 단위). 결제가 끝나야 잔액이 늘어난다. */
     @Transactional(noRollbackFor = IllegalArgumentException.class)
-    public Map<String, Object> buyCredit(Long memberId, String packId, PaySource source) {
+    public Map<String, Object> buyCredit(Long memberId, Long amountKrw, PaySource source) {
         requireReady();
-        UsageProperties.CreditPack pack = usageProperties.creditPack(packId)
-                .orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다"));
+        long amount = amountKrw == null ? 0 : amountKrw;
+        if (amount < usageProperties.getCreditMinKrw() || amount > usageProperties.getCreditMaxKrw() || amount % 1000 != 0) {
+            throw new IllegalArgumentException(String.format("충전 금액은 %,d원부터 %,d원까지 1,000원 단위로 정할 수 있습니다",
+                    usageProperties.getCreditMinKrw(), usageProperties.getCreditMaxKrw()));
+        }
         PaymentMethod method = resolve(memberId, source);
-        String paymentId = newPaymentId(memberId);
-        BillingPayment payment = payments.save(BillingPayment.pendingCredit(memberId, paymentId, pack.getCreditKrw(),
-                pack.getPriceKrw(), "티미룸 추가 사용량", method.getCardSummary()));
+        BigDecimal credit = BigDecimal.valueOf(amount);
+        BillingPayment payment = payments.save(BillingPayment.pendingCredit(memberId, newPaymentId(memberId), credit,
+                amount, "티미룸 추가 사용량 충전", method.getCardSummary()));
         pay(payment, method);
         if (payment.getStatus() != BillingPayment.Status.PAID) {
             throw new IllegalArgumentException(failure(payment));
         }
-        usageService.addCredit(memberId, pack.getCreditKrw());
+        usageService.addCredit(memberId, credit);
         return creditView(memberId);
     }
 

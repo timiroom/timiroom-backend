@@ -37,7 +37,7 @@ public class UsageController {
         body.put("plan", status.plan().name());
         body.put("planName", status.planName());
         body.put("percent", status.percent());
-        body.put("creditPercent", status.creditPercent());
+        body.put("creditBalanceKrw", status.creditKrw().setScale(0, java.math.RoundingMode.DOWN).longValue());
         body.put("resetAt", status.period().end());
         body.put("usingOwnKey", credentialService.activeKey(memberId).isPresent());
         body.put("enforced", properties.isEnforce());

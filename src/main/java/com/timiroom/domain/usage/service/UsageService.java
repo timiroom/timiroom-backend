@@ -41,7 +41,7 @@ public class UsageService {
     public record Period(Instant start, Instant end) {}
 
     public record Status(PlanType plan, String planName, long limitKrw, BigDecimal usedKrw,
-                         BigDecimal remainingKrw, int percent, BigDecimal creditKrw, int creditPercent, Period period) {}
+                         BigDecimal remainingKrw, int percent, BigDecimal creditKrw, Period period) {}
 
     @Transactional(readOnly = true)
     public MemberSubscription subscriptionOf(Long memberId) {
@@ -72,7 +72,7 @@ public class UsageService {
         BigDecimal credit = credits.findById(memberId).map(MemberCredit::getBalanceKrw).orElse(BigDecimal.ZERO);
         return new Status(plan, planConfig.getName(), planConfig.getMonthlyLimitKrw(),
                 used.setScale(0, RoundingMode.HALF_UP), remaining.setScale(0, RoundingMode.DOWN),
-                percentOf(used, limit, true), credit, percentOf(credit, limit, false), period);
+                percentOf(used, limit, true), credit, period);
     }
 
     /** limit 대비 비율(%). capped면 100을 넘기지 않는다. */
@@ -91,8 +91,9 @@ public class UsageService {
         if (!properties.isEnforce() || usingOwnKey || memberId == null) return;
         Status status = statusOf(memberId);
         BigDecimal reserve = properties.getReserveKrw().getOrDefault(feature, BigDecimal.ZERO);
+        // 추가 사용량 잔액(원)을 내부 비용 단위로 바꿔 더한다.
         BigDecimal available = BigDecimal.valueOf(status.limitKrw()).subtract(status.usedKrw()).max(BigDecimal.ZERO)
-                .add(status.creditKrw());
+                .add(status.creditKrw().divide(rate(), 4, RoundingMode.DOWN));
         if (available.compareTo(reserve) <= 0) {
             throw new UsageLimitExceededException(status.period().end(), status.plan().name());
         }
@@ -120,7 +121,9 @@ public class UsageService {
                     planLeft = planLeft.subtract(cost);
                     if (over.signum() > 0) {
                         if (credit == null) credit = credits.findForUpdate(memberId).orElse(null);
-                        if (credit != null) fromCredit = credit.take(over);
+                        // 넘친 비용 × 비율만큼 잔액(원)에서 빼고, 기록에는 그만큼 덮은 비용을 남긴다.
+                        if (credit != null) fromCredit = credit.take(over.multiply(rate()))
+                                .divide(rate(), 4, RoundingMode.HALF_UP);
                     }
                 }
                 usageEvents.save(UsageEvent.builder()
@@ -151,6 +154,11 @@ public class UsageService {
         MemberCredit credit = credits.findForUpdate(memberId).orElseGet(() -> MemberCredit.empty(memberId));
         credit.add(amount);
         credits.save(credit);
+    }
+
+    private BigDecimal rate() {
+        BigDecimal rate = properties.getCreditRate();
+        return rate == null || rate.signum() <= 0 ? BigDecimal.ONE : rate;
     }
 
     public BigDecimal costOf(AiUsageRow row) {
