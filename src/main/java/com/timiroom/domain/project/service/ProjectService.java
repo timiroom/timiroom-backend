@@ -194,25 +194,23 @@ public class ProjectService {
         }
     }
 
-    /** 프로젝트의 최신 완료된 artifact 조회 */
+    /**
+     * 프로젝트의 현재 문서 조회.
+     * GET /api/v1/pipeline/projects/{id}/artifacts 와 같은 "현재 완료 실행"만 본다.
+     */
     @Transactional(readOnly = true)
     public Optional<PipelineArtifact> getDocument(Long projectId, Long memberId, PipelineArtifact.ArtifactType type) {
         Project project = getById(projectId, memberId);
-        List<Long> requirementIds = requirementRepository.findRequirementIdsByProjectId(project.getProjectId());
-        if (requirementIds.isEmpty()) return Optional.empty();
-
-        List<Long> executionIds = pipelineExecutionRepository
-                .findByRequirementIdIn(requirementIds).stream()
-                .filter(e -> e.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED)
-                .map(PipelineExecution::getExecutionId)
-                .collect(Collectors.toList());
-        if (executionIds.isEmpty()) return Optional.empty();
-
-        return pipelineArtifactRepository.findByExecutionIdsAndType(executionIds, type)
-                .stream().findFirst();
+        return currentCompletedExecution(project.getProjectId())
+                .flatMap(execution -> pipelineArtifactRepository
+                        .findByExecutionIdsAndType(List.of(execution.getExecutionId()), type)
+                        .stream().findFirst());
     }
 
-    /** artifact content 수정 (없으면 신규 저장) */
+    /**
+     * artifact content 수정 (없으면 현재 완료 실행에 신규 저장).
+     * 완료된 실행이 없으면 저장해도 조회되지 않으므로 409(IllegalStateException)로 거절한다.
+     */
     @Transactional
     public PipelineArtifact saveDocument(Long projectId, Long memberId, PipelineArtifact.ArtifactType type, String content) {
         Project project = getById(projectId, memberId);
@@ -223,16 +221,21 @@ public class ProjectService {
             PipelineArtifact artifact = existing.get();
             return artifactWriteService.write(projectId, memberId, artifact.getArtifactId(), artifact.getVersion(), content);
         }
-        // 실행 이력이 없는 경우 — 가장 최근 execution에 저장
-        List<Long> requirementIds = requirementRepository.findRequirementIdsByProjectId(projectId);
-        Long executionId = pipelineExecutionRepository.findByRequirementIdIn(requirementIds)
-                .stream().map(PipelineExecution::getExecutionId).findFirst()
-                .orElseThrow(() -> new IllegalStateException("파이프라인 실행 이력이 없습니다"));
+        PipelineExecution execution = currentCompletedExecution(project.getProjectId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "완료된 파이프라인 실행이 없어 문서를 저장할 수 없습니다. 파이프라인을 먼저 완료해 주세요."));
 
         return pipelineArtifactRepository.save(PipelineArtifact.builder()
-                .executionId(executionId)
+                .executionId(execution.getExecutionId())
                 .artifactType(type)
                 .content(content)
                 .build());
+    }
+
+    private Optional<PipelineExecution> currentCompletedExecution(Long projectId) {
+        List<Long> requirementIds = requirementRepository.findByProjectIdOrderByCreatedAtDesc(projectId).stream()
+                .map(com.timiroom.domain.requirement.entity.Requirement::getRequirementId)
+                .toList();
+        return pipelineExecutionRepository.findCurrentCompleted(requirementIds);
     }
 }

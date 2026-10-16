@@ -238,11 +238,10 @@ public class PipelineService {
     }
 
     public List<PipelineArtifact> getLatestArtifactsByProject(Long projectId) {
-        return requirementService.getByProject(projectId).stream()
-                .flatMap(req -> executionRepository
-                        .findByRequirementIdOrderByCreatedAtDesc(req.getRequirementId()).stream())
-                .filter(exec -> exec.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED)
-                .findFirst()
+        List<Long> requirementIds = requirementService.getByProject(projectId).stream()
+                .map(Requirement::getRequirementId)
+                .toList();
+        return executionRepository.findCurrentCompleted(requirementIds)
                 .map(exec -> artifactRepository.findByExecutionIdOrderByArtifactType(exec.getExecutionId()))
                 .orElse(List.of());
     }
