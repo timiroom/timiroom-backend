@@ -36,7 +36,7 @@ class AiCallServiceTrackTest {
     private final UsageService usage = mock(UsageService.class);
     private final UsageHoldService holds = mock(UsageHoldService.class);
     private final AiCallService service = new AiCallService(usage, mock(LlmCredentialService.class), new ObjectMapper(),
-            holds, mock(BillingNotifier.class));
+            holds, mock(com.timiroom.domain.usage.service.ModelTierService.class), mock(BillingNotifier.class));
 
     private static String header(String json) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));

@@ -34,6 +34,7 @@ public class AiCallService {
     private final LlmCredentialService credentialService;
     private final ObjectMapper objectMapper;
     private final UsageHoldService holds;
+    private final ModelTierService modelTiers;
     private final BillingNotifier notifier;
 
     /** 한 번의 AI 기능 실행. headers를 AI 서버 요청에 그대로 붙인다. */
@@ -47,6 +48,8 @@ public class AiCallService {
         Long holdId = holds.reserve(memberId, feature, activeKey.isPresent());
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("X-Timiroom-Usage-Tracking", "1");
+        // 사용자 키가 없으면 회원이 고른 AI 품질(빠름·균형·정밀)을 AI 서버에 알린다.
+        if (activeKey.isEmpty()) headers.put("X-Timiroom-Model-Tier", modelTiers.effective(memberId).name().toLowerCase());
         activeKey.ifPresent(key -> {
             headers.put("X-Timiroom-Llm-Provider", key.provider());
             headers.put("X-Timiroom-Llm-Base-Url", key.baseUrl());
