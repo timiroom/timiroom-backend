@@ -4,7 +4,9 @@ import com.timiroom.domain.usage.entity.MemberSubscription;
 import com.timiroom.domain.usage.entity.UsageEvent;
 import com.timiroom.domain.usage.enums.PlanType;
 import com.timiroom.domain.usage.enums.UsageFeature;
+import com.timiroom.domain.usage.repository.MemberCreditRepository;
 import com.timiroom.domain.usage.repository.MemberSubscriptionRepository;
+import com.timiroom.domain.usage.entity.MemberCredit;
 import com.timiroom.domain.usage.repository.UsageEventRepository;
 import com.timiroom.domain.usage.service.AiUsageRow;
 import com.timiroom.domain.usage.service.UsageLimitExceededException;
@@ -29,6 +31,7 @@ class UsageServiceTest {
     private UsageProperties properties;
     private UsageEventRepository events;
     private MemberSubscriptionRepository subscriptions;
+    private MemberCreditRepository credits;
     private UsageService service;
 
     @BeforeEach
@@ -38,7 +41,10 @@ class UsageServiceTest {
         events = mock(UsageEventRepository.class);
         subscriptions = mock(MemberSubscriptionRepository.class);
         when(subscriptions.findById(any())).thenReturn(Optional.empty());
-        service = new UsageService(properties, events, subscriptions);
+        credits = mock(MemberCreditRepository.class);
+        when(credits.findById(any())).thenReturn(Optional.empty());
+        when(credits.findForUpdate(any())).thenReturn(Optional.empty());
+        service = new UsageService(properties, events, subscriptions, credits);
     }
 
     @Test
@@ -114,5 +120,32 @@ class UsageServiceTest {
     void 기록_실패는_기능을_막지_않는다() {
         when(events.save(any())).thenThrow(new RuntimeException("db down"));
         service.record(1L, null, UsageFeature.AI_CHAT, List.of(new AiUsageRow("chat", "server", "m", false, 1, 1, 1)), null, true);
+    }
+
+    @Test
+    void 요금제를_다_쓰면_추가_사용량으로_계속_쓴다() {
+        when(events.sumCountedCost(eq(1L), any(), any())).thenReturn(new BigDecimal("3000"));
+        MemberCredit credit = MemberCredit.empty(1L);
+        credit.add(new BigDecimal("1500"));
+        when(credits.findById(1L)).thenReturn(Optional.of(credit));
+        service.requireAllowance(1L, UsageFeature.AI_CHAT, false);
+        assertThat(service.statusOf(1L).creditPercent()).isEqualTo(50);
+    }
+
+    @Test
+    void 한도를_넘는_몫만_추가_사용량에서_차감한다() {
+        when(events.sumCountedCost(eq(1L), any(), any())).thenReturn(new BigDecimal("2900"));
+        MemberCredit credit = MemberCredit.empty(1L);
+        credit.add(new BigDecimal("1000"));
+        when(credits.findForUpdate(1L)).thenReturn(Optional.of(credit));
+
+        // 1,000,000 입력 토큰 x 1000원 = 1000원 → 100원은 요금제, 900원은 추가 사용량
+        service.record(1L, null, UsageFeature.AI_CHAT,
+                List.of(new AiUsageRow("chat", "server", "gpt-5.4-mini", false, 1_000_000, 0, 1)), null, true);
+
+        ArgumentCaptor<UsageEvent> saved = ArgumentCaptor.forClass(UsageEvent.class);
+        verify(events).save(saved.capture());
+        assertThat(saved.getValue().getCreditKrw()).isEqualByComparingTo("900");
+        assertThat(credit.getBalanceKrw()).isEqualByComparingTo("100");
     }
 }

@@ -30,7 +30,11 @@ public class BillingController {
     private final MemberRepository members;
     private final ObjectMapper objectMapper;
 
-    public record BillingKeyRequest(String billingKey) {}
+    public record PayRequest(Long paymentMethodId, String billingKey) {}
+
+    public record CardRequest(String billingKey, Boolean makeDefault) {}
+
+    public record CreditRequest(String packId, Long paymentMethodId, String billingKey) {}
 
     public record AdminPlanRequest(String plan, Integer months) {}
 
@@ -47,17 +51,55 @@ public class BillingController {
     }
 
     @PostMapping("/api/v1/billing/subscribe")
-    public ResponseEntity<?> subscribe(HttpSession session, @RequestBody BillingKeyRequest request) {
+    public ResponseEntity<?> subscribe(HttpSession session, @RequestBody PayRequest request) {
         Long memberId = memberId(session);
         if (memberId == null) return unauthorized();
-        return ResponseEntity.ok(billingService.subscribe(memberId, request.billingKey()));
+        return ResponseEntity.ok(billingService.subscribe(memberId,
+                new BillingService.PaySource(request.paymentMethodId(), request.billingKey())));
     }
 
-    @PostMapping("/api/v1/billing/payment-method")
-    public ResponseEntity<?> changeCard(HttpSession session, @RequestBody BillingKeyRequest request) {
+    @GetMapping("/api/v1/billing/payment-methods")
+    public ResponseEntity<?> paymentMethods(HttpSession session) {
         Long memberId = memberId(session);
         if (memberId == null) return unauthorized();
-        return ResponseEntity.ok(billingService.changeCard(memberId, request.billingKey()));
+        return ResponseEntity.ok(Map.of("methods", billingService.paymentMethodViews(memberId)));
+    }
+
+    @PostMapping("/api/v1/billing/payment-methods")
+    public ResponseEntity<?> addPaymentMethod(HttpSession session, @RequestBody CardRequest request) {
+        Long memberId = memberId(session);
+        if (memberId == null) return unauthorized();
+        return ResponseEntity.ok(Map.of("methods", billingService.addPaymentMethod(memberId, request.billingKey(),
+                Boolean.TRUE.equals(request.makeDefault()))));
+    }
+
+    @PostMapping("/api/v1/billing/payment-methods/{id}/default")
+    public ResponseEntity<?> setDefault(HttpSession session, @PathVariable Long id) {
+        Long memberId = memberId(session);
+        if (memberId == null) return unauthorized();
+        return ResponseEntity.ok(Map.of("methods", billingService.setDefault(memberId, id)));
+    }
+
+    @DeleteMapping("/api/v1/billing/payment-methods/{id}")
+    public ResponseEntity<?> deletePaymentMethod(HttpSession session, @PathVariable Long id) {
+        Long memberId = memberId(session);
+        if (memberId == null) return unauthorized();
+        return ResponseEntity.ok(Map.of("methods", billingService.deletePaymentMethod(memberId, id)));
+    }
+
+    @GetMapping("/api/v1/billing/credits")
+    public ResponseEntity<?> credits(HttpSession session) {
+        Long memberId = memberId(session);
+        if (memberId == null) return unauthorized();
+        return ResponseEntity.ok(billingService.creditView(memberId));
+    }
+
+    @PostMapping("/api/v1/billing/credits")
+    public ResponseEntity<?> buyCredit(HttpSession session, @RequestBody CreditRequest request) {
+        Long memberId = memberId(session);
+        if (memberId == null) return unauthorized();
+        return ResponseEntity.ok(billingService.buyCredit(memberId, request.packId(),
+                new BillingService.PaySource(request.paymentMethodId(), request.billingKey())));
     }
 
     @PostMapping("/api/v1/billing/cancel")

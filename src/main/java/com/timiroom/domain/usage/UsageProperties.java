@@ -39,6 +39,32 @@ public class UsageProperties {
     private Map<UsageFeature, BigDecimal> reserveKrw = new EnumMap<>(Map.of(
             UsageFeature.PROJECT_GENERATION, new BigDecimal("300")));
 
+    /** 추가 사용량 상품. creditKrw는 내부 비용 단위로 충전되는 양이다(화면에는 비율로만 보인다). */
+    private List<CreditPack> creditPacks = new ArrayList<>(List.of(
+            new CreditPack("small", 3_300, new BigDecimal("1500")),
+            new CreditPack("medium", 9_900, new BigDecimal("5000")),
+            new CreditPack("large", 29_000, new BigDecimal("16000"))));
+
+    @Getter
+    @Setter
+    public static class CreditPack {
+        private String id;
+        private long priceKrw;
+        private BigDecimal creditKrw;
+
+        public CreditPack() {}
+
+        public CreditPack(String id, long priceKrw, BigDecimal creditKrw) {
+            this.id = id;
+            this.priceKrw = priceKrw;
+            this.creditKrw = creditKrw;
+        }
+    }
+
+    public java.util.Optional<CreditPack> creditPack(String id) {
+        return creditPacks.stream().filter(p -> p.getId().equals(id)).findFirst();
+    }
+
     @Getter
     @Setter
     public static class Plan {

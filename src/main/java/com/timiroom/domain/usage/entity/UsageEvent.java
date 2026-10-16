@@ -53,6 +53,10 @@ public class UsageEvent {
     @Column(name = "cost_krw", nullable = false, precision = 14, scale = 4)
     private BigDecimal costKrw;
 
+    /** 비용 중 추가 사용량에서 차감한 몫 */
+    @Column(name = "credit_krw", nullable = false, precision = 14, scale = 4)
+    private BigDecimal creditKrw = BigDecimal.ZERO;
+
     @Column(nullable = false)
     private boolean byok;
 
@@ -67,7 +71,7 @@ public class UsageEvent {
 
     @Builder
     public UsageEvent(Long memberId, Long projectId, UsageFeature feature, String kind, String provider, String model,
-                      long inputTokens, long outputTokens, int calls, BigDecimal costKrw, boolean byok,
+                      long inputTokens, long outputTokens, int calls, BigDecimal costKrw, BigDecimal creditKrw, boolean byok,
                       boolean counted, String reference, Instant createdAt) {
         this.memberId = memberId;
         this.projectId = projectId;
@@ -79,6 +83,7 @@ public class UsageEvent {
         this.outputTokens = outputTokens;
         this.calls = calls;
         this.costKrw = costKrw;
+        this.creditKrw = creditKrw != null ? creditKrw : BigDecimal.ZERO;
         this.byok = byok;
         this.counted = counted;
         this.reference = reference;

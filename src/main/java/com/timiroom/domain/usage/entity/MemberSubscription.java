@@ -46,12 +46,6 @@ public class MemberSubscription {
     @Column(name = "cancel_at_period_end", nullable = false)
     private boolean cancelAtPeriodEnd;
 
-    @Column(name = "billing_key_encrypted", columnDefinition = "TEXT")
-    private String billingKeyEncrypted;
-
-    @Column(name = "card_summary", length = 80)
-    private String cardSummary;
-
     @Column(name = "next_billing_at")
     private Instant nextBillingAt;
 
@@ -81,10 +75,6 @@ public class MemberSubscription {
         return plan == PlanType.PRO;
     }
 
-    public boolean hasBillingKey() {
-        return billingKeyEncrypted != null && !billingKeyEncrypted.isBlank();
-    }
-
     /** 결제 성공: 프로 기간을 시작하거나 한 달 연장한다. */
     public void startProPeriod(Instant start, Instant end) {
         this.plan = PlanType.PRO;
@@ -94,12 +84,6 @@ public class MemberSubscription {
         this.nextBillingAt = end;
         this.failedAttempts = 0;
         this.grantedByAdmin = false;
-        touch();
-    }
-
-    public void changeCard(String billingKeyEncrypted, String cardSummary) {
-        this.billingKeyEncrypted = billingKeyEncrypted;
-        this.cardSummary = cardSummary;
         touch();
     }
 
@@ -116,7 +100,7 @@ public class MemberSubscription {
         touch();
     }
 
-    /** 무료로 돌린다. 카드 정보는 지운다. */
+    /** 무료로 돌린다. 등록한 카드는 결제 수단에 그대로 남는다. */
     public void downgradeToFree() {
         this.plan = PlanType.FREE;
         this.status = Status.ACTIVE;
@@ -126,8 +110,6 @@ public class MemberSubscription {
         this.cancelAtPeriodEnd = false;
         this.failedAttempts = 0;
         this.grantedByAdmin = false;
-        this.billingKeyEncrypted = null;
-        this.cardSummary = null;
         touch();
     }
 
