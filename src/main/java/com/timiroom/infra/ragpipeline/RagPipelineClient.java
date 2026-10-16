@@ -139,6 +139,48 @@ public class RagPipelineClient {
         return response;
     }
 
+    /** 전용 QA Scenario Agent에 시나리오 생성을 요청한다. */
+    public JsonNode generateQaScenarios(Object requestBody) {
+        JsonNode response;
+        try {
+            response = webClient.post()
+                    .uri("/api/v1/agents/qa-scenario/generate")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .timeout(Duration.ofSeconds(75))
+                    .block();
+        } catch (WebClientRequestException e) {
+            throw unavailable("generateQaScenarios", e);
+        }
+        if (response == null || !response.path("scenarios").isArray()) {
+            throw new IllegalStateException("QA Scenario Agent의 구조화된 응답이 없습니다");
+        }
+        return response;
+    }
+
+    /** 전용 QA Scenario Agent에 시나리오 평가를 요청한다. */
+    public JsonNode evaluateQaScenario(Object requestBody) {
+        JsonNode response;
+        try {
+            response = webClient.post()
+                    .uri("/api/v1/agents/qa-scenario/evaluate")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .timeout(Duration.ofSeconds(75))
+                    .block();
+        } catch (WebClientRequestException e) {
+            throw unavailable("evaluateQaScenario", e);
+        }
+        if (response == null || response.path("verdict").isMissingNode()) {
+            throw new IllegalStateException("QA Scenario Agent의 구조화된 응답이 없습니다");
+        }
+        return response;
+    }
+
     /**
      * SSE 진행 스트림 구독
      * GET /api/v1/orchestration/progress/{pipelineId}
