@@ -22,6 +22,8 @@ import org.springframework.mock.web.MockHttpSession;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -37,6 +39,7 @@ class NotificationLinkTest {
                 mock(ArtifactWriteService.class), mock(DocumentAccessService.class), mock(com.timiroom.domain.usage.service.AiCallService.class));
         var execution = PipelineExecution.builder().executionId(9L).requirementId(30L).memberId(8L).pipelineId("p-1").build();
         when(executions.findByPipelineId("p-1")).thenReturn(Optional.of(execution));
+        when(executions.finishIfRunning(eq("p-1"), any(), anyInt(), any())).thenReturn(1);
         when(requirements.getById(30L)).thenReturn(Requirement.builder().requirementId(30L).projectId(5L).build());
 
         pipeline.handleError("p-1", "boom");
