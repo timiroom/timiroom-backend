@@ -111,7 +111,13 @@ public class AiGatewayController {
         Long memberId = memberId(session);
         if (memberId == null) return error(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다");
         AiCall call = begin(memberId, projectId, feature);
-        RawResponse response = ragPipelineClient.forward(path, body, call.headers(), TIMEOUT);
+        RawResponse response;
+        try {
+            response = ragPipelineClient.forward(path, body, call.headers(), TIMEOUT);
+        } catch (RuntimeException e) {
+            aiCallService.abandon(call);
+            throw e;
+        }
         aiCallService.finish(call, aiCallService.parseHeader(response.usageHeader()), path,
                 response.status() < 400);
         return ResponseEntity.status(response.status())

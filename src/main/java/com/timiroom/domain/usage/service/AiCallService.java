@@ -3,6 +3,7 @@ package com.timiroom.domain.usage.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.timiroom.domain.aikey.service.LlmCredentialService;
+import com.timiroom.domain.billing.service.BillingNotifier;
 import com.timiroom.domain.usage.enums.UsageFeature;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,15 +33,18 @@ public class AiCallService {
     private final UsageService usageService;
     private final LlmCredentialService credentialService;
     private final ObjectMapper objectMapper;
+    private final UsageHoldService holds;
+    private final BillingNotifier notifier;
 
     /** 한 번의 AI 기능 실행. headers를 AI 서버 요청에 그대로 붙인다. */
     public record AiCall(Long memberId, Long projectId, UsageFeature feature, boolean usingOwnKey,
-                         Map<String, String> headers) {}
+                         Map<String, String> headers, Long holdId) {}
 
     /** @throws UsageLimitExceededException 한도를 다 썼을 때 */
     public AiCall begin(Long memberId, Long projectId, UsageFeature feature) {
         var activeKey = credentialService.activeKey(memberId);
-        usageService.requireAllowance(memberId, feature, activeKey.isPresent());
+        // 남은 양을 확인하면서 이 호출 몫을 미리 잡아 둔다(동시에 여러 번 불러 한도를 넘기지 않게).
+        Long holdId = holds.reserve(memberId, feature, activeKey.isPresent());
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("X-Timiroom-Usage-Tracking", "1");
         activeKey.ifPresent(key -> {
@@ -49,12 +53,12 @@ public class AiCallService {
             headers.put("X-Timiroom-Llm-Api-Key", key.apiKey());
             headers.put("X-Timiroom-Llm-Model", key.model());
         });
-        return new AiCall(memberId, projectId, feature, activeKey.isPresent(), headers);
+        return new AiCall(memberId, projectId, feature, activeKey.isPresent(), headers, holdId);
     }
 
     /** 자동으로 돌아 사용자 키를 쓰지 않는 작업(PR 자동 검사 등). 한도는 확인하지 않고 기록만 한다. */
     public AiCall background(Long memberId, Long projectId, UsageFeature feature) {
-        return new AiCall(memberId, projectId, feature, false, Map.of("X-Timiroom-Usage-Tracking", "1"));
+        return new AiCall(memberId, projectId, feature, false, Map.of("X-Timiroom-Usage-Tracking", "1"), null);
     }
 
     /**
@@ -64,12 +68,14 @@ public class AiCallService {
      */
     public <T> T track(Long memberId, Long projectId, UsageFeature feature, String reference, Supplier<T> work) {
         if (AiUsageScope.active()) return work.get();
-        usageService.requireAllowance(memberId, feature, false);
+        Long holdId = holds.reserve(memberId, feature, false);
         AiUsageScope.open();
         try {
             return work.get();
         } finally {
             usageService.record(memberId, projectId, feature, AiUsageScope.close(), reference, true);
+            holds.release(holdId);
+            notifyThreshold(memberId);
         }
     }
 
@@ -79,7 +85,33 @@ public class AiCallService {
 
     public void finish(AiCall call, List<AiUsageRow> rows, String reference, boolean counted) {
         if (call == null) return;
-        usageService.record(call.memberId(), call.projectId(), call.feature(), rows, reference, counted);
+        try {
+            usageService.record(call.memberId(), call.projectId(), call.feature(), rows, reference, counted);
+        } finally {
+            holds.release(call.holdId());
+        }
+        if (!call.usingOwnKey()) notifyThreshold(call.memberId());
+    }
+
+    public void releaseGenerationHold(Long memberId) {
+        holds.releaseOldest(memberId, UsageFeature.PROJECT_GENERATION);
+    }
+
+    /** AI 서버 호출이 실패해 기록할 사용량이 없을 때 예약만 푼다. */
+    public void abandon(AiCall call) {
+        if (call != null) holds.release(call.holdId());
+    }
+
+    /** 이번 기간 사용량이 80%, 100%를 넘으면 한 번씩 알린다. 알림 실패가 AI 기능을 막지 않는다. */
+    private void notifyThreshold(Long memberId) {
+        if (memberId == null) return;
+        try {
+            UsageService.Status status = usageService.statusOf(memberId);
+            int threshold = status.percent() >= 100 ? 100 : status.percent() >= 80 ? 80 : 0;
+            if (threshold > 0) notifier.usageReached(memberId, threshold, status.period().start(), status.period().end());
+        } catch (RuntimeException e) {
+            log.warn("사용량 알림 확인 실패 | memberId: {}", memberId);
+        }
     }
 
     /** X-Timiroom-Usage 헤더(base64url JSON)를 읽는다. 없거나 깨졌으면 빈 목록. */

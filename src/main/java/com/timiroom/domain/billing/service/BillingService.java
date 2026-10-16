@@ -19,6 +19,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ import java.util.*;
  *   갱신: 스케줄러가 매일 결제일이 지난 구독을 기본 카드로 결제한다. 실패하면 하루 뒤 다시, 3번 실패하면 무료로 돌린다.
  *   해지: 기간 끝에 무료로 돌린다(남은 기간은 그대로 쓴다).
  *   추가 사용량: 상품을 골라 한 번 결제하면 잔액이 충전되고, 요금제 한도를 다 쓴 뒤부터 차감된다.
+ *   환불: {@link RefundService}
  */
 @Slf4j
 @Service
@@ -54,6 +57,16 @@ public class BillingService {
     private final MemberRepository members;
     private final SecretCipher cipher;
     private final UsageService usageService;
+    private final RefundService refundService;
+    private final BillingNotifier notifier;
+    private final JdbcTemplate jdbc;
+
+    /** 실제 돈이 오가지 않는 테스트 채널인지. 화면에 테스트 결제임을 알린다. */
+    @Value("${portone.test-mode:true}")
+    private boolean testMode;
+
+    /** 자동 결제 며칠 전에 알릴지 */
+    static final int RENEWAL_NOTICE_DAYS = 3;
 
     /** 결제 대상: 등록된 카드 id 또는 방금 결제창에서 받은 빌링키 중 하나 */
     public record PaySource(Long paymentMethodId, String billingKey) {}
@@ -66,6 +79,9 @@ public class BillingService {
         config.put("storeId", ready ? portOneProperties.getStoreId() : "");
         config.put("channelKey", ready ? portOneProperties.getChannelKey() : "");
         config.put("priceKrw", usageProperties.plan(PlanType.PRO).getPriceKrw());
+        config.put("testMode", testMode);
+        config.put("subscriptionRefundDays", RefundService.SUBSCRIPTION_REFUND_DAYS);
+        config.put("creditRefundDays", RefundService.CREDIT_REFUND_DAYS);
         return config;
     }
 
@@ -115,6 +131,7 @@ public class BillingService {
         }
         s.startProPeriod(now, end);
         s.scheduleCancel(false);
+        notifier.paymentSucceeded(payment);
         return view(subscriptions.save(s));
     }
 
@@ -235,6 +252,7 @@ public class BillingService {
             throw new IllegalArgumentException(failure(payment));
         }
         usageService.addCredit(memberId, credit);
+        notifier.paymentSucceeded(payment);
         return creditView(memberId);
     }
 
@@ -276,14 +294,24 @@ public class BillingService {
         view.put("failureReason", p.getFailureReason());
         view.put("paidAt", p.getPaidAt());
         view.put("createdAt", p.getCreatedAt());
+        view.put("refundedKrw", p.getRefundedKrw());
+        view.put("refundedAt", p.getRefundedAt());
         return view;
     }
 
     // ── 스케줄러·웹훅 ────────────────────────────────────────
 
-    /** 스케줄러: 기간이 끝난 해지 예약을 무료로 돌리고, 결제일이 된 구독을 갱신한다. */
+    /**
+     * 스케줄러: 기간이 끝난 해지 예약을 무료로 돌리고, 결제일이 된 구독을 갱신하고, 곧 결제될 구독에 알린다.
+     * 서버가 여러 대라 모두 이 작업을 시작하므로, DB 잠금을 먼저 잡은 한 대만 처리한다(이중 결제 방지).
+     */
     @Transactional
     public int runDueBilling(Instant now) {
+        Boolean locked = jdbc.queryForObject("select pg_try_advisory_xact_lock(hashtextextended('billing:due', 0))", Boolean.class);
+        if (!Boolean.TRUE.equals(locked)) {
+            log.info("다른 서버가 정기결제를 처리 중이라 건너뜁니다");
+            return 0;
+        }
         int handled = 0;
         for (MemberSubscription s : subscriptions.findByPeriodEndLessThanEqualAndCancelAtPeriodEndTrue(now)) {
             s.downgradeToFree();
@@ -294,11 +322,17 @@ public class BillingService {
             if (!s.isPro() || s.isCancelAtPeriodEnd()) continue;
             Optional<PaymentMethod> method = paymentMethods.findFirstByMemberIdAndDefaultMethodTrue(s.getMemberId());
             if (method.isEmpty()) {
-                fail(s, now);
+                fail(s, now, "등록된 결제 수단이 없습니다");
             } else {
                 renew(s, method.get(), now);
             }
             handled++;
+        }
+        for (MemberSubscription s : subscriptions.findByNextBillingAtBetweenAndGrantedByAdminFalse(
+                now.plus(Duration.ofDays(RENEWAL_NOTICE_DAYS - 1)), now.plus(Duration.ofDays(RENEWAL_NOTICE_DAYS)))) {
+            if (s.isPro() && !s.isCancelAtPeriodEnd() && s.getStatus() == MemberSubscription.Status.ACTIVE) {
+                notifier.renewalUpcoming(s.getMemberId(), s.getNextBillingAt(), usageProperties.plan(PlanType.PRO).getPriceKrw());
+            }
         }
         return handled;
     }
@@ -311,12 +345,14 @@ public class BillingService {
         BillingPayment payment = chargeSubscription(s.getMemberId(), method, start, end);
         if (payment.getStatus() == BillingPayment.Status.PAID) {
             s.startProPeriod(start, end);
+            notifier.paymentSucceeded(payment);
         } else {
-            fail(s, now);
+            fail(s, now, payment.getFailureReason());
         }
     }
 
-    private void fail(MemberSubscription s, Instant now) {
+    private void fail(MemberSubscription s, Instant now, String reason) {
+        notifier.renewalFailed(s.getMemberId(), s.getFailedAttempts() + 1, MAX_FAILED_ATTEMPTS, reason);
         if (s.getFailedAttempts() + 1 >= MAX_FAILED_ATTEMPTS) {
             log.warn("정기결제 {}회 실패로 무료로 전환 | memberId: {}", MAX_FAILED_ATTEMPTS, s.getMemberId());
             s.downgradeToFree();
@@ -335,7 +371,8 @@ public class BillingService {
                 case "PAID" -> p.markPaid(parseInstant(remote.path("paidAt").asText(null)),
                         remote.path("receiptUrl").asText(null), cardFromPayment(remote));
                 case "FAILED" -> p.markFailed(remote.path("failure").path("reason").asText("결제에 실패했습니다"));
-                case "CANCELLED", "PARTIAL_CANCELLED" -> p.markCancelled();
+                case "CANCELLED", "PARTIAL_CANCELLED" -> refundService.applyRemoteCancellation(p,
+                        remote.path("amount").path("cancelled").asLong(p.getAmountKrw()));
                 default -> log.info("웹훅 결제 상태 무시 | paymentId: {}, status: {}", paymentId, status);
             }
         });

@@ -182,7 +182,13 @@ public class ChatService {
     /** 기획 대화 한 턴: 한도 확인 → AI 호출 → 사용량 기록 */
     private Map<String, Object> chatWithUsage(Long memberId, String sessionId, Object body) {
         var call = aiCallService.begin(memberId, null, com.timiroom.domain.usage.enums.UsageFeature.PROJECT_CHAT);
-        RagPipelineClient.ChatReply reply = ragPipelineClient.chat(body, call.headers());
+        RagPipelineClient.ChatReply reply;
+        try {
+            reply = ragPipelineClient.chat(body, call.headers());
+        } catch (RuntimeException e) {
+            aiCallService.abandon(call);
+            throw e;
+        }
         aiCallService.finish(call, aiCallService.parseHeader(reply.usageHeader()), "chat:" + sessionId);
         return reply.data();
     }

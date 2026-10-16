@@ -104,6 +104,7 @@ public class MemberController {
         map.put("provider", member.getProvider());
         map.put("avatarUrl", member.getProfileImageUrl());
         map.put("githubLogin", member.getGithubLogin());
+        map.put("admin", member.getRole() == com.timiroom.domain.member.enums.Role.ADMIN);
         return map;
     }
 }

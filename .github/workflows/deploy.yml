@@ -115,6 +115,18 @@ jobs:
             printf 'PORTONE_CHANNEL_KEY=%s\n' "$APP_PORTONE_CHANNEL_KEY"
             printf 'PORTONE_API_SECRET=%s\n' "$APP_PORTONE_API_SECRET"
             printf 'PORTONE_WEBHOOK_SECRET=%s\n' "$APP_PORTONE_WEBHOOK_SECRET"
+            printf 'PORTONE_TEST_MODE=%s\n' "$APP_PORTONE_TEST_MODE"
+            printf 'NOTIFY_ADMIN_EMAILS=%s\n' "$APP_NOTIFY_ADMIN_EMAILS"
+            # 메일은 주소가 있을 때만 넣는다(빈 값을 넣으면 메일 기능이 잘못 켜진다).
+            if [ -n "$APP_MAIL_HOST" ]; then
+              printf 'SPRING_MAIL_HOST=%s\n' "$APP_MAIL_HOST"
+              printf 'SPRING_MAIL_PORT=%s\n' "$APP_MAIL_PORT"
+              printf 'SPRING_MAIL_USERNAME=%s\n' "$APP_MAIL_USERNAME"
+              printf 'SPRING_MAIL_PASSWORD=%s\n' "$APP_MAIL_PASSWORD"
+              printf 'SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true\n'
+              printf 'SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true\n'
+              printf 'MAIL_FROM=%s\n' "$APP_MAIL_FROM"
+            fi
           } > temp-secrets.env
           
           kubectl create secret generic backend-secrets -n timiroom --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
@@ -169,3 +181,10 @@ jobs:
           APP_PORTONE_CHANNEL_KEY: ${{ secrets.APP_PORTONE_CHANNEL_KEY }}
           APP_PORTONE_API_SECRET: ${{ secrets.APP_PORTONE_API_SECRET }}
           APP_PORTONE_WEBHOOK_SECRET: ${{ secrets.APP_PORTONE_WEBHOOK_SECRET }}
+          APP_PORTONE_TEST_MODE: ${{ vars.PORTONE_TEST_MODE || 'true' }}
+          APP_NOTIFY_ADMIN_EMAILS: ${{ vars.NOTIFY_ADMIN_EMAILS }}
+          APP_MAIL_HOST: ${{ vars.MAIL_HOST }}
+          APP_MAIL_PORT: ${{ vars.MAIL_PORT || '587' }}
+          APP_MAIL_USERNAME: ${{ secrets.APP_MAIL_USERNAME }}
+          APP_MAIL_PASSWORD: ${{ secrets.APP_MAIL_PASSWORD }}
+          APP_MAIL_FROM: ${{ vars.MAIL_FROM || 'Align-it <no-reply@timiroom.kro.kr>' }}

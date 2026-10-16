@@ -87,13 +87,26 @@ usage:
   zone: Asia/Seoul
   # 사용자 AI 키·결제 빌링키 암호화 키(32바이트 base64). 비우면 AI 키 등록과 정기결제가 꺼진다.
   secret-key: ${USAGE_SECRET_KEY:}
+  # 한도는 우리가 내는 AI 비용(원) 기준이다. 프로는 9,900원에서 부가세(900원)와 카드 수수료(약 3.3%)를 빼면
+  # 약 8,670원이 남고, 그중 6,500원까지 AI 비용으로 쓰게 해 약 25%를 운영비로 남긴다.
+  # 무료는 가입자 한 명이 한 달에 1,000원까지(기획 대화·문서 수정 수십 번, 프로젝트 생성 한두 번 정도).
   plans:
-    FREE: { name: 무료, price-krw: 0, monthly-limit-krw: 3000 }
-    PRO: { name: 프로, price-krw: 9900, monthly-limit-krw: 30000 }
+    FREE: { name: 무료, price-krw: 0, monthly-limit-krw: "${USAGE_FREE_LIMIT_KRW:1000}" }
+    PRO: { name: 프로, price-krw: 9900, monthly-limit-krw: "${USAGE_PRO_LIMIT_KRW:6500}" }
+  # 기능을 시작하려면 남아 있어야 하는 금액이자, 진행 중인 호출이 미리 잡아 두는 금액(없으면 default-reserve-krw)
   reserve-krw:
     PROJECT_GENERATION: 300
+    PR_CONSISTENCY: 100
+    SPEC_REVIEW: 100
+    DOCUMENT_EDIT: 50
+  default-reserve-krw: 20
+  hold-ttl: 30m
+  # 운영 비용 경보(원): 하루 전체, 한 사람의 하루
+  alert-daily-total-krw: ${USAGE_ALERT_DAILY_TOTAL_KRW:50000}
+  alert-daily-member-krw: ${USAGE_ALERT_DAILY_MEMBER_KRW:5000}
   # 추가 사용량 충전: 요금제 한도를 다 쓰면 내부 비용 × credit-rate만큼 잔액(원)에서 차감한다.
-  credit-rate: ${USAGE_CREDIT_RATE:1.0}
+  # 1.3이면 부가세·카드 수수료를 빼고도 약 10%가 남는다(1.0이면 충전할수록 손해).
+  credit-rate: ${USAGE_CREDIT_RATE:1.3}
   credit-presets-krw: [5000, 10000, 30000]
   credit-min-krw: 5000
   credit-max-krw: 500000
@@ -117,6 +130,16 @@ portone:
   channel-key: ${PORTONE_CHANNEL_KEY:}
   api-secret: ${PORTONE_API_SECRET:}
   webhook-secret: ${PORTONE_WEBHOOK_SECRET:}
+  # 실연동 채널로 바꾸기 전까지 true. 화면에 테스트 결제임을 알린다.
+  test-mode: ${PORTONE_TEST_MODE:true}
+
+# ── 알림 메일 ──────────────────────────────────────────────
+# SMTP는 SPRING_MAIL_HOST·PORT·USERNAME·PASSWORD 환경 변수로 켠다. 없으면 메일을 보내지 않는다(로그만 남긴다).
+notify:
+  site-url: ${SITE_URL:https://timiroom.kro.kr}
+  mail-from: ${MAIL_FROM:Align-it <no-reply@timiroom.kro.kr>}
+  # 비용 경보를 받을 운영자 메일(쉼표로 여러 개)
+  admin-emails: ${NOTIFY_ADMIN_EMAILS:}
 
 # 후속 정합성/수정 전용 Python 서비스 (사용 모델은 서비스가 정하고 응답의 evaluationMode로 알려 준다)
 consistency-service:
