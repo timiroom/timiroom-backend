@@ -77,6 +77,36 @@ server:
 # ── rag-pipeline 연동 URL ─────────────────────────────────────────
 rag-pipeline:
   base-url: ${RAG_PIPELINE_URL:http://localhost:8081}
+  # AI 서버의 INTERNAL_API_TOKEN과 같은 값. 비우면 보내지 않는다(로컬).
+  internal-token: ${RAG_INTERNAL_TOKEN:}
+
+# ── AI 사용량·요금제 ────────────────────────────────────────────────
+# 금액은 모두 원. 모델 단가는 "100만 토큰당 원"이며 운영 전 실제 단가로 맞춘다(추정치).
+usage:
+  enforce: ${USAGE_ENFORCE:true}
+  zone: Asia/Seoul
+  # 사용자 AI 키·결제 빌링키 암호화 키(32바이트 base64). 비우면 AI 키 등록과 정기결제가 꺼진다.
+  secret-key: ${USAGE_SECRET_KEY:}
+  plans:
+    FREE: { name: 무료, price-krw: 0, monthly-limit-krw: 3000 }
+    PRO: { name: 프로, price-krw: 9900, monthly-limit-krw: 30000 }
+  reserve-krw:
+    PROJECT_GENERATION: 300
+  default-price: { model: "*", input-krw-per-million: 1500, output-krw-per-million: 6000 }
+  models:
+    - { model: "gpt-5.4-mini*", input-krw-per-million: 1100, output-krw-per-million: 6600 }
+    - { model: "gpt-5.4*", input-krw-per-million: 3700, output-krw-per-million: 22000 }
+    - { model: "LGAI-EXAONE*", input-krw-per-million: 1300, output-krw-per-million: 1300 }
+    - { model: "solar-embedding*", input-krw-per-million: 150, output-krw-per-million: 0 }
+
+# ── PortOne 정기결제 (V2) ───────────────────────────────────────────
+portone:
+  enabled: ${PORTONE_ENABLED:false}
+  api-base-url: https://api.portone.io
+  store-id: ${PORTONE_STORE_ID:}
+  channel-key: ${PORTONE_CHANNEL_KEY:}
+  api-secret: ${PORTONE_API_SECRET:}
+  webhook-secret: ${PORTONE_WEBHOOK_SECRET:}
 
 # 후속 정합성/수정 전용 Python 서비스 (Friendli LG K-EXAONE)
 consistency-service:

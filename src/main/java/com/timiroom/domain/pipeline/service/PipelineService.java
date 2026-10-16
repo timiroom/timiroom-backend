@@ -41,6 +41,7 @@ public class PipelineService {
     private final ObjectMapper objectMapper;
     private final com.timiroom.domain.spec.service.ArtifactWriteService artifactWriteService;
     private final com.timiroom.domain.spec.service.DocumentAccessService documentAccessService;
+    private final com.timiroom.domain.usage.service.AiCallService aiCallService;
 
     /**
      * 파이프라인 시작
@@ -54,9 +55,12 @@ public class PipelineService {
             Long memberId, Long requirementId, List<MultipartFile> files, String mode) throws Exception {
 
         Requirement requirement = requirementService.getById(requirementId);
+        // 한도를 넘었으면 상태를 바꾸기 전에 막는다(429).
+        var call = aiCallService.begin(memberId, requirement.getProjectId(),
+                com.timiroom.domain.usage.enums.UsageFeature.PROJECT_GENERATION);
         requirementService.updateStatus(requirementId, RequirementStatus.PROCESSING);
 
-        String pipelineId = ragPipelineClient.generate(requirement.getContent(), files, mode);
+        String pipelineId = ragPipelineClient.generate(requirement.getContent(), files, mode, call.headers());
 
         PipelineExecution execution = PipelineExecution.builder()
                 .pipelineId(pipelineId)
@@ -101,6 +105,7 @@ public class PipelineService {
                                 return;
                             }
                             if ("error".equals(eventName)) {
+                                recordGenerationUsage(pipelineId, sse.data(), false);
                                 handleError(pipelineId, extractErrorMessage(sse.data()));
                                 sendToEmitter(emitter, eventName, sse.data());
                                 completeEmitter(emitter);
@@ -154,6 +159,8 @@ public class PipelineService {
                 log.warn("PipelineExecution 없음 | pipelineId: {}", pipelineId);
                 return;
             }
+
+            recordGenerationUsage(execution, objectMapper.valueToTree(result.get("usage")), true);
 
             int retryCount = result.containsKey("retryCount")
                     ? ((Number) result.get("retryCount")).intValue() : 0;
@@ -212,6 +219,31 @@ public class PipelineService {
                 );
             }
         });
+    }
+
+    /**
+     * 생성 파이프라인 사용량 기록. 완료는 한도에 넣고, 실패는 기록만 남기고 한도에서 빼 준다.
+     * 사용자 키 여부는 AI 서버가 줄마다 표시해 보낸다.
+     */
+    private void recordGenerationUsage(String pipelineId, String errorDataJson, boolean counted) {
+        try {
+            var data = objectMapper.readTree(errorDataJson);
+            executionRepository.findByPipelineId(pipelineId)
+                    .ifPresent(execution -> recordGenerationUsage(execution, data.path("usage"), counted));
+        } catch (Exception e) {
+            log.warn("생성 사용량을 읽지 못했습니다 | pipelineId: {}", pipelineId);
+        }
+    }
+
+    private void recordGenerationUsage(PipelineExecution execution, com.fasterxml.jackson.databind.JsonNode usage, boolean counted) {
+        // 진행 스트림을 다시 구독하면 완료·실패 이벤트가 또 올 수 있어, 이미 끝난 실행은 다시 기록하지 않는다.
+        if (execution.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED
+                || execution.getStatus() == PipelineExecution.ExecutionStatus.FAILED) return;
+        var rows = aiCallService.parseNode(usage);
+        if (rows.isEmpty()) return;
+        var call = aiCallService.background(execution.getMemberId(), projectIdOf(execution.getRequirementId()),
+                com.timiroom.domain.usage.enums.UsageFeature.PROJECT_GENERATION);
+        aiCallService.finish(call, rows, "pipeline:" + execution.getPipelineId(), counted);
     }
 
     public List<PipelineExecution> getExecutionsByMember(Long memberId) {

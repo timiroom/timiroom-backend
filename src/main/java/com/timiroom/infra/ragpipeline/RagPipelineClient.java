@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
@@ -28,13 +29,24 @@ public class RagPipelineClient {
 
     public RagPipelineClient(
             @Value("${rag-pipeline.base-url}") String baseUrl,
+            @Value("${rag-pipeline.internal-token:}") String internalToken,
             ObjectMapper objectMapper) {
-        this.webClient = WebClient.builder()
+        WebClient.Builder builder = WebClient.builder()
                 .baseUrl(baseUrl)
-                .codecs(config -> config.defaultCodecs().maxInMemorySize(50 * 1024 * 1024))
-                .build();
+                .codecs(config -> config.defaultCodecs().maxInMemorySize(50 * 1024 * 1024));
+        // AI 서버는 이 토큰이 있어야 AI 경로를 열어 준다(브라우저 직접 호출 차단).
+        if (internalToken != null && !internalToken.isBlank()) {
+            builder.defaultHeader("X-Timiroom-Internal-Token", internalToken.trim());
+        }
+        this.webClient = builder.build();
         log.info("RagPipelineClient initialized with base-url: {}", baseUrl);
     }
+
+    /** AI 서버 응답 그대로(상태·본문·사용량 헤더). 프록시 경로에서 쓴다. */
+    public record RawResponse(int status, String contentType, String body, String usageHeader) {}
+
+    /** 채팅 응답의 data와 사용량 헤더 */
+    public record ChatReply(Map<String, Object> data, String usageHeader) {}
 
     private RuntimeException unavailable(String op, Throwable cause) {
         log.error("RAG 파이프라인 연결 실패 [{}]: {}", op, cause.getMessage());
@@ -48,6 +60,10 @@ public class RagPipelineClient {
      * @param mode "collaborative" 또는 "sequential" — rag-pipeline OrchestrationController로 그대로 전달
      */
     public String generate(String requestJson, List<MultipartFile> files, String mode) {
+        return generate(requestJson, files, mode, Map.of());
+    }
+
+    public String generate(String requestJson, List<MultipartFile> files, String mode, Map<String, String> headers) {
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
         builder.part("request", requestJson).contentType(MediaType.APPLICATION_JSON);
 
@@ -74,6 +90,7 @@ public class RagPipelineClient {
                             .queryParam("mode", mode)
                             .build())
                     .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .headers(h -> headers.forEach(h::set))
                     .body(BodyInserters.fromMultipartData(builder.build()))
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
@@ -96,26 +113,67 @@ public class RagPipelineClient {
      * POST /api/v1/chat/message
      */
     public Map<String, Object> chat(Object requestBody) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> response;
+        return chat(requestBody, Map.of()).data();
+    }
+
+    public ChatReply chat(Object requestBody, Map<String, String> headers) {
+        ResponseEntity<Map<String, Object>> response;
         try {
             response = webClient.post()
                     .uri("/api/v1/chat/message")
                     .contentType(MediaType.APPLICATION_JSON)
+                    .headers(h -> headers.forEach(h::set))
                     .bodyValue(requestBody)
                     .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .toEntity(new ParameterizedTypeReference<Map<String, Object>>() {})
                     .timeout(Duration.ofSeconds(30))
                     .block();
         } catch (WebClientRequestException e) {
             throw unavailable("chat", e);
         }
 
-        if (response == null) throw new RuntimeException("rag-pipeline 채팅 응답이 없습니다");
+        if (response == null || response.getBody() == null) throw new RuntimeException("rag-pipeline 채팅 응답이 없습니다");
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) response.get("data");
-        return data;
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        return new ChatReply(data, response.getHeaders().getFirst(USAGE_HEADER));
+    }
+
+    private static final String USAGE_HEADER = "X-Timiroom-Usage";
+
+    /** JSON 요청을 그대로 넘기고 상태·본문을 그대로 받는다. 4xx·5xx도 예외 없이 돌려준다. */
+    public RawResponse forward(String path, String jsonBody, Map<String, String> headers, Duration timeout) {
+        try {
+            RawResponse response = webClient.post()
+                    .uri(path)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .headers(h -> headers.forEach(h::set))
+                    .bodyValue(jsonBody == null ? "{}" : jsonBody)
+                    .exchangeToMono(r -> r.bodyToMono(String.class).defaultIfEmpty("")
+                            .map(body -> new RawResponse(r.statusCode().value(),
+                                    r.headers().contentType().map(MediaType::toString).orElse(MediaType.APPLICATION_JSON_VALUE),
+                                    body, r.headers().asHttpHeaders().getFirst(USAGE_HEADER))))
+                    .timeout(timeout)
+                    .block();
+            if (response == null) throw new IllegalStateException("AI 서버 응답이 없습니다");
+            return response;
+        } catch (WebClientRequestException e) {
+            throw unavailable("forward " + path, e);
+        }
+    }
+
+    /** 스트리밍 응답(SSE)의 data 값을 하나씩 흘려보낸다. */
+    public Flux<String> forwardStream(String path, String jsonBody, Map<String, String> headers) {
+        return webClient.post()
+                .uri(path)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .headers(h -> headers.forEach(h::set))
+                .bodyValue(jsonBody == null ? "{}" : jsonBody)
+                .retrieve()
+                .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {})
+                .map(event -> event.data() == null ? "" : event.data())
+                .onErrorMap(WebClientRequestException.class, e -> unavailable("stream " + path, e));
     }
 
     /** 전용 PR Consistency Agent에 구조화된 검증 요청을 전달한다. */
