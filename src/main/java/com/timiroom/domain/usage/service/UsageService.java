@@ -9,6 +9,7 @@ import com.timiroom.domain.usage.enums.UsageFeature;
 import com.timiroom.domain.usage.repository.MemberCreditRepository;
 import com.timiroom.domain.usage.repository.MemberSubscriptionRepository;
 import com.timiroom.domain.usage.repository.UsageEventRepository;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,7 @@ public class UsageService {
     private final UsageEventRepository usageEvents;
     private final MemberSubscriptionRepository subscriptions;
     private final MemberCreditRepository credits;
+    private final EntityManager entityManager;
 
     public record Period(Instant start, Instant end) {}
 
@@ -139,7 +141,7 @@ public class UsageService {
                     planLeft = planLeft.subtract(cost);
                     if (over.signum() > 0) {
                         if (credit == null) {
-                            credit = credits.findForUpdate(memberId).orElse(null);
+                            credit = lockCredit(memberId).orElse(null);
                             creditRoom = credit == null ? BigDecimal.ZERO
                                     : creditOf(memberId, periodOf(subscriptionOf(memberId), now)).usableKrw();
                         }
@@ -167,6 +169,17 @@ public class UsageService {
         }
     }
 
+    /**
+     * 잔액 행을 잠그고 DB의 최신 값으로 다시 읽는다.
+     * 요청 초반(한도 확인)에 같은 회원의 잔액을 이미 읽어 두면, 잠금 조회도 영속성 컨텍스트에 남은 옛 값을
+     * 돌려줘서 동시에 들어온 차감이 서로를 덮어썼다(open-in-view로 요청 내내 같은 컨텍스트를 쓴다).
+     */
+    private Optional<MemberCredit> lockCredit(Long memberId) {
+        Optional<MemberCredit> found = credits.findForUpdate(memberId);
+        found.ifPresent(entityManager::refresh);
+        return found;
+    }
+
     private BigDecimal planRemaining(Long memberId, Instant now) {
         MemberSubscription subscription = subscriptionOf(memberId);
         Period period = periodOf(subscription, now);
@@ -177,7 +190,7 @@ public class UsageService {
     /** 추가 사용량 충전(결제 성공 후). 충전하면 사용을 켠다. */
     @Transactional
     public void addCredit(Long memberId, BigDecimal amount) {
-        MemberCredit credit = credits.findForUpdate(memberId).orElseGet(() -> MemberCredit.empty(memberId));
+        MemberCredit credit = lockCredit(memberId).orElseGet(() -> MemberCredit.empty(memberId));
         credit.add(amount);
         if (!credit.isEnabled()) credit.configure(true, credit.getMonthlyCapKrw());
         credits.save(credit);
@@ -189,7 +202,7 @@ public class UsageService {
         if (monthlyCapKrw != null && (monthlyCapKrw < 1_000 || monthlyCapKrw > 10_000_000)) {
             throw new IllegalArgumentException("월 상한은 1,000원 이상으로 정해 주세요");
         }
-        MemberCredit credit = credits.findForUpdate(memberId).orElseGet(() -> MemberCredit.empty(memberId));
+        MemberCredit credit = lockCredit(memberId).orElseGet(() -> MemberCredit.empty(memberId));
         credit.configure(enabled, monthlyCapKrw);
         credits.save(credit);
     }

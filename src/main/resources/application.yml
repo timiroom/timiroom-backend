@@ -99,6 +99,7 @@ usage:
   credit-max-krw: 500000
   default-price: { model: "*", input-krw-per-million: 1500, output-krw-per-million: 6000 }
   models:
+    - { model: "gpt-5.5*", input-krw-per-million: 3700, output-krw-per-million: 22000 }
     - { model: "gpt-5.4-mini*", input-krw-per-million: 1100, output-krw-per-million: 6600 }
     - { model: "gpt-5.4*", input-krw-per-million: 3700, output-krw-per-million: 22000 }
     - { model: "LGAI-EXAONE*", input-krw-per-million: 1300, output-krw-per-million: 1300 }

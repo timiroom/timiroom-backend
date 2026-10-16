@@ -252,7 +252,8 @@ public class BillingService {
                 .orElseThrow(() -> new IllegalArgumentException("결제 내역을 찾을 수 없습니다"));
         var member = members.findById(memberId).orElse(null);
         Map<String, Object> view = paymentView(p);
-        view.put("buyerName", member != null ? Optional.ofNullable(member.getMemberName()).orElse(member.getNickname()) : null);
+        // member_name은 로그인 제공자 식별값(google_…)이라 화면 이름인 nickname을 먼저 쓴다.
+        view.put("buyerName", member != null ? Optional.ofNullable(member.getNickname()).orElse(member.getMemberName()) : null);
         view.put("buyerEmail", member != null ? member.getEmail() : null);
         view.put("supplyKrw", Math.round(p.getAmountKrw() / 1.1));
         view.put("vatKrw", p.getAmountKrw() - Math.round(p.getAmountKrw() / 1.1));

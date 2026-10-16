@@ -44,7 +44,7 @@ class UsageServiceTest {
         credits = mock(MemberCreditRepository.class);
         when(credits.findById(any())).thenReturn(Optional.empty());
         when(credits.findForUpdate(any())).thenReturn(Optional.empty());
-        service = new UsageService(properties, events, subscriptions, credits);
+        service = new UsageService(properties, events, subscriptions, credits, mock(jakarta.persistence.EntityManager.class));
     }
 
     @Test
