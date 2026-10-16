@@ -89,13 +89,15 @@ usage:
   secret-key: ${USAGE_SECRET_KEY:}
   # 한도는 우리가 내는 AI 비용(원) 기준이다. 프로는 9,900원에서 부가세(900원)와 카드 수수료(약 3.3%)를 빼면
   # 약 8,670원이 남고, 그중 6,500원까지 AI 비용으로 쓰게 해 약 25%를 운영비로 남긴다.
-  # 무료는 가입자 한 명이 한 달에 1,000원까지(기획 대화·문서 수정 수십 번, 프로젝트 생성 한두 번 정도).
+  # 실측(gpt-5.6-luna, 2026-10-16): 프로젝트 생성 한 번 약 1,000원(입력 60~85만·출력 3만 토큰, 호출 45~70번),
+  # AI 채팅 한 번 약 10원. 무료는 빠름으로 생성 두 번과 채팅 수십 번을 할 수 있게 2,500원으로 둔다.
   plans:
-    FREE: { name: 무료, price-krw: 0, monthly-limit-krw: "${USAGE_FREE_LIMIT_KRW:1000}" }
+    FREE: { name: 무료, price-krw: 0, monthly-limit-krw: "${USAGE_FREE_LIMIT_KRW:2500}" }
     PRO: { name: 프로, price-krw: 9900, monthly-limit-krw: "${USAGE_PRO_LIMIT_KRW:6500}" }
   # 기능을 시작하려면 남아 있어야 하는 금액이자, 진행 중인 호출이 미리 잡아 두는 금액(없으면 default-reserve-krw)
   reserve-krw:
-    PROJECT_GENERATION: 300
+    # 생성은 한 번에 약 1,000원(빠름)이 들어, 그보다 적게 남았으면 시작하지 않는다(중간에 한도를 크게 넘지 않게).
+    PROJECT_GENERATION: 1000
     PR_CONSISTENCY: 100
     SPEC_REVIEW: 100
     DOCUMENT_EDIT: 50
