@@ -37,6 +37,9 @@ class UsageServiceTest {
     @BeforeEach
     void setUp() {
         properties = new UsageProperties();
+        // 테스트 숫자는 이 한도를 기준으로 짜여 있다(운영 기본값과 별개).
+        properties.getPlans().put(com.timiroom.domain.usage.enums.PlanType.FREE, new UsageProperties.Plan("무료", 0, 3_000));
+        properties.getPlans().put(com.timiroom.domain.usage.enums.PlanType.PRO, new UsageProperties.Plan("프로", 9_900, 30_000));
         properties.getModels().add(new UsageProperties.ModelPrice("gpt-5.4-mini*", new BigDecimal("1000"), new BigDecimal("4000")));
         events = mock(UsageEventRepository.class);
         subscriptions = mock(MemberSubscriptionRepository.class);

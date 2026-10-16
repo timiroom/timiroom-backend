@@ -28,8 +28,8 @@ public class UsageProperties {
     private String zone = "Asia/Seoul";
 
     private Map<PlanType, Plan> plans = new EnumMap<>(Map.of(
-            PlanType.FREE, new Plan("무료", 0, 3_000),
-            PlanType.PRO, new Plan("프로", 9_900, 30_000)));
+            PlanType.FREE, new Plan("무료", 0, 10_000),
+            PlanType.PRO, new Plan("프로", 30_000, 50_000)));
 
     private List<ModelPrice> models = new ArrayList<>();
 
