@@ -97,12 +97,16 @@ usage:
   credit-presets-krw: [5000, 10000, 30000]
   credit-min-krw: 5000
   credit-max-krw: 500000
-  default-price: { model: "*", input-krw-per-million: 1500, output-krw-per-million: 6000 }
+  # 단가(원/100만 토큰): OpenAI 공식 표준 요금(2026-10 확인) x 1달러 1,450원(환율 여유분 포함).
+  # 표에 없는 모델은 가장 비싼 모델 값으로 잡아 손해를 보지 않게 한다. 위에서부터 먼저 맞는 것을 쓴다.
+  default-price: { model: "*", input-krw-per-million: 7250, output-krw-per-million: 43500 }
   models:
-    - { model: "gpt-5.5*", input-krw-per-million: 3700, output-krw-per-million: 22000 }
-    - { model: "gpt-5.4-mini*", input-krw-per-million: 1100, output-krw-per-million: 6600 }
-    - { model: "gpt-5.4*", input-krw-per-million: 3700, output-krw-per-million: 22000 }
+    - { model: "gpt-5.5*", input-krw-per-million: 7250, output-krw-per-million: 43500 }       # $5 / $30
+    - { model: "gpt-5.4-mini*", input-krw-per-million: 1100, output-krw-per-million: 6600 }   # $0.75 / $4.50
+    - { model: "gpt-5.4*", input-krw-per-million: 3650, output-krw-per-million: 21750 }       # $2.50 / $15
+    # 전용 엔드포인트(시간 과금)라 토큰 단가는 추정치다.
     - { model: "LGAI-EXAONE*", input-krw-per-million: 1300, output-krw-per-million: 1300 }
+    - { model: "dep*", input-krw-per-million: 1300, output-krw-per-million: 1300 }
     - { model: "solar-embedding*", input-krw-per-million: 150, output-krw-per-million: 0 }
 
 # ── PortOne 정기결제 (V2) ───────────────────────────────────────────

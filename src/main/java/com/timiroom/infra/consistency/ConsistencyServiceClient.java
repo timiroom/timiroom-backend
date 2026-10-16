@@ -1,5 +1,6 @@
 package com.timiroom.infra.consistency;
 
+import com.timiroom.domain.usage.service.AiUsageScope;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,6 +54,7 @@ public class ConsistencyServiceClient {
                     .bodyToMono(JsonNode.class)
                     .timeout(JobTimeBudget.limit(Duration.ofSeconds(95)))
                     .block();
+            if (response != null) AiUsageScope.addNode(response.path("usage"));
             if (response == null || !response.hasNonNull(requiredField)
                     || ("findings".equals(requiredField) && !response.get(requiredField).isArray())) {
                 throw new IllegalStateException("Python Consistency Agent의 구조화된 응답이 없습니다");

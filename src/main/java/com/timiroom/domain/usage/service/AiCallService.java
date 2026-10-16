@@ -13,6 +13,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * AI 서버를 부르는 모든 기능이 거치는 공통 단계.
@@ -54,6 +55,22 @@ public class AiCallService {
     /** 자동으로 돌아 사용자 키를 쓰지 않는 작업(PR 자동 검사 등). 한도는 확인하지 않고 기록만 한다. */
     public AiCall background(Long memberId, Long projectId, UsageFeature feature) {
         return new AiCall(memberId, projectId, feature, false, Map.of("X-Timiroom-Usage-Tracking", "1"));
+    }
+
+    /**
+     * 화면 요청 없이 도는 AI 작업을 memberId 앞으로 기록한다. 서버 키로만 돌기 때문에 한도를 확인하고,
+     * 작업이 실패해도 이미 쓴 토큰은 남긴다. 이미 범위 안이면 바깥 범위가 모아 기록한다.
+     * @throws UsageLimitExceededException 한도를 다 썼을 때(작업을 시작하지 않는다)
+     */
+    public <T> T track(Long memberId, Long projectId, UsageFeature feature, String reference, Supplier<T> work) {
+        if (AiUsageScope.active()) return work.get();
+        usageService.requireAllowance(memberId, feature, false);
+        AiUsageScope.open();
+        try {
+            return work.get();
+        } finally {
+            usageService.record(memberId, projectId, feature, AiUsageScope.close(), reference, true);
+        }
     }
 
     public void finish(AiCall call, List<AiUsageRow> rows, String reference) {

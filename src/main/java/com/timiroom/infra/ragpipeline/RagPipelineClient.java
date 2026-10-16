@@ -1,5 +1,6 @@
 package com.timiroom.infra.ragpipeline;
 
+import com.timiroom.domain.usage.service.AiUsageScope;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -180,14 +181,17 @@ public class RagPipelineClient {
     public JsonNode reviewPullRequestConsistency(Object requestBody) {
         JsonNode response;
         try {
-            response = webClient.post()
+            var entity = webClient.post()
                     .uri("/api/v1/agents/pr-consistency/review")
+                    .header(AiUsageScope.TRACKING_HEADER, AiUsageScope.active() ? "1" : "0")
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody)
                     .retrieve()
-                    .bodyToMono(JsonNode.class)
+                    .toEntity(JsonNode.class)
                     .timeout(Duration.ofSeconds(75))
                     .block();
+            response = entity == null ? null : entity.getBody();
+            if (entity != null) AiUsageScope.addHeader(entity.getHeaders().getFirst("X-Timiroom-Usage"));
         } catch (WebClientRequestException e) {
             throw unavailable("reviewPullRequestConsistency", e);
         }

@@ -1,5 +1,8 @@
 package com.timiroom.domain.github;
 
+import com.timiroom.domain.usage.service.UsageLimitExceededException;
+import com.timiroom.domain.usage.service.AiCallService;
+import com.timiroom.domain.usage.enums.UsageFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.timiroom.domain.github.dto.ConsistencyFinding;
@@ -72,6 +75,7 @@ public class PullRequestConsistencyService {
     private final ConsistencyServiceClient consistencyServiceClient;
     private final ObjectMapper objectMapper;
     private final GithubClient githubClient;
+    private final AiCallService aiCalls;
 
     @Value("${github.consistency.agent-enabled:true}")
     private boolean agentEnabled;
@@ -109,14 +113,15 @@ public class PullRequestConsistencyService {
     public PullRequestConsistencyResult checkAndReview(Long projectId, Long memberId, Long repoId, int pullNumber) {
         GithubRepo repo = findLinkedRepo(projectId, memberId, repoId);
         requirePm(projectId, memberId);
-        return checkAndReview(projectId, repo, pullNumber);
+        return checkAndReview(projectId, repo, pullNumber, memberId);
     }
 
     /** 검증된 GitHub webhook 경로에서 호출한다. */
     @Transactional
     public PullRequestConsistencyResult checkAndReviewFromWebhook(Long projectId, Long repoId, int pullNumber) {
         GithubRepo repo = findLinkedRepoWithoutMember(projectId, repoId);
-        return checkAndReview(projectId, repo, pullNumber);
+        // 자동 검사 비용은 프로젝트 PM 앞으로 기록한다.
+        return checkAndReview(projectId, repo, pullNumber, projectPm(projectId));
     }
 
     /** Read-only MCP analysis: immutable specs and commit-pinned files, with no posting or fallback PASS. */
@@ -131,7 +136,7 @@ public class PullRequestConsistencyService {
             if(specifications.putIfAbsent(document.type(),document.content())!=null) throw new IllegalArgumentException("DUPLICATE_SPEC_DOCUMENT");
         }
         var files=withFullFileContext(repo,pull,githubClient.listPullRequestFiles(repo.getFullName(),repo.getInstallationId(),pullNumber));
-        var analysis=analyzeWithAgent(repo,pull,files,specifications,true);
+        var analysis=analyzeWithAgent(repo,pull,files,specifications,true,memberId,snapshot.projectId());
         var current=githubClient.getPullRequest(repo.getFullName(),repo.getInstallationId(),pullNumber);
         if(!expectedHeadSha.equals(current.headSha()) || !pull.baseSha().equals(current.baseSha())) throw new IllegalStateException("PR_CHANGED");
         boolean passed=analysis.findings().stream().anyMatch(f->"PASS".equals(f.severity()))
@@ -159,7 +164,7 @@ public class PullRequestConsistencyService {
         return githubRepoRepository.findById(repo).orElseThrow(()->new IllegalArgumentException("REPO_NOT_LINKED"));
     }
 
-    private PullRequestConsistencyResult checkAndReview(Long projectId, GithubRepo repo, int pullNumber) {
+    private PullRequestConsistencyResult checkAndReview(Long projectId, GithubRepo repo, int pullNumber, Long payerId) {
         GithubPullRequestInfo pullRequest = githubClient.getPullRequest(repo.getFullName(), repo.getInstallationId(), pullNumber);
         GithubPullRequestReviewRecord existing = reviewRecordRepository
                 .findByProjectIdAndGithubRepoIdAndPullNumber(projectId, repo.getId(), pullNumber).orElse(null);
@@ -174,7 +179,7 @@ public class PullRequestConsistencyService {
         List<GithubPullRequestFileInfo> files = withFullFileContext(repo, pullRequest,
                 githubClient.listPullRequestFiles(repo.getFullName(), repo.getInstallationId(), pullNumber));
         Map<PipelineArtifact.ArtifactType, String> specifications = latestSpecifications(projectId);
-        AnalysisOutcome analysis = analyzeWithAgent(repo, pullRequest, files, specifications);
+        AnalysisOutcome analysis = analyzeWithAgent(repo, pullRequest, files, specifications, false, payerId, projectId);
         List<ConsistencyFinding> findings = analysis.findings();
         long warningCount = findings.stream().filter(f -> "WARNING".equals(f.severity())).count();
         long inconclusiveCount = findings.stream().filter(f -> "INCONCLUSIVE".equals(f.severity())).count();
@@ -286,13 +291,27 @@ public class PullRequestConsistencyService {
     private AnalysisOutcome analyzeWithAgent(GithubRepo repo,
                                              GithubPullRequestInfo pullRequest,
                                              List<GithubPullRequestFileInfo> files,
-                                             Map<PipelineArtifact.ArtifactType, String> specifications) {
-        return analyzeWithAgent(repo,pullRequest,files,specifications,false);
+                                             Map<PipelineArtifact.ArtifactType, String> specifications,boolean strict,
+                                             Long payerId, Long projectId) {
+        if (!agentEnabled) return runAgent(repo, pullRequest, files, specifications, strict);
+        try {
+            return aiCalls.track(payerId, projectId, UsageFeature.PR_CONSISTENCY,
+                    "pr:" + repo.getId() + "#" + pullRequest.number(),
+                    () -> runAgent(repo, pullRequest, files, specifications, strict));
+        } catch (UsageLimitExceededException e) {
+            if (strict) throw e;
+            // 한도를 다 쓴 PM의 프로젝트도 PR 검사는 멈추지 않게, AI 대신 규칙 검사로 남긴다.
+            List<ConsistencyFinding> findings = new ArrayList<>(analyzeWithRules(files, specifications));
+            findings.add(new ConsistencyFinding("INFO", "검사기",
+                    "PM의 AI 사용량을 모두 써서 규칙 기반 검사 결과를 사용했습니다."));
+            return new AnalysisOutcome(List.copyOf(findings), "RULE_FALLBACK", defaultReviewSummary(findings));
+        }
     }
-    private AnalysisOutcome analyzeWithAgent(GithubRepo repo,
-                                             GithubPullRequestInfo pullRequest,
-                                             List<GithubPullRequestFileInfo> files,
-                                             Map<PipelineArtifact.ArtifactType, String> specifications,boolean strict) {
+
+    private AnalysisOutcome runAgent(GithubRepo repo,
+                                     GithubPullRequestInfo pullRequest,
+                                     List<GithubPullRequestFileInfo> files,
+                                     Map<PipelineArtifact.ArtifactType, String> specifications,boolean strict) {
         if (!agentEnabled) {
             if(strict) throw new IllegalStateException("CONSISTENCY_UNAVAILABLE");
             List<ConsistencyFinding> findings = analyzeWithRules(files, specifications);
@@ -689,6 +708,15 @@ public class PullRequestConsistencyService {
                 .orElseThrow(() -> new IllegalArgumentException("프로젝트에 연결된 레포가 아닙니다: " + repoId));
         return githubRepoRepository.findById(repoId)
                 .orElseThrow(() -> new IllegalArgumentException("GitHub 레포를 찾을 수 없습니다: " + repoId));
+    }
+
+    /** 프로젝트 PM(여럿이면 먼저 들어온 사람). 없으면 null이라 사용량을 남기지 않는다. */
+    private Long projectPm(Long projectId) {
+        return projectMemberRepository.findByProjectId(projectId).stream()
+                .filter(member -> member.getProjectRole() == ProjectRole.PM)
+                .map(ProjectMember::getMemberId)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
     }
 
     private void requirePm(Long projectId, Long memberId) {
