@@ -15,7 +15,8 @@ import java.time.Instant;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BillingPayment {
 
-    public enum Status { PENDING, PAID, FAILED, CANCELLED }
+    /** CANCELLED는 전액 환불, PARTIAL_CANCELLED는 일부 환불(PortOne 상태와 같다). */
+    public enum Status { PENDING, PAID, FAILED, CANCELLED, PARTIAL_CANCELLED }
 
     /** 요금제 결제인지 추가 사용량 구매인지 */
     public enum Kind { SUBSCRIPTION, CREDIT }
@@ -73,6 +74,16 @@ public class BillingPayment {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** 지금까지 환불한 금액(원) */
+    @Column(name = "refunded_krw", nullable = false)
+    private long refundedKrw;
+
+    @Column(name = "refunded_at")
+    private Instant refundedAt;
+
+    @Column(name = "refund_reason", length = 300)
+    private String refundReason;
+
     public static BillingPayment pending(Long memberId, String paymentId, PlanType plan, long amountKrw,
                                          String orderName, Instant periodStart, Instant periodEnd, String cardSummary) {
         BillingPayment p = base(memberId, paymentId, amountKrw, orderName, cardSummary);
@@ -116,7 +127,17 @@ public class BillingPayment {
         this.failureReason = reason == null ? null : (reason.length() > 300 ? reason.substring(0, 300) : reason);
     }
 
-    public void markCancelled() {
-        this.status = Status.CANCELLED;
+    /** 더 환불할 수 있는 금액 */
+    public long refundableKrw() {
+        if (status != Status.PAID && status != Status.PARTIAL_CANCELLED) return 0;
+        return Math.max(0, amountKrw - refundedKrw);
+    }
+
+    /** 누적 환불액을 totalRefundedKrw로 맞춘다. 전액이면 CANCELLED, 일부면 PARTIAL_CANCELLED. */
+    public void recordRefund(long totalRefundedKrw, String reason) {
+        this.refundedKrw = Math.min(amountKrw, Math.max(refundedKrw, totalRefundedKrw));
+        this.refundedAt = Instant.now();
+        if (reason != null && !reason.isBlank()) this.refundReason = reason.length() > 300 ? reason.substring(0, 300) : reason;
+        this.status = refundedKrw >= amountKrw ? Status.CANCELLED : Status.PARTIAL_CANCELLED;
     }
 }

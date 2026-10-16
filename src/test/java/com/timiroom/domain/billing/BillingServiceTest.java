@@ -76,8 +76,21 @@ class BillingServiceTest {
         properties.setChannelKey("channel-key-test");
         properties.setApiSecret("secret");
         cipher = new SecretCipher(Base64.getEncoder().encodeToString(new byte[32]));
+        jdbc = mock(org.springframework.jdbc.core.JdbcTemplate.class);
+        when(jdbc.queryForObject(anyString(), eq(Boolean.class))).thenReturn(true);
         service = new BillingService(portOne, properties, new UsageProperties(), subscriptions, payments, methodRepo,
-                mock(MemberRepository.class), cipher, usageService);
+                mock(MemberRepository.class), cipher, usageService,
+                mock(com.timiroom.domain.billing.service.RefundService.class),
+                mock(com.timiroom.domain.billing.service.BillingNotifier.class), jdbc);
+    }
+
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    @Test
+    void 다른_서버가_정기결제를_처리_중이면_건너뛴다() {
+        when(jdbc.queryForObject(anyString(), eq(Boolean.class))).thenReturn(false);
+        assertThat(service.runDueBilling(java.time.Instant.now())).isZero();
+        org.mockito.Mockito.verifyNoInteractions(portOne);
     }
 
     private JsonNode node(String text) throws Exception {

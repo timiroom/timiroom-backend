@@ -8,6 +8,8 @@ import com.timiroom.domain.usage.service.AiUsageRow;
 import com.timiroom.domain.usage.service.AiUsageScope;
 import com.timiroom.domain.usage.service.UsageLimitExceededException;
 import com.timiroom.domain.usage.service.UsageService;
+import com.timiroom.domain.usage.service.UsageHoldService;
+import com.timiroom.domain.billing.service.BillingNotifier;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -32,7 +34,9 @@ import static org.mockito.Mockito.verify;
 class AiCallServiceTrackTest {
 
     private final UsageService usage = mock(UsageService.class);
-    private final AiCallService service = new AiCallService(usage, mock(LlmCredentialService.class), new ObjectMapper());
+    private final UsageHoldService holds = mock(UsageHoldService.class);
+    private final AiCallService service = new AiCallService(usage, mock(LlmCredentialService.class), new ObjectMapper(),
+            holds, mock(BillingNotifier.class));
 
     private static String header(String json) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
@@ -62,7 +66,7 @@ class AiCallServiceTrackTest {
     @Test
     void doesNotStartWorkWhenLimitIsReached() {
         doThrow(new UsageLimitExceededException(Instant.now(), "FREE"))
-                .when(usage).requireAllowance(eq(7L), any(), eq(false));
+                .when(holds).reserve(eq(7L), any(), eq(false));
 
         assertThatThrownBy(() -> service.track(7L, 3L, UsageFeature.SPEC_REVIEW, "job:1", () -> {
             throw new AssertionError("실행되면 안 됩니다");

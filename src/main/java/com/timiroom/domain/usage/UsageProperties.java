@@ -39,6 +39,20 @@ public class UsageProperties {
     private Map<UsageFeature, BigDecimal> reserveKrw = new EnumMap<>(Map.of(
             UsageFeature.PROJECT_GENERATION, new BigDecimal("300")));
 
+    /** reserveKrw에 없는 기능의 기본값. 진행 중인 호출 하나가 남은 양에서 미리 잡아 두는 금액이기도 하다. */
+    private BigDecimal defaultReserveKrw = new BigDecimal("20");
+
+    /** 진행 중인 호출의 예약을 이 시간이 지나면 무시한다(기록하지 못하고 끝난 호출 정리). */
+    private java.time.Duration holdTtl = java.time.Duration.ofMinutes(30);
+
+    /** 운영 비용 경보: 하루 전체 AI 비용, 한 사람의 하루 AI 비용(원) */
+    private long alertDailyTotalKrw = 50_000;
+    private long alertDailyMemberKrw = 5_000;
+
+    public BigDecimal reserveOf(UsageFeature feature) {
+        return reserveKrw.getOrDefault(feature, defaultReserveKrw);
+    }
+
     /**
      * 추가 사용량(충전 금액). 요금제 한도를 다 쓰면 실제 쓴 만큼 원 단위로 잔액에서 차감한다.
      * creditRate: 내부 비용 1원당 잔액에서 빼는 금액(마진). 1이면 비용 그대로 차감한다.

@@ -2,6 +2,7 @@ package com.timiroom.domain.billing.controller;
 
 import com.timiroom.domain.billing.entity.BillingPayment;
 import com.timiroom.domain.billing.service.BillingService;
+import com.timiroom.domain.billing.service.RefundService;
 import com.timiroom.domain.member.enums.Role;
 import com.timiroom.domain.member.repository.MemberRepository;
 import com.timiroom.domain.usage.enums.PlanType;
@@ -26,6 +27,7 @@ import java.util.Map;
 public class BillingController {
 
     private final BillingService billingService;
+    private final RefundService refundService;
     private final PortOneWebhookVerifier webhookVerifier;
     private final MemberRepository members;
     private final ObjectMapper objectMapper;
@@ -124,6 +126,28 @@ public class BillingController {
         Long memberId = memberId(session);
         if (memberId == null) return unauthorized();
         return ResponseEntity.ok(billingService.resume(memberId));
+    }
+
+    /** 지금 받을 수 있는 환불(요금제 청약철회, 추가 사용량 잔액) */
+    @GetMapping("/api/v1/billing/refunds")
+    public ResponseEntity<?> refundOptions(HttpSession session) {
+        Long memberId = memberId(session);
+        if (memberId == null) return unauthorized();
+        return ResponseEntity.ok(refundService.options(memberId));
+    }
+
+    @PostMapping("/api/v1/billing/refunds/subscription")
+    public ResponseEntity<?> refundSubscription(HttpSession session) {
+        Long memberId = memberId(session);
+        if (memberId == null) return unauthorized();
+        return ResponseEntity.ok(refundService.refundSubscription(memberId));
+    }
+
+    @PostMapping("/api/v1/billing/refunds/credit")
+    public ResponseEntity<?> refundCredit(HttpSession session) {
+        Long memberId = memberId(session);
+        if (memberId == null) return unauthorized();
+        return ResponseEntity.ok(refundService.refundCredit(memberId));
     }
 
     @GetMapping("/api/v1/billing/payments")

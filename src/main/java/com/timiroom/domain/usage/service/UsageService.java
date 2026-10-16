@@ -109,13 +109,27 @@ public class UsageService {
     public void requireAllowance(Long memberId, UsageFeature feature, boolean usingOwnKey) {
         if (!properties.isEnforce() || usingOwnKey || memberId == null) return;
         Status status = statusOf(memberId);
-        BigDecimal reserve = properties.getReserveKrw().getOrDefault(feature, BigDecimal.ZERO);
-        // 추가 사용량 잔액(원)을 내부 비용 단위로 바꿔 더한다.
-        BigDecimal available = BigDecimal.valueOf(status.limitKrw()).subtract(status.usedKrw()).max(BigDecimal.ZERO)
-                .add(status.credit().usableKrw().divide(rate(), 4, RoundingMode.DOWN));
-        if (available.compareTo(reserve) <= 0) {
+        if (availableOf(status).compareTo(properties.reserveOf(feature)) <= 0) {
             throw new UsageLimitExceededException(status.period().end(), status.plan().name());
         }
+    }
+
+    /** 지금 더 쓸 수 있는 양(내부 비용 원): 요금제 남은 양 + 추가 사용량 잔액을 비용 단위로 바꾼 값 */
+    public BigDecimal availableOf(Status status) {
+        return BigDecimal.valueOf(status.limitKrw()).subtract(status.usedKrw()).max(BigDecimal.ZERO)
+                .add(status.credit().usableKrw().divide(rate(), 4, RoundingMode.DOWN));
+    }
+
+    /** 추가 사용량 잔액(원) */
+    @Transactional(readOnly = true)
+    public BigDecimal creditBalance(Long memberId) {
+        return credits.findById(memberId).map(MemberCredit::getBalanceKrw).orElse(BigDecimal.ZERO);
+    }
+
+    /** 환불한 만큼 잔액에서 뺀다. 실제로 뺀 금액을 돌려준다. */
+    @Transactional
+    public BigDecimal takeCredit(Long memberId, BigDecimal amount) {
+        return lockCredit(memberId).map(credit -> credit.take(amount)).orElse(BigDecimal.ZERO);
     }
 
     /**

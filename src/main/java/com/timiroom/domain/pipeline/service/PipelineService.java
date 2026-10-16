@@ -60,7 +60,13 @@ public class PipelineService {
                 com.timiroom.domain.usage.enums.UsageFeature.PROJECT_GENERATION);
         requirementService.updateStatus(requirementId, RequirementStatus.PROCESSING);
 
-        String pipelineId = ragPipelineClient.generate(requirement.getContent(), files, mode, call.headers());
+        String pipelineId;
+        try {
+            pipelineId = ragPipelineClient.generate(requirement.getContent(), files, mode, call.headers());
+        } catch (Exception e) {
+            aiCallService.abandon(call);
+            throw e;
+        }
 
         PipelineExecution execution = PipelineExecution.builder()
                 .pipelineId(pipelineId)
@@ -239,6 +245,8 @@ public class PipelineService {
         // 진행 스트림을 다시 구독하면 완료·실패 이벤트가 또 올 수 있어, 이미 끝난 실행은 다시 기록하지 않는다.
         if (execution.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED
                 || execution.getStatus() == PipelineExecution.ExecutionStatus.FAILED) return;
+        // 시작할 때 잡아 둔 예약은 결과가 따로 오므로 여기서 푼다.
+        aiCallService.releaseGenerationHold(execution.getMemberId());
         var rows = aiCallService.parseNode(usage);
         if (rows.isEmpty()) return;
         var call = aiCallService.background(execution.getMemberId(), projectIdOf(execution.getRequirementId()),

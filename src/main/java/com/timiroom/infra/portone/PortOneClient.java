@@ -69,6 +69,20 @@ public class PortOneClient {
         return send(webClient.post().uri("/payments/" + encode(paymentId) + "/billing-key").bodyValue(body));
     }
 
+    /**
+     * 결제 취소(환불). amountKrw만큼 부분 취소한다. currentCancellableKrw를 함께 보내
+     * 그사이 다른 곳에서 취소된 경우 PortOne이 거절하게 한다(중복 환불 방지).
+     * @return cancellation 객체(status: SUCCEEDED | REQUESTED | FAILED)
+     */
+    public JsonNode cancelPayment(String paymentId, long amountKrw, long currentCancellableKrw, String reason) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("storeId", properties.getStoreId());
+        body.put("amount", amountKrw);
+        body.put("currentCancellableAmount", currentCancellableKrw);
+        body.put("reason", reason);
+        return send(webClient.post().uri("/payments/" + encode(paymentId) + "/cancel").bodyValue(body)).path("cancellation");
+    }
+
     /** 빌링키 삭제(카드 변경·해지 정리). 실패해도 흐름은 계속한다. */
     public void deleteBillingKey(String billingKey) {
         try {
