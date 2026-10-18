@@ -15,6 +15,7 @@ public class SpecSnapshot {
     @Column(name="documents_json",nullable=false,columnDefinition="TEXT") private String documentsJson;
     public SpecSnapshot(Long projectId,int revision,Long actorId,String documentsJson) {
         this.snapshotId=UUID.randomUUID();this.projectId=projectId;this.revision=revision;
-        this.publishedBy=actorId;this.publishedAt=Instant.now();this.documentsJson=documentsJson;
+        // 밀리초로 자른다: PostgreSQL은 마이크로초까지 저장해, 그대로 두면 매니페스트 시각과 다시 읽은 값이 어긋난다.
+        this.publishedBy=actorId;this.publishedAt=Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);this.documentsJson=documentsJson;
     }
 }

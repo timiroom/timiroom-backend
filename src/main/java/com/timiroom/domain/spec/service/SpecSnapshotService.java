@@ -24,9 +24,14 @@ public class SpecSnapshotService {
     private final SpecSnapshotRepository snapshots;
     private final DocumentAccessService access;
     private final ObjectMapper mapper;
+    private final SpecAnchorRecorder anchors;
 
     @Transactional
-    public SpecSnapshotDto publish(Long projectId,Long actorId) {
+    public SpecSnapshotDto publish(Long projectId,Long actorId) { return publish(projectId,actorId,null); }
+
+    /** proposal: 이 발행을 일으킨 승인 변경안(직접 발행이면 null). 명세 지문에 함께 묶인다. */
+    @Transactional
+    public SpecSnapshotDto publish(Long projectId,Long actorId,ProposalRef proposal) {
         access.requirePm(projectId,actorId);
         projects.findForUpdate(projectId).orElseThrow(()->new SecurityException("ACCESS_DENIED"));
         var selected=pipeline.getLatestArtifactsByProject(projectId).stream()
@@ -42,8 +47,11 @@ public class SpecSnapshotService {
         if(!present.containsAll(EnumSet.of(ArtifactType.PRD,ArtifactType.API_SPEC,ArtifactType.DB_SCHEMA)))
             throw new IllegalStateException("SPEC_NOT_PUBLISHED: required documents missing");
         int revision=snapshots.findFirstByProjectIdOrderByRevisionDesc(projectId).map(s->s.getRevision()+1).orElse(1);
+        // 지문 사슬: 지문이 없는 과거 revision을 먼저 채우고(저장 전), 새 revision의 지문을 같은 트랜잭션에 남긴다.
+        anchors.ensureProject(projectId);
         try {
             var snapshot=snapshots.save(new SpecSnapshot(projectId,revision,actorId,mapper.writeValueAsString(documents)));
+            anchors.record(snapshot,documents,proposal);
             return dto(snapshot,documents);
         } catch(JsonProcessingException e) { throw new IllegalStateException("Cannot serialize snapshot",e); }
     }

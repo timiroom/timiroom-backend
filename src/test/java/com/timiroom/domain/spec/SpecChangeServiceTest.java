@@ -98,8 +98,11 @@ class SpecChangeServiceTest {
     @Test void approvalValidatesAllSnapshotDocumentsBeforePublishing() throws Exception {
         var p = ready();
         when(reviews.hasPass(p.getProposalId(), 1, p.getResultHash())).thenReturn(true);
-        when(snapshots.publish(1L, 2L)).thenReturn(snapshot());
+        when(snapshots.publish(eq(1L), eq(2L), any())).thenReturn(snapshot());
         var result = service.approve(1L, 2L, p.getProposalId(), 1);
+        // 승인한 변경안이 명세 지문에 함께 묶이도록 발행에 넘어간다.
+        verify(snapshots).publish(eq(1L), eq(2L), argThat(ref -> ref.id().equals(p.getProposalId())
+            && ref.revision()==1 && ref.resultHash().equals(p.getResultHash())));
         verify(writer).writeBatch(eq(1L), eq(2L), argThat(writes -> writes.size()==2
             && writes.stream().anyMatch(w -> w.artifactId()==10L && w.content().equals("{}"))
             && writes.stream().anyMatch(w -> w.artifactId()==11L && w.expectedHash().equals("h2"))));

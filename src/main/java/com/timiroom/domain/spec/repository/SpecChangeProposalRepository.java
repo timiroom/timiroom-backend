@@ -6,6 +6,7 @@ import java.util.*;
 public interface SpecChangeProposalRepository extends JpaRepository<SpecChangeProposal, UUID> {
     org.springframework.data.domain.Page<SpecChangeProposal> findByProjectId(Long projectId,org.springframework.data.domain.Pageable pageable);
     Optional<SpecChangeProposal> findByProposalIdAndProjectId(UUID proposalId, Long projectId);
+    Optional<SpecChangeProposal> findByApprovedSnapshotId(UUID approvedSnapshotId);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from SpecChangeProposal p where p.proposalId = :proposalId and p.projectId = :projectId")
     Optional<SpecChangeProposal> findForUpdate(UUID proposalId, Long projectId);
