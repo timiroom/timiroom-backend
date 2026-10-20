@@ -96,8 +96,8 @@ usage:
     PRO: { name: 프로, price-krw: "${USAGE_PRO_PRICE_KRW:30000}", monthly-limit-krw: "${USAGE_PRO_LIMIT_KRW:50000}" }
   # 기능을 시작하려면 남아 있어야 하는 금액이자, 진행 중인 호출이 미리 잡아 두는 금액(없으면 default-reserve-krw)
   reserve-krw:
-    # 생성은 한 번에 약 1,000원(빠름)이 들어, 그보다 적게 남았으면 시작하지 않는다(중간에 한도를 크게 넘지 않게).
-    PROJECT_GENERATION: 1000
+    # 생성은 한 번에 약 3,000원(기본 균형, 빠름은 약 1,000원)이 들어, 그보다 적게 남았으면 시작하지 않는다(중간에 한도를 크게 넘지 않게).
+    PROJECT_GENERATION: 3000
     PR_CONSISTENCY: 100
     SPEC_REVIEW: 100
     QA_SCENARIO: 50
