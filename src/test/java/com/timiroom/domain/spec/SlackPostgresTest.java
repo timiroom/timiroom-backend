@@ -47,6 +47,7 @@ class SlackPostgresTest {
     @MockitoBean SpecSnapshotService snapshots;
     @MockitoBean IntegrationTaskService tasks;
     @MockitoBean IntegrationJobService jobs;
+    @MockitoBean com.timiroom.domain.github.PullRequestConsistencyService pullRequests;
     @BeforeEach void resetTables() {
         jdbc.update("delete from slack_notification");jdbc.update("delete from slack_command_request");
         jdbc.update("delete from slack_project_channel");jdbc.update("delete from slack_account_link");jdbc.update("delete from slack_link_code");

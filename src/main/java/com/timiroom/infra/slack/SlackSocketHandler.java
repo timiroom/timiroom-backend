@@ -58,9 +58,7 @@ public final class SlackSocketHandler {
     private void process(SlackCommand command,String requestId) {
         String text;
         try {text=commands.accept(command,requestId).get("text");}
-        catch(SecurityException denied) {text="티미룸 계정 연결과 프로젝트 채널·권한을 확인하세요. 계정 연결은 /timiroom connect로 시작합니다.";}
-        catch(IllegalArgumentException invalid) {text=SlackCommandService.HELP;}
-        catch(RuntimeException unavailable) {text="요청을 접수하지 못했습니다. 잠시 후 다시 시도하세요.";}
+        catch(RuntimeException failure) {text=SlackCommandService.friendly(failure);}
         try {web.reply(command.channel(),command.user(),text);}
         catch(RuntimeException delivery) {
             // Never log the payload, connection code, response URL, token, or SDK exception.

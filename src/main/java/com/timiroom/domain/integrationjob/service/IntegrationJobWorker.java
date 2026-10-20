@@ -12,6 +12,7 @@ import java.util.List;
 public class IntegrationJobWorker {
     private final IntegrationJobService jobs;
     private final List<IntegrationJobHandler> handlers;
+    private final org.springframework.beans.factory.ObjectProvider<SpecChangeNotifier> notifier;
     @Scheduled(fixedDelayString="${integration.job.poll-ms:1000}",scheduler="integrationJobScheduler")
     public void poll() {
         jobs.claim().ifPresent(this::execute);
@@ -22,6 +23,8 @@ public class IntegrationJobWorker {
             if(handler.requiresProvider(job)) jobs.providerStarted(job.getJobId(),job.getLeaseId());
             var result=handler.execute(job);
             jobs.complete(job.getJobId(),job.getLeaseId(),result);
+            try { notifier.ifAvailable(n->n.completed(job,result)); }
+            catch(RuntimeException notifyFailure) { log.warn("변경안 알림 실패: {}",job.getJobId()); }
         } catch(Exception failure) {
             String code=failure instanceof SecurityException ? "ACCESS_DENIED" :
                 java.util.Set.of("PR_CHANGED","SPEC_CONFLICT","NO_SPEC_CHANGES","JOB_TIMEOUT","CONSISTENCY_PROVIDER_FAILED")

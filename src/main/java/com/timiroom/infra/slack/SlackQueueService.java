@@ -71,6 +71,28 @@ public class SlackQueueService {
             jdbc.update("insert into slack_notification(event_key,project_id,actor_id,channel_id,message_text,created_at,state) values(?,?,?,?,?,?,'QUEUED') on conflict(event_key) do nothing",
                 "job:"+job,project,actor,row.get("channel_id"),text,Timestamp.from(Instant.now()));
         }
+        collectPullRequestChecks();
+    }
+    /** GitHub 웹훅으로 PR마다 자동으로 돈 정합성 검사 결과도 채널에 알린다. 커밋(head)마다 한 번씩. */
+    private void collectPullRequestChecks() {
+        List<Map<String,Object>> rows;
+        try {
+            rows=jdbc.queryForList("select r.github_pr_review_record_id,r.project_id,r.pull_number,r.head_sha,r.score,r.pull_title,r.pull_url,r.review_url,"
+                +"r.check_run_url,c.channel_id,c.configured_by from github_pull_request_review_record r join slack_project_channel c on c.project_id=r.project_id "
+                +"where r.updated_at>=c.configured_at and r.updated_at>? and not exists(select 1 from slack_notification n "
+                +"where n.event_key='prauto:' || r.github_pr_review_record_id || ':' || r.head_sha) order by r.updated_at limit 50",
+                Timestamp.from(Instant.now().minusSeconds(172800)));
+        } catch(org.springframework.dao.DataAccessException missingTable) { return; }
+        for(var row:rows) {
+            Object score=row.get("score");
+            String title=String.valueOf(row.getOrDefault("pull_title","")).replaceAll("[<>&]","");
+            if(title.length()>80) title=title.substring(0,80)+"…";
+            Object result=row.get("review_url")!=null?row.get("review_url"):row.get("check_run_url")!=null?row.get("check_run_url"):row.get("pull_url");
+            String text="티미룸 PR 자동 검사 · #"+row.get("pull_number")+(score!=null?" · 정합성 "+score+"점":"")+"\n"+title+(result!=null?"\n"+result:"");
+            jdbc.update("insert into slack_notification(event_key,project_id,actor_id,channel_id,message_text,created_at,state) values(?,?,?,?,?,?,'QUEUED') on conflict(event_key) do nothing",
+                "prauto:"+row.get("github_pr_review_record_id")+":"+row.get("head_sha"),((Number)row.get("project_id")).longValue(),
+                ((Number)row.get("configured_by")).longValue(),row.get("channel_id"),text,Timestamp.from(Instant.now()));
+        }
     }
     @Transactional public Optional<Notification> claimNotification() {
         expire("slack_notification");

@@ -26,9 +26,9 @@ public class SlackController {
         verifier.verify(timestamp,signature,body);
         var request=SlackCommand.from(body,team,app);
         try {return commands.accept(request,DocumentHash.of(timestamp+":"+body));}
-        catch(SecurityException denied) {return Map.of("response_type","ephemeral","text","티미룸 계정 연결과 프로젝트 채널·권한을 확인하세요. 계정 연결은 /timiroom connect로 시작합니다.");}
-        catch(IllegalArgumentException invalid) {return Map.of("response_type","ephemeral","text",SlackCommandService.HELP);}
-        catch(IllegalStateException limited) {return Map.of("response_type","ephemeral","text","요청을 접수하지 못했습니다. 잠시 후 다시 시도하세요.");}
+        catch(SecurityException|IllegalArgumentException|IllegalStateException failure) {
+            return Map.of("response_type","ephemeral","text",SlackCommandService.friendly(failure));
+        }
     }
     @GetMapping("/api/v1/integrations/slack")
     public Map<String,Object> connection(Authentication auth) {
