@@ -24,6 +24,7 @@ public class SpecChangeController {
     public record Create(UUID snapshotId,List<ArtifactType> targets,String instruction,List<String> constraints,
         Map<ArtifactType,JsonNode> documents,Map<ArtifactType,String> expectedHashes,String idempotencyKey) {}
     public record Revision(int revision) {public Revision { if(revision<=0) throw new IllegalArgumentException("INVALID_INPUT"); }}
+    public record ApproveInput(int revision, Boolean acknowledgeWarnings) {public ApproveInput { if(revision<=0) throw new IllegalArgumentException("INVALID_INPUT"); }}
     public record Review(int revision,String idempotencyKey) {public Review { if(revision<=0) throw new IllegalArgumentException("INVALID_INPUT"); }}
     @GetMapping public org.springframework.data.domain.Page<SpecChangeSummary> list(Authentication auth,@PathVariable Long project,@RequestParam(defaultValue="0") int page) {
         return changes.listForProject(project,actors.memberId(auth),page);
@@ -43,8 +44,8 @@ public class SpecChangeController {
     @GetMapping("/jobs/{id}") public JobDto job(Authentication auth,@PathVariable Long project,@PathVariable UUID id) {
         return jobs.getForProject(project,actors.memberId(auth),id);
     }
-    @PostMapping("/{id}/approve") public SpecSnapshotDto approve(Authentication auth,@PathVariable Long project,@PathVariable UUID id,@RequestBody Revision input) {
-        return changes.approve(project,actors.memberId(auth),id,input.revision());
+    @PostMapping("/{id}/approve") public SpecSnapshotDto approve(Authentication auth,@PathVariable Long project,@PathVariable UUID id,@RequestBody ApproveInput input) {
+        return changes.approve(project,actors.memberId(auth),id,input.revision(),Boolean.TRUE.equals(input.acknowledgeWarnings()));
     }
     @PostMapping("/{id}/reject") public org.springframework.http.ResponseEntity<Void> reject(Authentication auth,@PathVariable Long project,@PathVariable UUID id,@RequestBody Revision input) {
         changes.reject(project,actors.memberId(auth),id,input.revision());

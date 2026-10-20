@@ -16,12 +16,15 @@ public class ArtifactReviewService {
         if(proposal.getState()!=SpecChangeProposal.State.READY || proposal.getProposalRevision()!=revision
                 || !Objects.equals(expectedHash,proposal.getResultHash())) throw new IllegalStateException("SPEC_CONFLICT");
         var documents=mapper.createObjectNode();
+        // 이번 변경안이 고친 문서. 검토 Agent는 이 문서와 관련된 문제만 경고로 올리고,
+        // 바뀌지 않은 문서끼리의 기존 문제는 참고(INFO)로 낮춘다.
+        var focus=new java.util.ArrayList<String>();
         try {
             for(var doc:proposals.readBase(proposal).documents()) documents.set(doc.type().name(),mapper.readTree(doc.content()));
             var changed=mapper.readTree(proposal.getDocumentsJson());
-            changed.fields().forEachRemaining(entry->documents.set(entry.getKey(),entry.getValue()));
+            changed.fields().forEachRemaining(entry->{ documents.set(entry.getKey(),entry.getValue()); focus.add(entry.getKey()); });
         } catch(java.io.IOException e) { throw new IllegalStateException("Invalid proposal document",e); }
-        var response=client.reviewArtifacts(Map.of("projectId",projectId,"artifacts",documents,"focus",List.of()));
+        var response=client.reviewArtifacts(Map.of("projectId",projectId,"artifacts",documents,"focus",focus));
         if(!response.path("inputComplete").isBoolean() || !response.path("inputComplete").asBoolean())
             throw new IllegalStateException("ARTIFACT_INPUT_INCOMPLETE");
         if(!response.isObject() || !response.path("passed").isBoolean() || !response.path("findings").isArray())

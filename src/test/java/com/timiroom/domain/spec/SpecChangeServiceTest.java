@@ -106,6 +106,20 @@ class SpecChangeServiceTest {
         assertThat(p.getState()).isEqualTo(SpecChangeProposal.State.APPROVED);
         assertThat(result.snapshotId()).isEqualTo(snapshotId);
     }
+    @Test void warningsBlockApprovalUntilPmAcknowledges() throws Exception {
+        var p = ready();
+        when(reviews.hasCompletedReview(p.getProposalId(), 1, p.getResultHash())).thenReturn(true);
+        assertThatThrownBy(() -> service.approve(1L, 2L, p.getProposalId(), 1)).hasMessage("ARTIFACT_REVIEW_WARNINGS");
+        verifyNoInteractions(writer);
+        when(snapshots.publish(1L, 2L)).thenReturn(snapshot());
+        service.approve(1L, 2L, p.getProposalId(), 1, true);
+        assertThat(p.getState()).isEqualTo(SpecChangeProposal.State.APPROVED);
+    }
+    @Test void acknowledgingWarningsStillNeedsACompletedReview() throws Exception {
+        var p = ready();
+        assertThatThrownBy(() -> service.approve(1L, 2L, p.getProposalId(), 1, true)).hasMessage("ARTIFACT_REVIEW_REQUIRED");
+        verifyNoInteractions(writer);
+    }
     @Test void rejectsStaleProposalRevisionAndRepeatedApproval() throws Exception {
         var p = ready();
         assertThatThrownBy(() -> service.approve(1L, 2L, p.getProposalId(), 2)).isInstanceOf(IllegalStateException.class);
