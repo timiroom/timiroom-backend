@@ -1,5 +1,8 @@
 package com.timiroom.domain.github;
 
+import com.timiroom.domain.usage.service.UsageLimitExceededException;
+import com.timiroom.domain.usage.service.AiCallService;
+import com.timiroom.domain.usage.enums.UsageFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.timiroom.domain.github.dto.ConsistencyFinding;
@@ -14,6 +17,7 @@ import com.timiroom.domain.notification.service.NotificationService;
 import com.timiroom.domain.notification.enums.NotificationType;
 import com.timiroom.domain.pipeline.entity.PipelineArtifact;
 import com.timiroom.domain.pipeline.service.PipelineService;
+import com.timiroom.domain.spec.dto.SpecSnapshotDto;
 import com.timiroom.domain.project.entity.mapping.ProjectMember;
 import com.timiroom.domain.project.repository.ProjectMemberRepository;
 import com.timiroom.domain.project.enums.ProjectRole;
@@ -71,6 +75,7 @@ public class PullRequestConsistencyService {
     private final ConsistencyServiceClient consistencyServiceClient;
     private final ObjectMapper objectMapper;
     private final GithubClient githubClient;
+    private final AiCallService aiCalls;
 
     @Value("${github.consistency.agent-enabled:true}")
     private boolean agentEnabled;
@@ -108,17 +113,58 @@ public class PullRequestConsistencyService {
     public PullRequestConsistencyResult checkAndReview(Long projectId, Long memberId, Long repoId, int pullNumber) {
         GithubRepo repo = findLinkedRepo(projectId, memberId, repoId);
         requirePm(projectId, memberId);
-        return checkAndReview(projectId, repo, pullNumber);
+        return checkAndReview(projectId, repo, pullNumber, memberId);
     }
 
     /** 검증된 GitHub webhook 경로에서 호출한다. */
     @Transactional
     public PullRequestConsistencyResult checkAndReviewFromWebhook(Long projectId, Long repoId, int pullNumber) {
         GithubRepo repo = findLinkedRepoWithoutMember(projectId, repoId);
-        return checkAndReview(projectId, repo, pullNumber);
+        // 자동 검사 비용은 프로젝트 PM 앞으로 기록한다.
+        return checkAndReview(projectId, repo, pullNumber, projectPm(projectId));
     }
 
-    private PullRequestConsistencyResult checkAndReview(Long projectId, GithubRepo repo, int pullNumber) {
+    /** Read-only MCP analysis: immutable specs and commit-pinned files, with no posting or fallback PASS. */
+    public SnapshotAnalysis analyzeSnapshot(Long memberId,SpecSnapshotDto snapshot,Long repoId,int pullNumber,String expectedHeadSha) {
+        if(pullNumber<1 || expectedHeadSha==null || expectedHeadSha.isBlank()) throw new IllegalArgumentException("INVALID_PR_REQUEST");
+        GithubRepo repo=findSnapshotRepo(snapshot.projectId(),memberId,repoId);
+        var pull=githubClient.getPullRequest(repo.getFullName(),repo.getInstallationId(),pullNumber);
+        if(!expectedHeadSha.equals(pull.headSha())) throw new IllegalStateException("PR_CHANGED");
+        if(pull.baseSha()==null || pull.baseSha().isBlank()) throw new IllegalStateException("PR_BASE_UNAVAILABLE");
+        var specifications=new LinkedHashMap<PipelineArtifact.ArtifactType,String>();
+        for(var document:snapshot.documents()) {
+            if(specifications.putIfAbsent(document.type(),document.content())!=null) throw new IllegalArgumentException("DUPLICATE_SPEC_DOCUMENT");
+        }
+        var files=withFullFileContext(repo,pull,githubClient.listPullRequestFiles(repo.getFullName(),repo.getInstallationId(),pullNumber));
+        var analysis=analyzeWithAgent(repo,pull,files,specifications,true,memberId,snapshot.projectId());
+        var current=githubClient.getPullRequest(repo.getFullName(),repo.getInstallationId(),pullNumber);
+        if(!expectedHeadSha.equals(current.headSha()) || !pull.baseSha().equals(current.baseSha())) throw new IllegalStateException("PR_CHANGED");
+        boolean passed=analysis.findings().stream().anyMatch(f->"PASS".equals(f.severity()))
+            && analysis.findings().stream().noneMatch(f->Set.of("WARNING","INCONCLUSIVE").contains(f.severity()));
+        return new SnapshotAnalysis(snapshot.snapshotId(),repoId,pullNumber,pull.headSha(),pull.baseSha(),passed,
+            analysis.evaluator(),analysis.summary(),analysis.findings(),List.of(new com.timiroom.domain.graph.dto.PrTouchPoint(
+                "pr:"+repoId+":"+pullNumber+":"+pull.headSha(),pull.title(),pullNumber,pull.htmlUrl(),null,repo.getFullName(),
+                passed?100:0,analysis.evaluator(),(int)analysis.findings().stream().filter(f->!Set.of("PASS","INFO").contains(f.severity())).count(),
+                extractTouchPoints(files),pull.headSha())));
+    }
+    public record SnapshotAnalysis(java.util.UUID snapshotId,Long repoId,int pullNumber,String headSha,String baseSha,
+                                   boolean passed,String evaluator,String summary,List<ConsistencyFinding> findings,
+                                   List<com.timiroom.domain.graph.dto.PrTouchPoint> touchPoints) {}
+    public GithubPullRequestInfo pinPullRequest(Long projectId,Long actorId,Long repoId,int pullNumber,String expectedHeadSha) {
+        var repo=findSnapshotRepo(projectId,actorId,repoId);
+        var pull=githubClient.getPullRequest(repo.getFullName(),repo.getInstallationId(),pullNumber);
+        if(!java.util.Objects.equals(expectedHeadSha,pull.headSha()) || pull.baseSha()==null || pull.baseSha().isBlank())
+            throw new IllegalStateException("PR_CHANGED");
+        return pull;
+    }
+    public String evaluatorVersion() {return normalizedAgentRuntime()+":"+agentModel+":FACT_GATE_V1";}
+    private GithubRepo findSnapshotRepo(Long project,Long actor,Long repo) {
+        projectService.getById(project,actor);
+        projectRepoLinkRepository.findByProjectIdAndGithubRepoId(project,repo).orElseThrow(()->new IllegalArgumentException("REPO_NOT_LINKED"));
+        return githubRepoRepository.findById(repo).orElseThrow(()->new IllegalArgumentException("REPO_NOT_LINKED"));
+    }
+
+    private PullRequestConsistencyResult checkAndReview(Long projectId, GithubRepo repo, int pullNumber, Long payerId) {
         GithubPullRequestInfo pullRequest = githubClient.getPullRequest(repo.getFullName(), repo.getInstallationId(), pullNumber);
         GithubPullRequestReviewRecord existing = reviewRecordRepository
                 .findByProjectIdAndGithubRepoIdAndPullNumber(projectId, repo.getId(), pullNumber).orElse(null);
@@ -133,7 +179,7 @@ public class PullRequestConsistencyService {
         List<GithubPullRequestFileInfo> files = withFullFileContext(repo, pullRequest,
                 githubClient.listPullRequestFiles(repo.getFullName(), repo.getInstallationId(), pullNumber));
         Map<PipelineArtifact.ArtifactType, String> specifications = latestSpecifications(projectId);
-        AnalysisOutcome analysis = analyzeWithAgent(repo, pullRequest, files, specifications);
+        AnalysisOutcome analysis = analyzeWithAgent(repo, pullRequest, files, specifications, false, payerId, projectId);
         List<ConsistencyFinding> findings = analysis.findings();
         long warningCount = findings.stream().filter(f -> "WARNING".equals(f.severity())).count();
         long inconclusiveCount = findings.stream().filter(f -> "INCONCLUSIVE".equals(f.severity())).count();
@@ -208,11 +254,12 @@ public class PullRequestConsistencyService {
     private void notifyProjectMembers(Long projectId, GithubRepo repo, int pullNumber,
                                       long warningCount, long inconclusiveCount) {
         String title = "PR 정합성 확인 필요";
-        String detail = warningCount > 0 ? warningCount + "개의 명세 정합성 경고"
-                : "근거 부족으로 인한 판정 보류 " + inconclusiveCount + "건";
-        String content = repo.getFullName() + " #" + pullNumber + "에서 " + detail + "이 발견됐습니다.";
+        // 받침에 맞춰 조사를 고른다: "경고가", "N건이"
+        String detail = warningCount > 0 ? warningCount + "개의 명세 정합성 경고가"
+                : "근거 부족으로 인한 판정 보류 " + inconclusiveCount + "건이";
+        String content = repo.getFullName() + " #" + pullNumber + "에서 " + detail + " 발견됐습니다.";
         projectMemberRepository.findByProjectId(projectId).forEach(member -> notificationService.create(
-                member.getMemberId(), NotificationType.PR_CONSISTENCY_REVIEW, title, content,
+                member.getMemberId(), projectId, NotificationType.PR_CONSISTENCY_REVIEW, title, content,
                 NotificationReferenceType.PULL_REQUEST, (long) pullNumber));
     }
 
@@ -236,7 +283,7 @@ public class PullRequestConsistencyService {
                             file.filename(), pullRequest.headSha()).orElse(null);
             String baseContent = "added".equalsIgnoreCase(file.status()) ? null
                     : githubClient.getRepositoryFileContent(repo.getFullName(), repo.getInstallationId(),
-                            file.filename(), pullRequest.baseRef()).orElse(null);
+                            file.filename(), pullRequest.baseSha()!=null ? pullRequest.baseSha() : pullRequest.baseRef()).orElse(null);
             return file.withContents(content, baseContent);
         }).toList();
     }
@@ -244,8 +291,29 @@ public class PullRequestConsistencyService {
     private AnalysisOutcome analyzeWithAgent(GithubRepo repo,
                                              GithubPullRequestInfo pullRequest,
                                              List<GithubPullRequestFileInfo> files,
-                                             Map<PipelineArtifact.ArtifactType, String> specifications) {
+                                             Map<PipelineArtifact.ArtifactType, String> specifications,boolean strict,
+                                             Long payerId, Long projectId) {
+        if (!agentEnabled) return runAgent(repo, pullRequest, files, specifications, strict);
+        try {
+            return aiCalls.track(payerId, projectId, UsageFeature.PR_CONSISTENCY,
+                    "pr:" + repo.getId() + "#" + pullRequest.number(),
+                    () -> runAgent(repo, pullRequest, files, specifications, strict));
+        } catch (UsageLimitExceededException e) {
+            if (strict) throw e;
+            // 한도를 다 쓴 PM의 프로젝트도 PR 검사는 멈추지 않게, AI 대신 규칙 검사로 남긴다.
+            List<ConsistencyFinding> findings = new ArrayList<>(analyzeWithRules(files, specifications));
+            findings.add(new ConsistencyFinding("INFO", "검사기",
+                    "PM의 AI 사용량을 모두 써서 규칙 기반 검사 결과를 사용했습니다."));
+            return new AnalysisOutcome(List.copyOf(findings), "RULE_FALLBACK", defaultReviewSummary(findings));
+        }
+    }
+
+    private AnalysisOutcome runAgent(GithubRepo repo,
+                                     GithubPullRequestInfo pullRequest,
+                                     List<GithubPullRequestFileInfo> files,
+                                     Map<PipelineArtifact.ArtifactType, String> specifications,boolean strict) {
         if (!agentEnabled) {
+            if(strict) throw new IllegalStateException("CONSISTENCY_UNAVAILABLE");
             List<ConsistencyFinding> findings = analyzeWithRules(files, specifications);
             return new AnalysisOutcome(findings, "RULES", defaultReviewSummary(findings));
         }
@@ -255,10 +323,12 @@ public class PullRequestConsistencyService {
             JsonNode response = "PYTHON".equals(runtime)
                     ? consistencyServiceClient.reviewPullRequestConsistency(request)
                     : ragPipelineClient.reviewPullRequestConsistency(request);
+            if(strict && !Set.of("OPENAI_COMPATIBLE_FACT_GATE","EXAONE_FACT_GATE").contains(response.path("evaluationMode").asText()))
+                throw new IllegalStateException("Fact Gate validation is required");
             List<ConsistencyFinding> findings = new ArrayList<>();
             for (JsonNode finding : response.path("findings")) {
                 String severity = finding.path("severity").asText("INFO").toUpperCase();
-                if (!Set.of("PASS", "INFO", "WARNING", "INCONCLUSIVE").contains(severity)) severity = "INFO";
+                if (!Set.of("PASS", "INFO", "WARNING", "INCONCLUSIVE").contains(severity)) severity = strict ? "INCONCLUSIVE" : "INFO";
                 String area = finding.path("area").asText("Agent").trim();
                 String message = finding.path("message").asText("").trim();
                 List<String> evidence = new ArrayList<>();
@@ -301,6 +371,7 @@ public class PullRequestConsistencyService {
             return new AnalysisOutcome(List.copyOf(findings), evaluator,
                     response.path("summary").asText(defaultReviewSummary(findings)).trim());
         } catch (Exception e) {
+            if(strict) throw new IllegalStateException("CONSISTENCY_PROVIDER_FAILED",e);
             log.warn("PR Consistency Agent 실패 — 규칙 엔진 fallback: {}", e.getMessage());
             List<ConsistencyFinding> findings = new ArrayList<>(analyzeWithRules(files, specifications));
             findings.add(new ConsistencyFinding("INFO", "검사기",
@@ -574,7 +645,8 @@ public class PullRequestConsistencyService {
     private String evaluatorLabel(String evaluator) {
         return switch (evaluator) {
             case "PYTHON_OPENAI_COMPATIBLE_FACT_GATE" -> "OpenAI 호환 모델 + Fact Gate";
-            case "PYTHON_EXAONE" -> "🇰🇷 LG EXAONE Agent";
+            // PYTHON_EXAONE은 서비스가 evaluationMode를 주지 않았을 때의 기본값이라 모델을 단정하지 않는다
+            case "PYTHON_EXAONE" -> "Python Consistency Agent";
             case "PYTHON_EXAONE_FACT_GATE" -> "🇰🇷 LG EXAONE + Fact Gate";
             case "SPRING_FOUNDRY" -> "🌐 Foundry Agent";
             case "AGENT" -> "AI Consistency Agent";
@@ -586,7 +658,7 @@ public class PullRequestConsistencyService {
     private String evaluatorDescription(String evaluator) {
         return switch (evaluator) {
             case "PYTHON_OPENAI_COMPATIBLE_FACT_GATE" -> "독립 Python Agent가 OpenAI 호환 모델의 판단을 AST·SQL Fact Gate 원문 근거로 검증했습니다.";
-            case "PYTHON_EXAONE" -> "독립 Python PR Consistency Agent가 Friendli의 LG K-EXAONE으로 검토했습니다.";
+            case "PYTHON_EXAONE" -> "독립 Python PR Consistency Agent가 검토했습니다.";
             case "PYTHON_EXAONE_FACT_GATE" -> "독립 Python Agent가 LG K-EXAONE 판단을 AST·SQL Fact Gate 원문 근거로 검증했습니다.";
             case "SPRING_FOUNDRY" -> "Spring PR Consistency Agent가 해외 Foundry 모델로 검토했습니다.";
             case "AGENT" -> "전용 PR Consistency Agent가 의미 단위로 검토했습니다.";
@@ -637,6 +709,15 @@ public class PullRequestConsistencyService {
                 .orElseThrow(() -> new IllegalArgumentException("프로젝트에 연결된 레포가 아닙니다: " + repoId));
         return githubRepoRepository.findById(repoId)
                 .orElseThrow(() -> new IllegalArgumentException("GitHub 레포를 찾을 수 없습니다: " + repoId));
+    }
+
+    /** 프로젝트 PM(여럿이면 먼저 들어온 사람). 없으면 null이라 사용량을 남기지 않는다. */
+    private Long projectPm(Long projectId) {
+        return projectMemberRepository.findByProjectId(projectId).stream()
+                .filter(member -> member.getProjectRole() == ProjectRole.PM)
+                .map(ProjectMember::getMemberId)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
     }
 
     private void requirePm(Long projectId, Long memberId) {

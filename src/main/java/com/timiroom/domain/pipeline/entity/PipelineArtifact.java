@@ -48,6 +48,6 @@ public class PipelineArtifact {
     }
 
     public enum ArtifactType {
-        PRD, DB_SCHEMA, API_SPEC, FEATURE_LIST, MARKET_RESEARCH, QA_REPORT
+        PRD, DB_SCHEMA, API_SPEC, FEATURE_LIST, FEATURE_SPEC, MARKET_RESEARCH, QA_REPORT
     }
 }

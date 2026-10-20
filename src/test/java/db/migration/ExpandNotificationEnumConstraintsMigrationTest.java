@@ -27,6 +27,19 @@ class ExpandNotificationEnumConstraintsMigrationTest {
     }
 
     @Test
+    void otherSchemaTableDoesNotMakeEmptyCurrentSchemaFail() throws Exception {
+        try (Connection connection = DriverManager.getConnection(
+                "jdbc:h2:mem:scoped_notification_migration;MODE=PostgreSQL", "sa", "")) {
+            createLegacyNotificationTable(connection);
+            try (Statement statement = connection.createStatement()) { statement.execute("CREATE SCHEMA isolated"); }
+            connection.setSchema("ISOLATED");
+            assertDoesNotThrow(() -> V20260731_01__Expand_notification_enum_constraints.migrate(connection));
+            connection.setSchema("PUBLIC");
+            assertThrows(SQLException.class, () -> insertPrConsistencyNotification(connection));
+        }
+    }
+
+    @Test
     void notification_테이블이_아직_없어도_신규_DB_부팅을_막지_않는다() throws Exception {
         try (Connection connection = DriverManager.getConnection(
                 "jdbc:h2:mem:empty_notification_migration;MODE=PostgreSQL", "sa", "")) {
