@@ -202,19 +202,29 @@ public class RagPipelineClient {
     }
 
     /** 전용 QA Scenario Agent에 시나리오 생성을 요청한다. */
-    public JsonNode generateQaScenarios(Object requestBody) {
+    public JsonNode generateQaScenarios(Object requestBody, String modelTier) {
         JsonNode response;
         try {
-            response = webClient.post()
+            var entity = webClient.post()
                     .uri("/api/v1/agents/qa-scenario/generate")
+                    .header(AiUsageScope.TRACKING_HEADER, AiUsageScope.active() ? "1" : "0")
+                    .headers(h -> { if (modelTier != null) h.set("X-Timiroom-Model-Tier", modelTier); })
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody)
                     .retrieve()
-                    .bodyToMono(JsonNode.class)
-                    .timeout(Duration.ofSeconds(75))
+                    .toEntity(JsonNode.class)
+                    .timeout(Duration.ofSeconds(90))
                     .block();
+            response = entity == null ? null : entity.getBody();
+            if (entity != null) AiUsageScope.addHeader(entity.getHeaders().getFirst(USAGE_HEADER));
         } catch (WebClientRequestException e) {
             throw unavailable("generateQaScenarios", e);
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            log.warn("QA 시나리오 에이전트 오류 | generateQaScenarios status={}", e.getStatusCode().value());
+            throw new IllegalStateException("AI가 QA 작업을 마치지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        } catch (RuntimeException e) {
+            if (!(e.getCause() instanceof java.util.concurrent.TimeoutException)) throw e;
+            throw new IllegalStateException("AI 응답이 늦어 QA 작업을 마치지 못했습니다. 잠시 후 다시 시도해 주세요.");
         }
         if (response == null || !response.path("scenarios").isArray()) {
             throw new IllegalStateException("QA Scenario Agent의 구조화된 응답이 없습니다");
@@ -223,19 +233,29 @@ public class RagPipelineClient {
     }
 
     /** 전용 QA Scenario Agent에 시나리오 평가를 요청한다. */
-    public JsonNode evaluateQaScenario(Object requestBody) {
+    public JsonNode evaluateQaScenario(Object requestBody, String modelTier) {
         JsonNode response;
         try {
-            response = webClient.post()
+            var entity = webClient.post()
                     .uri("/api/v1/agents/qa-scenario/evaluate")
+                    .header(AiUsageScope.TRACKING_HEADER, AiUsageScope.active() ? "1" : "0")
+                    .headers(h -> { if (modelTier != null) h.set("X-Timiroom-Model-Tier", modelTier); })
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody)
                     .retrieve()
-                    .bodyToMono(JsonNode.class)
-                    .timeout(Duration.ofSeconds(75))
+                    .toEntity(JsonNode.class)
+                    .timeout(Duration.ofSeconds(90))
                     .block();
+            response = entity == null ? null : entity.getBody();
+            if (entity != null) AiUsageScope.addHeader(entity.getHeaders().getFirst(USAGE_HEADER));
         } catch (WebClientRequestException e) {
             throw unavailable("evaluateQaScenario", e);
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            log.warn("QA 시나리오 에이전트 오류 | evaluateQaScenario status={}", e.getStatusCode().value());
+            throw new IllegalStateException("AI가 QA 작업을 마치지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        } catch (RuntimeException e) {
+            if (!(e.getCause() instanceof java.util.concurrent.TimeoutException)) throw e;
+            throw new IllegalStateException("AI 응답이 늦어 QA 작업을 마치지 못했습니다. 잠시 후 다시 시도해 주세요.");
         }
         if (response == null || response.path("verdict").isMissingNode()) {
             throw new IllegalStateException("QA Scenario Agent의 구조화된 응답이 없습니다");

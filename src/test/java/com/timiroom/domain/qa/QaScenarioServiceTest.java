@@ -48,6 +48,8 @@ class QaScenarioServiceTest {
     @Mock GithubPullRequestReviewRecordRepository reviewRecordRepository;
     @Mock GithubClient githubClient;
     @Mock RagPipelineClient ragPipelineClient;
+    @Mock com.timiroom.domain.usage.service.AiCallService aiCalls;
+    @Mock com.timiroom.domain.usage.service.ModelTierService modelTiers;
 
     QaScenarioService service;
 
@@ -62,7 +64,12 @@ class QaScenarioServiceTest {
     void setUp() {
         service = new QaScenarioService(projectService, pipelineService, qaScenarioRepository,
                 projectRepoLinkRepository, githubRepoRepository, reviewRecordRepository,
-                githubClient, ragPipelineClient, new ObjectMapper());
+                githubClient, ragPipelineClient, new ObjectMapper(), aiCalls, modelTiers);
+        // 한도 확인·기록은 AiCallService 몫이라, 여기서는 일을 그대로 실행한다.
+        org.mockito.Mockito.lenient().when(aiCalls.track(any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
+        org.mockito.Mockito.lenient().when(modelTiers.effective(any()))
+                .thenReturn(com.timiroom.domain.usage.service.ModelTierService.Tier.LOW);
     }
 
     @Test
@@ -112,7 +119,7 @@ class QaScenarioServiceTest {
                   {"type":"exception","title":"중복 이메일","given":"이미 가입된 이메일","when":"가입 요청","then":"오류 응답"}
                 ]}
                 """;
-        given(ragPipelineClient.generateQaScenarios(any())).willReturn(new ObjectMapper().readTree(agentJson));
+        given(ragPipelineClient.generateQaScenarios(any(), any())).willReturn(new ObjectMapper().readTree(agentJson));
         given(qaScenarioRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 
         List<QaScenarioResponse> responses = service.generate(PROJECT_ID, MEMBER_ID, new GenerateQaScenarioRequest("회원가입"));
@@ -147,7 +154,7 @@ class QaScenarioServiceTest {
         String agentJson = """
                 {"verdict":"pass","reasoning":"API 명세에 회원가입 엔드포인트가 있습니다","evidence":["POST /api/v1/users"]}
                 """;
-        given(ragPipelineClient.evaluateQaScenario(any())).willReturn(new ObjectMapper().readTree(agentJson));
+        given(ragPipelineClient.evaluateQaScenario(any(), any())).willReturn(new ObjectMapper().readTree(agentJson));
 
         QaScenarioResponse response = service.run(PROJECT_ID, MEMBER_ID, 5L);
 
@@ -165,7 +172,7 @@ class QaScenarioServiceTest {
                 .source(QaScenario.Source.USER).build();
         given(qaScenarioRepository.findById(5L)).willReturn(Optional.of(scenario));
         given(projectRepoLinkRepository.findByProjectId(PROJECT_ID)).willReturn(List.of());
-        given(ragPipelineClient.evaluateQaScenario(any()))
+        given(ragPipelineClient.evaluateQaScenario(any(), any()))
                 .willReturn(new ObjectMapper().readTree("{\"verdict\":\"maybe\",\"reasoning\":\"불명확\"}"));
 
         QaScenarioResponse response = service.run(PROJECT_ID, MEMBER_ID, 5L);
