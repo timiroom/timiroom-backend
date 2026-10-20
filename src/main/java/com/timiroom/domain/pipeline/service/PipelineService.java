@@ -208,8 +208,8 @@ public class PipelineService {
                         execution.getMemberId(),
                         req.getProjectId(),
                         NotificationType.PIPELINE_COMPLETE,
-                        "파이프라인 완료: " + req.getTitle(),
-                        "PRD, DB 스키마, API 스펙 생성이 완료되었습니다.",
+                        "문서 생성 완료: " + req.getTitle(),
+                        "PRD, 기능 명세, API 명세, ERD를 만들었습니다.",
                         NotificationReferenceType.PIPELINE,
                         execution.getExecutionId()
                 );
@@ -256,12 +256,13 @@ public class PipelineService {
 
             if (execution.getRequirementId() != null) {
                 requirementService.updateStatus(execution.getRequirementId(), RequirementStatus.FAILED);
+                String title = titleOf(execution.getRequirementId());
                 notificationService.create(
                         execution.getMemberId(),
                         projectIdOf(execution.getRequirementId()),
                         NotificationType.PIPELINE_FAILED,
-                        "파이프라인 실패",
-                        errorMessage != null ? errorMessage : "알 수 없는 오류가 발생했습니다.",
+                        title == null ? "문서 생성 실패" : "문서 생성 실패: " + title,
+                        friendlyFailure(errorMessage),
                         NotificationReferenceType.PIPELINE,
                         execution.getExecutionId()
                 );
@@ -388,6 +389,21 @@ public class PipelineService {
         return executionRepository.findCurrentCompleted(requirementIds)
                 .map(exec -> artifactRepository.findByExecutionIdOrderByArtifactType(exec.getExecutionId()))
                 .orElse(List.of());
+    }
+
+    private String titleOf(Long requirementId) {
+        try {
+            return requirementService.getById(requirementId).getTitle();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** AI 서버의 내부 사유를 사용자가 다음에 할 일을 알 수 있는 문장으로 바꾼다. */
+    static String friendlyFailure(String message) {
+        if (message == null || message.isBlank()) return "알 수 없는 문제로 생성하지 못했습니다. 다시 시도해 주세요.";
+        if (message.contains("관리자 검토")) return "만든 문서가 자동 검증을 통과하지 못했습니다. 요구사항을 조금 더 구체적으로 적어 다시 생성해 주세요.";
+        return message;
     }
 
     /** 실패 알림은 화면 이동용 정보일 뿐이므로 조회 실패가 실패 처리 자체를 막지 않게 한다. */

@@ -44,7 +44,7 @@ class NotificationLinkTest {
 
         pipeline.handleError("p-1", "boom");
 
-        verify(notifications).create(eq(8L), eq(5L), eq(NotificationType.PIPELINE_FAILED), eq("파이프라인 실패"),
+        verify(notifications).create(eq(8L), eq(5L), eq(NotificationType.PIPELINE_FAILED), eq("문서 생성 실패"),
                 eq("boom"), eq(NotificationReferenceType.PIPELINE), eq(9L));
     }
 
