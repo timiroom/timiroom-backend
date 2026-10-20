@@ -31,4 +31,21 @@ class SlackRequestTest {
         assertThatThrownBy(()->SlackCommand.parse("approve 12345678-1234-1234-1234-123456789abc")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(()->SlackCommand.parse("pr 12345678-1234-1234-1234-123456789abc 1 3 "+"a".repeat(41))).isInstanceOf(IllegalArgumentException.class);
     }
+    @Test void acceptsShortKoreanCommandsAndFillsArgumentsLater() {
+        assertThat(SlackCommand.parse("").action()).isEqualTo(SlackCommand.Action.HOME);
+        assertThat(SlackCommand.parse("대기").action()).isEqualTo(SlackCommand.Action.PENDING);
+        assertThat(SlackCommand.parse("명세").action()).isEqualTo(SlackCommand.Action.SPEC);
+        var review=SlackCommand.parse("검증");
+        assertThat(review.action()).isEqualTo(SlackCommand.Action.REVIEW);
+        assertThat(review.id()).isNull();
+        assertThat(SlackCommand.parse("검증 21c3a5c5").query()).isEqualTo("21c3a5c5");
+        var pr=SlackCommand.parse("pr #12");
+        assertThat(pr.pull()).isEqualTo(12);
+        assertThat(pr.head()).isNull();
+        assertThat(SlackCommand.parse("pr timiroom-backend 7").query()).isEqualTo("timiroom-backend");
+        assertThat(SlackCommand.parse("채널연결 캠퍼스 스냅").query()).isEqualTo("캠퍼스 스냅");
+        assertThat(SlackCommand.parse("상태").action()).isEqualTo(SlackCommand.Action.STATUS);
+        assertThatThrownBy(()->SlackCommand.parse("검증 'drop'")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(()->SlackCommand.parse("대기 더보기")).isInstanceOf(IllegalArgumentException.class);
+    }
 }

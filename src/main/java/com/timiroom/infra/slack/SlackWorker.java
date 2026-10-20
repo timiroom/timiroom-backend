@@ -20,7 +20,8 @@ public class SlackWorker {
                 queue.commandDone(request.id(),null);
             } catch(Exception failure) {
                 queue.commandDone(request.id(),failure instanceof SecurityException?"ACCESS_DENIED":"COMMAND_FAILED");
-                try { client.reply(request.command().channel(),request.command().user(),"요청을 처리하지 못했습니다. 계정 연결·현재 권한·명령 인수를 티미룸에서 확인하세요."); }
+                String text=failure instanceof RuntimeException runtime?SlackCommandService.friendly(runtime):"요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요.";
+                try { client.reply(request.command().channel(),request.command().user(),text); }
                 catch(Exception ignored) { /* Delivery errors never repeat paid work or expose provider details. */ }
             }
         });
