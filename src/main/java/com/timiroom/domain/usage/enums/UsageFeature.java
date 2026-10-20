@@ -15,5 +15,7 @@ public enum UsageFeature {
     /** PR 정합성 검사 */
     PR_CONSISTENCY,
     /** 변경안 생성·문서 교차검증 */
-    SPEC_REVIEW
+    SPEC_REVIEW,
+    /** QA 시나리오 생성·실행 판정 */
+    QA_SCENARIO
 }
