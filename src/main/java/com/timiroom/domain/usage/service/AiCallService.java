@@ -82,6 +82,27 @@ public class AiCallService {
         }
     }
 
+    /**
+     * 사용자 키가 켜져 있으면 그 키로, 아니면 고른 AI 품질로 AI 서버를 부른다. work는 AI 서버에 보낼 헤더를 받는다.
+     * 사용량은 응답 헤더로 모아 기록한다(사용자 키 사용분은 한도에 넣지 않는다).
+     */
+    public <T> T call(Long memberId, Long projectId, UsageFeature feature, String reference,
+                      java.util.function.Function<Map<String, String>, T> work) {
+        AiCall call = begin(memberId, projectId, feature);
+        AiUsageScope.open();
+        try {
+            T result = work.apply(call.headers());
+            finish(call, AiUsageScope.close(), reference);
+            return result;
+        } catch (RuntimeException failure) {
+            List<AiUsageRow> used = AiUsageScope.close();
+            if (used.isEmpty()) abandon(call); else finish(call, used, reference);
+            throw failure;
+        } finally {
+            if (AiUsageScope.active()) AiUsageScope.close();
+        }
+    }
+
     public void finish(AiCall call, List<AiUsageRow> rows, String reference) {
         finish(call, rows, reference, true);
     }

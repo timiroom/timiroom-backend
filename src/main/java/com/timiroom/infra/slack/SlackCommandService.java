@@ -25,7 +25,8 @@ public class SlackCommandService {
         "• `/timiroom pr 12` 연결된 레포의 PR #12 정합성 검사 (레포가 여럿이면 `pr 레포이름 12`)",
         "• `/timiroom 상태` 최근 작업 결과 (`상태 <작업 ID 앞부분>`)",
         "• `/timiroom 명세` 현재 기준 명세 버전",
-        "• `/timiroom 채널연결 [프로젝트 이름]` PM이 이 채널을 프로젝트 알림 채널로 연결 · `/timiroom 연결해제`",
+        "• `/timiroom 채널연결 [프로젝트 이름]` PM이 이 채널을 프로젝트 알림 채널로 연결 (채널 여러 개 가능) · `/timiroom 연결해제`",
+        "• `/timiroom 알림` 이 채널이 받는 알림 보기 · `/timiroom 알림 변경안 교차검증 pr`처럼 골라 받기 · `/timiroom 알림 전체`",
         "• `/timiroom 계정연결` Slack 계정 연결 코드 받기 (티미룸 설정 > 연결된 도구에서 바로 연결해도 됩니다)",
         "승인과 거절은 티미룸 화면에서 합니다.");
     private static final Map<String,String> DOC_LABELS=Map.of("PRD","PRD","API_SPEC","API 명세","DB_SCHEMA","DB 스키마","FEATURE_LIST","기능 명세");
@@ -85,9 +86,13 @@ public class SlackCommandService {
             enqueue(command,requestId,"DONE");
             return privateResponse(linkChannel(command,actor,arguments.query()));
         }
+        if(arguments.action()==SlackCommand.Action.NOTIFY) {
+            enqueue(command,requestId,"DONE");
+            return privateResponse(notifySettings(command,actor,arguments.query()));
+        }
         if(arguments.action()==SlackCommand.Action.UNLINK) {
             enqueue(command,requestId,"DONE");
-            var channel=accounts.channel(command.channel());accounts.removeChannel(channel.projectId(),actor);
+            var channel=accounts.channel(command.channel());accounts.removeChannel(channel.projectId(),actor,command.channel());
             return privateResponse("이 채널과 '"+projectName(channel.projectId())+"' 프로젝트의 연결을 끊었습니다.");
         }
         accounts.require(command,actor);
@@ -146,6 +151,29 @@ public class SlackCommandService {
             return "이 채널은 이미 '"+projectName(((Number)existing.getFirst().get("project_id")).longValue())+"' 프로젝트와 연결되어 있습니다. 먼저 `/timiroom 연결해제`를 실행하세요.";
         accounts.configure(project,actor,command.channel());
         return "이 채널을 '"+matched.getFirst().get("project_name")+"' 알림 채널로 연결했습니다. 알림을 받으려면 이 채널에 티미룸 앱을 초대하세요 (`/invite @앱이름`).\n`/timiroom`으로 현황을 볼 수 있습니다.";
+    }
+    private static final Map<String,String> EVENT_WORDS=Map.ofEntries(
+        Map.entry("변경안","CHANGE"),Map.entry("승인","CHANGE"),Map.entry("change","CHANGE"),
+        Map.entry("교차검증","REVIEW"),Map.entry("검증","REVIEW"),Map.entry("review","REVIEW"),
+        Map.entry("pr","PR"),Map.entry("PR","PR"));
+    private static final Map<String,String> EVENT_LABELS=Map.of("CHANGE","변경안 승인 요청","REVIEW","교차검증 결과","PR","PR 검사 결과");
+    private static String eventLabels(String events) {
+        return Arrays.stream(events.split(",")).map(e->EVENT_LABELS.getOrDefault(e,e)).collect(Collectors.joining(", "));
+    }
+    /** 이 채널이 받을 알림 종류를 보거나 바꾼다. 바꾸는 것은 프로젝트 PM만 할 수 있다. */
+    private String notifySettings(SlackCommand command,Long actor,String query) {
+        var channel=accounts.channel(command.channel());
+        if(query==null) return "이 채널은 '"+projectName(channel.projectId())+"'의 "+eventLabels(accounts.events(channel.projectId(),command.channel()))
+            +" 알림을 받습니다.\n바꾸려면 `/timiroom 알림 변경안 교차검증 pr` 중 원하는 것만 적거나 `/timiroom 알림 전체`를 실행하세요.";
+        var picked=new LinkedHashSet<String>();
+        for(String word:query.split("\\s+")) {
+            if(word.equals("전체") || word.equalsIgnoreCase("all")) { picked.addAll(SlackAccountService.EVENTS); continue; }
+            String event=EVENT_WORDS.get(word.toLowerCase(Locale.ROOT).equals("pr")?"pr":word);
+            if(event==null) return "알림 종류는 변경안, 교차검증, pr, 전체 중에서 고르세요.";
+            picked.add(event);
+        }
+        accounts.configure(channel.projectId(),actor,command.channel(),picked);
+        return "이제 이 채널은 "+eventLabels(SlackAccountService.normalizeEvents(picked))+" 알림만 받습니다.";
     }
     private List<Map<String,Object>> readyProposals(Long project,int limit) {
         return jdbc.queryForList("select proposal_id,snapshot_id,proposal_revision,documents_json,created_at from spec_change_proposal "

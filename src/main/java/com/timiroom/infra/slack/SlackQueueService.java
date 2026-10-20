@@ -43,9 +43,12 @@ public class SlackQueueService {
     @Transactional
     public void collectNotifications() {
         // Only jobs created after explicit channel configuration; connecting a channel never floods old history.
+        // 프로젝트에 채널이 여럿이면 채널마다, 그 채널이 고른 알림 종류(CHANGE·REVIEW·PR)만 보낸다.
         var rows=jdbc.queryForList("select j.*, c.channel_id from integration_job j join slack_project_channel c on c.project_id=j.project_id "
             +"where j.state in ('COMPLETED','FAILED') and j.created_at>=c.configured_at and j.created_at>? "
-            +"and not exists(select 1 from slack_notification n where n.event_key='job:' || j.job_id::text) order by j.created_at limit 200",
+            +"and position((case j.kind when 'SPEC_CHANGE' then 'CHANGE' when 'ARTIFACT_REVIEW' then 'REVIEW' else 'PR' end) in c.events)>0 "
+            +"and not exists(select 1 from slack_notification n where n.event_key='job:' || j.job_id::text "
+            +"or n.event_key='job:' || j.job_id::text || ':' || c.channel_id) order by j.created_at limit 200",
             Timestamp.from(Instant.now().minusSeconds(172800)));
         for(var row:rows) {
             String job=row.get("job_id").toString(),kind=(String)row.get("kind"),state=(String)row.get("state");
@@ -69,7 +72,7 @@ public class SlackQueueService {
                 }
             } catch(Exception invalidStoredResult) { continue; }
             jdbc.update("insert into slack_notification(event_key,project_id,actor_id,channel_id,message_text,created_at,state) values(?,?,?,?,?,?,'QUEUED') on conflict(event_key) do nothing",
-                "job:"+job,project,actor,row.get("channel_id"),text,Timestamp.from(Instant.now()));
+                "job:"+job+":"+row.get("channel_id"),project,actor,row.get("channel_id"),text,Timestamp.from(Instant.now()));
         }
         collectPullRequestChecks();
     }
@@ -82,8 +85,8 @@ public class SlackQueueService {
         try {
             rows=jdbc.queryForList("select r.github_pr_review_record_id,r.project_id,r.pull_number,r.head_sha,r.score,r.pull_title,r.pull_url,r.review_url,"
                 +"r.check_run_url,c.channel_id,c.configured_by from github_pull_request_review_record r join slack_project_channel c on c.project_id=r.project_id "
-                +"where r.updated_at>=c.configured_at and r.updated_at>? and not exists(select 1 from slack_notification n "
-                +"where n.event_key='prauto:' || r.github_pr_review_record_id || ':' || r.head_sha) order by r.updated_at limit 50",
+                +"where r.updated_at>=c.configured_at and r.updated_at>? and position('PR' in c.events)>0 and not exists(select 1 from slack_notification n "
+                +"where n.event_key='prauto:' || r.github_pr_review_record_id || ':' || r.head_sha || ':' || c.channel_id) order by r.updated_at limit 50",
                 Timestamp.from(Instant.now().minusSeconds(172800)));
         } catch(org.springframework.dao.DataAccessException missingTable) { return; }
         for(var row:rows) {
@@ -93,7 +96,7 @@ public class SlackQueueService {
             Object result=row.get("review_url")!=null?row.get("review_url"):row.get("check_run_url")!=null?row.get("check_run_url"):row.get("pull_url");
             String text="티미룸 PR 자동 검사 · #"+row.get("pull_number")+(score!=null?" · 정합성 "+score+"점":"")+"\n"+title+(result!=null?"\n"+result:"");
             jdbc.update("insert into slack_notification(event_key,project_id,actor_id,channel_id,message_text,created_at,state) values(?,?,?,?,?,?,'QUEUED') on conflict(event_key) do nothing",
-                "prauto:"+row.get("github_pr_review_record_id")+":"+row.get("head_sha"),((Number)row.get("project_id")).longValue(),
+                "prauto:"+row.get("github_pr_review_record_id")+":"+row.get("head_sha")+":"+row.get("channel_id"),((Number)row.get("project_id")).longValue(),
                 ((Number)row.get("configured_by")).longValue(),row.get("channel_id"),text,Timestamp.from(Instant.now()));
         }
     }

@@ -19,7 +19,6 @@ import com.timiroom.domain.qa.entity.QaScenario;
 import com.timiroom.domain.qa.repository.QaScenarioRepository;
 import com.timiroom.domain.usage.enums.UsageFeature;
 import com.timiroom.domain.usage.service.AiCallService;
-import com.timiroom.domain.usage.service.ModelTierService;
 import com.timiroom.infra.github.GithubClient;
 import com.timiroom.infra.ragpipeline.RagPipelineClient;
 import lombok.RequiredArgsConstructor;
@@ -64,7 +63,6 @@ public class QaScenarioService {
     private final RagPipelineClient ragPipelineClient;
     private final ObjectMapper objectMapper;
     private final AiCallService aiCalls;
-    private final ModelTierService modelTiers;
 
     @Transactional(readOnly = true)
     public List<QaScenarioResponse> list(Long projectId, Long memberId) {
@@ -119,8 +117,8 @@ public class QaScenarioService {
         payload.put("dbSchema", artifacts.get(PipelineArtifact.ArtifactType.DB_SCHEMA));
 
         // 사용자의 AI 한도 안에서 돌고, 고른 AI 품질(빠름·균형·정밀)로 부른다.
-        JsonNode response = aiCalls.track(memberId, projectId, UsageFeature.QA_SCENARIO, "qa:generate:" + feature.name(),
-                () -> ragPipelineClient.generateQaScenarios(payload, tierOf(memberId)));
+        JsonNode response = aiCalls.call(memberId, projectId, UsageFeature.QA_SCENARIO, "qa:generate:" + feature.name(),
+                headers -> ragPipelineClient.generateQaScenarios(payload, headers));
         List<QaScenario> saved = new ArrayList<>();
         for (JsonNode node : response.path("scenarios")) {
             QaScenario scenario = QaScenario.builder()
@@ -157,8 +155,8 @@ public class QaScenarioService {
         payload.put("dbSchema", artifacts.get(PipelineArtifact.ArtifactType.DB_SCHEMA));
         payload.put("codeFiles", codeFiles);
 
-        JsonNode response = aiCalls.track(memberId, projectId, UsageFeature.QA_SCENARIO, "qa:run:" + scenarioId,
-                () -> ragPipelineClient.evaluateQaScenario(payload, tierOf(memberId)));
+        JsonNode response = aiCalls.call(memberId, projectId, UsageFeature.QA_SCENARIO, "qa:run:" + scenarioId,
+                headers -> ragPipelineClient.evaluateQaScenario(payload, headers));
         QaScenario.Verdict verdict = parseVerdict(response.path("verdict").asText("INCONCLUSIVE"));
         String reasoning = response.path("reasoning").asText("");
         List<String> evidence = new ArrayList<>();
@@ -169,10 +167,6 @@ public class QaScenarioService {
 
         scenario.recordResult(verdict, reasoning, writeJson(evidence), LocalDateTime.now());
         return QaScenarioResponse.from(scenario, evidence);
-    }
-
-    private String tierOf(Long memberId) {
-        return modelTiers.effective(memberId).name().toLowerCase(Locale.ROOT);
     }
 
     @Transactional

@@ -49,7 +49,6 @@ class QaScenarioServiceTest {
     @Mock GithubClient githubClient;
     @Mock RagPipelineClient ragPipelineClient;
     @Mock com.timiroom.domain.usage.service.AiCallService aiCalls;
-    @Mock com.timiroom.domain.usage.service.ModelTierService modelTiers;
 
     QaScenarioService service;
 
@@ -64,12 +63,10 @@ class QaScenarioServiceTest {
     void setUp() {
         service = new QaScenarioService(projectService, pipelineService, qaScenarioRepository,
                 projectRepoLinkRepository, githubRepoRepository, reviewRecordRepository,
-                githubClient, ragPipelineClient, new ObjectMapper(), aiCalls, modelTiers);
+                githubClient, ragPipelineClient, new ObjectMapper(), aiCalls);
         // 한도 확인·기록은 AiCallService 몫이라, 여기서는 일을 그대로 실행한다.
-        org.mockito.Mockito.lenient().when(aiCalls.track(any(), any(), any(), any(), any()))
-                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
-        org.mockito.Mockito.lenient().when(modelTiers.effective(any()))
-                .thenReturn(com.timiroom.domain.usage.service.ModelTierService.Tier.LOW);
+        org.mockito.Mockito.lenient().when(aiCalls.call(any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Function<java.util.Map<String, String>, ?>) inv.getArgument(4)).apply(java.util.Map.of()));
     }
 
     @Test

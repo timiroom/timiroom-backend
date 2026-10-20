@@ -19,6 +19,14 @@ public class SlackAccountService {
     private final DocumentAccessService access;
     @Value("${integration.slack.team-id}") private String team;
     public record Channel(Long projectId,String teamId,String channelId,Long configuredBy,Instant configuredAt) {}
+    /** 채널마다 고를 수 있는 알림 종류: 변경안 승인 요청, 교차검증 결과, PR 검사 결과 */
+    public static final List<String> EVENTS=List.of("CHANGE","REVIEW","PR");
+    public static String normalizeEvents(Collection<String> events) {
+        if(events==null || events.isEmpty()) return String.join(",",EVENTS);
+        var picked=EVENTS.stream().filter(events::contains).toList();
+        if(picked.size()!=new HashSet<>(events).size()) throw new IllegalArgumentException("SLACK_EVENTS_INVALID");
+        return String.join(",",picked);
+    }
     @Transactional
     public String issueCode(SlackCommand command) {
         if(!team.equals(command.team())) throw new SecurityException("ACCESS_DENIED");
@@ -79,18 +87,39 @@ public class SlackAccountService {
         var channel=channel(command.channel());access.requireRead(channel.projectId(),actor);
         access.requirePm(channel.projectId(),channel.configuredBy());return channel;
     }
-    @Transactional public void configure(Long project,Long member,String channel) {
+    @Transactional public void configure(Long project,Long member,String channel) { configure(project,member,channel,null); }
+    /** 프로젝트에 채널을 추가하거나, 이미 연결된 채널이면 받을 알림 종류만 바꾼다. 프로젝트 하나에 채널 여러 개를 둘 수 있다. */
+    @Transactional public void configure(Long project,Long member,String channel,Collection<String> events) {
         access.requirePm(project,member);
         if(connection(member).isEmpty()) throw new SecurityException("SLACK_ACCOUNT_NOT_LINKED");
         if(channel==null || !channel.matches("[CG][A-Z0-9]{1,63}")) throw new IllegalArgumentException("SLACK_CHANNEL_INVALID");
-        jdbc.update("insert into slack_project_channel(project_id,team_id,channel_id,configured_by,configured_at) values(?,?,?,?,?) "
-            +"on conflict(project_id) do update set team_id=excluded.team_id,channel_id=excluded.channel_id,configured_by=excluded.configured_by,configured_at=excluded.configured_at",
-            project,team,channel,member,Timestamp.from(Instant.now()));
+        String picked=normalizeEvents(events);
+        var other=jdbc.queryForList("select project_id from slack_project_channel where team_id=? and channel_id=? and project_id<>?",team,channel,project);
+        if(!other.isEmpty()) throw new IllegalStateException("SLACK_CHANNEL_IN_USE");
+        var now=Timestamp.from(Instant.now());
+        int updated=jdbc.update("update slack_project_channel set events=? where project_id=? and channel_id=? and team_id=?",picked,project,channel,team);
+        if(updated==0) jdbc.update("insert into slack_project_channel(project_id,team_id,channel_id,configured_by,configured_at,events) values(?,?,?,?,?,?)",
+            project,team,channel,member,now,picked);
     }
+    /** 내가 PM인 프로젝트에 연결된 채널(다른 PM이 연결한 것 포함) */
     public List<Map<String,Object>> channels(Long member) {
-        return jdbc.queryForList("select project_id,channel_id,configured_at from slack_project_channel where team_id=? and configured_by=?",team,member);
+        try {
+            return jdbc.queryForList("select c.project_id,c.channel_id,c.events,c.configured_at from slack_project_channel c "
+                +"where c.team_id=? and (c.configured_by=? or exists(select 1 from project_member m where m.project_id=c.project_id and m.member_id=? and m.project_role='PM')) "
+                +"order by c.project_id,c.configured_at",team,member,member);
+        } catch(org.springframework.dao.DataAccessException noMemberTable) {
+            // 프로젝트 표가 없는 슬랙 전용 테스트 스키마
+            return jdbc.queryForList("select project_id,channel_id,events,configured_at from slack_project_channel where team_id=? and configured_by=?",team,member);
+        }
+    }
+    public String events(Long project,String channel) {
+        return jdbc.query("select events from slack_project_channel where team_id=? and project_id=? and channel_id=?",(rs,n)->rs.getString(1),team,project,channel)
+            .stream().findFirst().orElse(String.join(",",EVENTS));
     }
     @Transactional public void removeChannel(Long project,Long member) {
         access.requirePm(project,member);jdbc.update("delete from slack_project_channel where project_id=? and team_id=?",project,team);
+    }
+    @Transactional public void removeChannel(Long project,Long member,String channel) {
+        access.requirePm(project,member);jdbc.update("delete from slack_project_channel where project_id=? and team_id=? and channel_id=?",project,team,channel);
     }
 }

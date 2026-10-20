@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public record SlackCommand(String team,String user,String channel,String text) {
-    public enum Action { CONNECT, HELP, SPEC, REVIEW, PR, STATUS, HOME, PENDING, LINK, UNLINK }
+    public enum Action { CONNECT, HELP, SPEC, REVIEW, PR, STATUS, HOME, PENDING, LINK, UNLINK, NOTIFY }
     /** query: ID 앞부분, 레포 이름, 프로젝트 이름처럼 서비스가 찾아서 맞출 자유 입력 */
     public record Arguments(Action action,UUID id,int revision,Long repo,int pull,String head,String query) {
         public Arguments(Action action,UUID id,int revision,Long repo,int pull,String head) { this(action,id,revision,repo,pull,head,null); }
@@ -36,7 +36,8 @@ public record SlackCommand(String team,String user,String channel,String text) {
         Map.entry("status",Action.STATUS),Map.entry("상태",Action.STATUS),
         Map.entry("pending",Action.PENDING),Map.entry("todo",Action.PENDING),Map.entry("대기",Action.PENDING),Map.entry("할일",Action.PENDING),
         Map.entry("link",Action.LINK),Map.entry("채널연결",Action.LINK),
-        Map.entry("unlink",Action.UNLINK),Map.entry("연결해제",Action.UNLINK));
+        Map.entry("unlink",Action.UNLINK),Map.entry("연결해제",Action.UNLINK),
+        Map.entry("notify",Action.NOTIFY),Map.entry("알림",Action.NOTIFY));
     /**
      * 짧게 쓸 수 있게 ID·버전·레포·커밋을 생략할 수 있다. 생략한 값은 서비스가 프로젝트에서 찾아 채운다.
      * 예전 전체 형식(review &lt;id&gt; &lt;rev&gt;, pr &lt;snapshot&gt; &lt;repo&gt; &lt;pull&gt; &lt;sha&gt;)도 그대로 받는다.
@@ -51,7 +52,7 @@ public record SlackCommand(String team,String user,String channel,String text) {
         try {
             switch(action) {
                 case CONNECT,HELP,SPEC,PENDING,UNLINK -> { if(words.length!=1) throw new IllegalArgumentException(); return new Arguments(action,null,0,null,0,null); }
-                case LINK -> { if(rest.length()>100) throw new IllegalArgumentException(); return new Arguments(action,null,0,null,0,null,rest.isEmpty()?null:rest); }
+                case LINK, NOTIFY -> { if(rest.length()>100) throw new IllegalArgumentException(); return new Arguments(action,null,0,null,0,null,rest.isEmpty()?null:rest); }
                 case STATUS -> {
                     if(words.length==1) return new Arguments(action,null,0,null,0,null);
                     if(words.length==2) return idOrPrefix(action,words[1],0);
