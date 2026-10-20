@@ -45,14 +45,17 @@ public class SlackController {
     public ResponseEntity<Void> unlink(Authentication auth) {
         accounts.unlink(actors.memberId(auth));return ResponseEntity.noContent().build();
     }
-    public record ChannelRequest(Long projectId,String channelId) {}
+    /** events를 비우면 모든 알림(CHANGE·REVIEW·PR)을 받는다. 같은 채널을 다시 보내면 받을 알림만 바뀐다. */
+    public record ChannelRequest(Long projectId,String channelId,java.util.List<String> events) {}
     @PostMapping("/api/v1/integrations/slack/channels")
     public ResponseEntity<Void> configure(Authentication auth,@RequestBody ChannelRequest input) {
-        accounts.configure(input.projectId(),actors.memberId(auth),input.channelId());return ResponseEntity.noContent().build();
+        accounts.configure(input.projectId(),actors.memberId(auth),input.channelId(),input.events());return ResponseEntity.noContent().build();
     }
     @DeleteMapping("/api/v1/integrations/slack/channels/{project}")
-    public ResponseEntity<Void> remove(Authentication auth,@PathVariable Long project) {
-        accounts.removeChannel(project,actors.memberId(auth));return ResponseEntity.noContent().build();
+    public ResponseEntity<Void> remove(Authentication auth,@PathVariable Long project,@RequestParam(required=false) String channelId) {
+        if(channelId==null) accounts.removeChannel(project,actors.memberId(auth));
+        else accounts.removeChannel(project,actors.memberId(auth),channelId);
+        return ResponseEntity.noContent().build();
     }
     @ExceptionHandler(SecurityException.class) public ResponseEntity<?> denied() {
         return ResponseEntity.status(403).body(Map.of("code","ACCESS_DENIED"));

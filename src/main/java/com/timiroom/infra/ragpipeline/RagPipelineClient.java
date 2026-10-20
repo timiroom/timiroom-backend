@@ -202,13 +202,13 @@ public class RagPipelineClient {
     }
 
     /** 전용 QA Scenario Agent에 시나리오 생성을 요청한다. */
-    public JsonNode generateQaScenarios(Object requestBody, String modelTier) {
+    public JsonNode generateQaScenarios(Object requestBody, java.util.Map<String, String> headers) {
         JsonNode response;
         try {
             var entity = webClient.post()
                     .uri("/api/v1/agents/qa-scenario/generate")
                     .header(AiUsageScope.TRACKING_HEADER, AiUsageScope.active() ? "1" : "0")
-                    .headers(h -> { if (modelTier != null) h.set("X-Timiroom-Model-Tier", modelTier); })
+                    .headers(h -> { if (headers != null) headers.forEach(h::set); })
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody)
                     .retrieve()
@@ -233,13 +233,13 @@ public class RagPipelineClient {
     }
 
     /** 전용 QA Scenario Agent에 시나리오 평가를 요청한다. */
-    public JsonNode evaluateQaScenario(Object requestBody, String modelTier) {
+    public JsonNode evaluateQaScenario(Object requestBody, java.util.Map<String, String> headers) {
         JsonNode response;
         try {
             var entity = webClient.post()
                     .uri("/api/v1/agents/qa-scenario/evaluate")
                     .header(AiUsageScope.TRACKING_HEADER, AiUsageScope.active() ? "1" : "0")
-                    .headers(h -> { if (modelTier != null) h.set("X-Timiroom-Model-Tier", modelTier); })
+                    .headers(h -> { if (headers != null) headers.forEach(h::set); })
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody)
                     .retrieve()

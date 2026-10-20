@@ -48,4 +48,11 @@ class SlackRequestTest {
         assertThatThrownBy(()->SlackCommand.parse("검증 'drop'")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(()->SlackCommand.parse("대기 더보기")).isInstanceOf(IllegalArgumentException.class);
     }
+    @Test void channelPicksNotificationKindsInFixedOrder() {
+        assertThat(SlackCommand.parse("알림 pr 변경안").query()).isEqualTo("pr 변경안");
+        assertThat(SlackCommand.parse("알림").action()).isEqualTo(SlackCommand.Action.NOTIFY);
+        assertThat(com.timiroom.infra.slack.SlackAccountService.normalizeEvents(java.util.List.of("PR","CHANGE"))).isEqualTo("CHANGE,PR");
+        assertThat(com.timiroom.infra.slack.SlackAccountService.normalizeEvents(java.util.List.of())).isEqualTo("CHANGE,REVIEW,PR");
+        assertThatThrownBy(()->com.timiroom.infra.slack.SlackAccountService.normalizeEvents(java.util.List.of("ALL"))).isInstanceOf(IllegalArgumentException.class);
+    }
 }
