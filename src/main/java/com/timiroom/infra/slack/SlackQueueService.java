@@ -75,6 +75,9 @@ public class SlackQueueService {
     }
     /** GitHub 웹훅으로 PR마다 자동으로 돈 정합성 검사 결과도 채널에 알린다. 커밋(head)마다 한 번씩. */
     private void collectPullRequestChecks() {
+        // 같은 트랜잭션 안이라 조회가 실패하면 앞의 알림까지 되돌려진다. 표가 있는지 먼저 확인한다.
+        Boolean ready=jdbc.queryForObject("select to_regclass('github_pull_request_review_record') is not null",Boolean.class);
+        if(!Boolean.TRUE.equals(ready)) return;
         List<Map<String,Object>> rows;
         try {
             rows=jdbc.queryForList("select r.github_pr_review_record_id,r.project_id,r.pull_number,r.head_sha,r.score,r.pull_title,r.pull_url,r.review_url,"
