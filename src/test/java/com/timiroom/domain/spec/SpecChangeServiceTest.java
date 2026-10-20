@@ -114,7 +114,7 @@ class SpecChangeServiceTest {
         when(reviews.hasCompletedReview(p.getProposalId(), 1, p.getResultHash())).thenReturn(true);
         assertThatThrownBy(() -> service.approve(1L, 2L, p.getProposalId(), 1)).hasMessage("ARTIFACT_REVIEW_WARNINGS");
         verifyNoInteractions(writer);
-        when(snapshots.publish(1L, 2L)).thenReturn(snapshot());
+        when(snapshots.publish(eq(1L), eq(2L), any())).thenReturn(snapshot());
         service.approve(1L, 2L, p.getProposalId(), 1, true);
         assertThat(p.getState()).isEqualTo(SpecChangeProposal.State.APPROVED);
     }
