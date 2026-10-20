@@ -37,7 +37,8 @@ public class ModelTierService {
         }
     }
 
-    public static final Tier DEFAULT = Tier.LOW;
+    /** 고르지 않은 사용자는 균형으로 쓴다. 빠름은 생성 문서가 기능 계약을 빠뜨리는 일이 잦아 직접 골랐을 때만 쓴다. */
+    public static final Tier DEFAULT = Tier.MEDIUM;
 
     private final JdbcTemplate jdbc;
     private final UsageService usageService;

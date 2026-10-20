@@ -33,10 +33,10 @@ class ModelTierServiceTest {
     }
 
     @Test
-    void 고르지_않았으면_빠름이다() {
+    void 고르지_않았으면_균형이다() {
         plan(PlanType.FREE);
         stored(null);
-        assertThat(service.effective(7L)).isEqualTo(Tier.LOW);
+        assertThat(service.effective(7L)).isEqualTo(Tier.MEDIUM);
     }
 
     @Test
