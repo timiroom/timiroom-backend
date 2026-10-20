@@ -105,6 +105,15 @@ public class SpecChangeService {
     public void fail(Long projectId, UUID proposalId) { locked(projectId,proposalId).fail(); }
     @Transactional
     public SpecSnapshotDto approve(Long projectId, Long actorId, UUID proposalId, int revision) {
+        return approve(projectId, actorId, proposalId, revision, false);
+    }
+    /**
+     * 교차검증을 통과하면 바로 승인한다. 경고·판단 불가 항목이 있어도 PM이 확인했다고 밝히면(acknowledgeWarnings)
+     * 승인할 수 있다 — 처음 생성한 문서에 있던 문제나 AI가 확정하지 못한 항목 때문에 변경을 영영 못 올리는 일을 막는다.
+     * 교차검증을 아예 돌리지 않은 변경안은 여전히 승인하지 않는다.
+     */
+    @Transactional
+    public SpecSnapshotDto approve(Long projectId, Long actorId, UUID proposalId, int revision, boolean acknowledgeWarnings) {
         access.requirePm(projectId, actorId);
         // Same lock order as publication prevents project/artifact lock inversion.
         projects.findForUpdate(projectId).orElseThrow(()->new SecurityException("ACCESS_DENIED"));
@@ -113,7 +122,10 @@ public class SpecChangeService {
             throw new IllegalStateException("SPEC_CONFLICT");
         if(!snapshots.latest(projectId,actorId).snapshotId().equals(proposal.getSnapshotId()))
             throw new IllegalStateException("SPEC_CONFLICT: published baseline changed");
-        if(!reviews.hasPass(proposalId,revision,proposal.getResultHash())) throw new IllegalStateException("ARTIFACT_REVIEW_REQUIRED");
+        if(!reviews.hasPass(proposalId,revision,proposal.getResultHash())) {
+            if(!reviews.hasCompletedReview(proposalId,revision,proposal.getResultHash())) throw new IllegalStateException("ARTIFACT_REVIEW_REQUIRED");
+            if(!acknowledgeWarnings) throw new IllegalStateException("ARTIFACT_REVIEW_WARNINGS");
+        }
         var base=readBase(proposal);
         JsonNode changed;
         try { changed=mapper.readTree(proposal.getDocumentsJson()); }
