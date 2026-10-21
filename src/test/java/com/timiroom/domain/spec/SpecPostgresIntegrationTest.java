@@ -49,7 +49,7 @@ import static org.mockito.Mockito.*;
 @AutoConfigureTestDatabase(replace=AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation=Propagation.NOT_SUPPORTED)
 @EnabledIfEnvironmentVariable(named="TIMIROOM_TEST_POSTGRES",matches="true")
-@Import({ArtifactWriteService.class,DocumentAccessService.class,TeamService.class,SpecSnapshotService.class,SpecChangeService.class,IntegrationJobService.class,
+@Import({ArtifactWriteService.class,DocumentAccessService.class,TeamService.class,SpecSnapshotService.class,SpecAnchorRecorder.class,SpecChangeService.class,IntegrationJobService.class,
     com.timiroom.domain.integrationjob.service.IntegrationTaskService.class,com.timiroom.domain.integrationjob.service.TimiroomJobHandler.class,
     ArtifactReviewService.class,SpecPostgresIntegrationTest.JsonConfig.class})
 class SpecPostgresIntegrationTest {
@@ -177,6 +177,8 @@ class SpecPostgresIntegrationTest {
             }
             assertThat(proposals.findById(id).orElseThrow().getState()).isEqualTo(SpecChangeProposal.State.READY);
             assertThat(snapshotRepository.findFirstByProjectIdOrderByRevisionDesc(projectId).orElseThrow().getRevision()).isEqualTo(1);
+            // 실패한 승인의 명세 지문도 함께 롤백된다(기준 revision 1의 지문만 남음).
+            assertThat(jdbc.queryForList("select revision from spec_anchor where project_id=? order by revision",Integer.class,projectId)).containsExactly(1);
         } finally { jdbc.execute("DROP TRIGGER IF EXISTS timiroom_test_snapshot_failure ON spec_snapshot"); }
     }
     @Test void concurrentlyApprovingSameProposalAppliesOnce() throws Exception {
@@ -272,6 +274,20 @@ class SpecPostgresIntegrationTest {
         assertThat(artifacts.findById(docs.get(1).getArtifactId()).orElseThrow().getVersion()).isEqualTo(3);
         assertThat(artifacts.findById(docs.get(2).getArtifactId()).orElseThrow().getVersion()).isEqualTo(3);
         assertThat(reader.hasPass(proposalId,2,proposal.getResultHash())).isFalse();
+        // 승인 발행은 직전 revision 지문에 이어지고, 승인한 변경안과 검증 해시가 지문에 묶인다.
+        var anchorRows=jdbc.queryForList("select a.revision,a.digest,a.prev_digest,a.manifest_json,a.state,s.published_at from spec_anchor a join spec_snapshot s on s.snapshot_id=a.snapshot_id where a.project_id=? order by a.revision",projectId);
+        assertThat(anchorRows).hasSize(2);
+        assertThat(anchorRows.get(0).get("prev_digest")).isNull();
+        assertThat(anchorRows.get(1).get("prev_digest")).isEqualTo(anchorRows.get(0).get("digest"));
+        assertThat((String)anchorRows.get(1).get("manifest_json")).contains(proposalId.toString()).contains(proposal.getResultHash());
+        assertThat(anchorRows).allSatisfy(row->{
+            assertThat(row.get("state")).isEqualTo("PENDING");
+            assertThat(SpecManifest.digest((String)row.get("manifest_json"))).isEqualTo(row.get("digest"));
+        });
+        // 밀리초로 자른 발행 시각이 DB를 거쳐도 그대로라 매니페스트 시각과 맞는다.
+        var published2=snapshotRepository.findBySnapshotIdAndProjectId(published.snapshotId(),projectId).orElseThrow().getPublishedAt();
+        assertThat((String)anchorRows.get(1).get("manifest_json")).contains("\"publishedAt\":\""+SpecManifest.time(published2)+"\"");
+        assertThat(published2).isEqualTo(published.publishedAt());
     }
     @Test void persistedProviderJournalPreventsAutomaticSecondAttempt() {
         jobs.deleteAll();

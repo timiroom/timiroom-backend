@@ -136,7 +136,7 @@ public class SpecChangeService {
             commands.add(new ArtifactWriteCommand(doc.artifactId(),doc.version(),doc.hash(),content));
         }
         writer.writeBatch(projectId,actorId,commands);
-        var published=snapshots.publish(projectId,actorId);
+        var published=snapshots.publish(projectId,actorId,new ProposalRef(proposal.getProposalId(),proposal.getProposalRevision(),proposal.getResultHash()));
         var expectedIds=base.documents().stream().map(SpecDocumentDto::artifactId).collect(java.util.stream.Collectors.toSet());
         var publishedIds=published.documents().stream().map(SpecDocumentDto::artifactId).collect(java.util.stream.Collectors.toSet());
         if(!expectedIds.equals(publishedIds)) throw new IllegalStateException("SPEC_CONFLICT: latest execution changed");

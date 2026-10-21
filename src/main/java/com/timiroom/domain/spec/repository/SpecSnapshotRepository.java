@@ -5,4 +5,5 @@ import java.util.*;
 public interface SpecSnapshotRepository extends JpaRepository<SpecSnapshot,UUID> {
     Optional<SpecSnapshot> findBySnapshotIdAndProjectId(UUID snapshotId,Long projectId);
     Optional<SpecSnapshot> findFirstByProjectIdOrderByRevisionDesc(Long projectId);
+    List<SpecSnapshot> findByProjectIdAndRevisionGreaterThanOrderByRevisionAsc(Long projectId,int revision);
 }

@@ -6,8 +6,10 @@ import com.timiroom.domain.pipeline.service.PipelineService;
 import com.timiroom.domain.pipeline.repository.PipelineArtifactRepository;
 import com.timiroom.domain.project.entity.Project;
 import com.timiroom.domain.project.repository.ProjectRepository;
+import com.timiroom.domain.spec.dto.ProposalRef;
 import com.timiroom.domain.spec.repository.SpecSnapshotRepository;
 import com.timiroom.domain.spec.service.DocumentAccessService;
+import com.timiroom.domain.spec.service.SpecAnchorRecorder;
 import com.timiroom.domain.spec.service.SpecSnapshotService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,10 +23,11 @@ class SpecSnapshotServiceTest {
     final PipelineArtifactRepository artifacts=mock(PipelineArtifactRepository.class);
     final SpecSnapshotRepository snapshots=mock(SpecSnapshotRepository.class);
     final DocumentAccessService access=mock(DocumentAccessService.class);
+    final SpecAnchorRecorder recorder=mock(SpecAnchorRecorder.class);
     SpecSnapshotService service;
     List<PipelineArtifact> docs;
     @BeforeEach void setup(){
-        service=new SpecSnapshotService(projects,pipeline,artifacts,snapshots,access,new ObjectMapper().findAndRegisterModules());
+        service=new SpecSnapshotService(projects,pipeline,artifacts,snapshots,access,new ObjectMapper().findAndRegisterModules(),recorder);
         docs=List.of(doc(10,PipelineArtifact.ArtifactType.PRD,"prd"),doc(11,PipelineArtifact.ArtifactType.API_SPEC,"api"),doc(12,PipelineArtifact.ArtifactType.DB_SCHEMA,"db"));
         lenient().when(projects.findForUpdate(1L)).thenReturn(Optional.of(Project.builder().projectId(1L).build()));
         lenient().when(pipeline.getLatestArtifactsByProject(1L)).thenReturn(docs);
@@ -39,6 +42,27 @@ class SpecSnapshotServiceTest {
             .singleElement().satisfies(d->{assertThat(d.content()).isEqualTo("api");assertThat(d.version()).isEqualTo(1);});
         assertThat(published.revision()).isEqualTo(1);
         assertThat(published.snapshotId()).isNotNull();
+    }
+    @Test void publishBackfillsBeforeSavingAndRecordsAnchorInSameCall(){
+        var ref=new ProposalRef(UUID.randomUUID(),1,"result");
+        var published=service.publish(1L,2L,ref);
+        var order=inOrder(recorder,snapshots);
+        order.verify(recorder).ensureProject(1L);
+        order.verify(snapshots).save(any());
+        order.verify(recorder).record(argThat(s->s.getSnapshotId().equals(published.snapshotId())),argThat(d->d.size()==3),eq(ref));
+    }
+    @Test void directPublishRecordsAnchorWithoutProposal(){
+        service.publish(1L,2L);
+        verify(recorder).record(any(),anyList(),isNull());
+    }
+    @Test void publishedAtIsTruncatedToMillisecondsForStableManifests(){
+        var published=service.publish(1L,2L);
+        assertThat(published.publishedAt().getNano()%1_000_000).isZero();
+    }
+    @Test void failedPublicationRecordsNoAnchor(){
+        when(pipeline.getLatestArtifactsByProject(1L)).thenReturn(docs.subList(0,2));
+        assertThatThrownBy(()->service.publish(1L,2L)).hasMessageContaining("SPEC_NOT_PUBLISHED");
+        verifyNoInteractions(recorder);
     }
     @Test void missingRequiredDocumentCannotPublish(){
         when(pipeline.getLatestArtifactsByProject(1L)).thenReturn(docs.subList(0,2));
