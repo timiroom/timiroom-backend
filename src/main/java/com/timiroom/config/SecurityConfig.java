@@ -44,6 +44,8 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // API 주소를 브라우저로 직접 열면 티미룸 첫 화면으로 보낸다(RootRedirectController)
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/").permitAll()
                         .requestMatchers("/auth/**", "/oauth2/**", "/login/**", "/error").permitAll()
                         .requestMatchers("/api/v1/teams/invite/**").permitAll()
                         .requestMatchers("/webhooks/github").permitAll()

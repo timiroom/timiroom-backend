@@ -48,6 +48,8 @@ import java.security.SecureRandom;
 public class IntegrationAuthorizationConfig {
     @Bean Clock integrationClock() {return Clock.systemUTC();}
     @Value("${integration.issuer:http://localhost:8080}") private String issuer;
+    // 승인 화면은 티미룸 프론트(설정 → 연결된 도구)가 그린다. 승인 처리(POST /oauth2/authorize)는 이 서버가 한다.
+    @Value("${frontend.url:http://localhost:3000}") private String frontend;
     @Value("${integration.oauth.codex.redirect-uri:http://127.0.0.1:56381/callback}") private String codexRedirect;
     @Value("${integration.oauth.claude.redirect-uri:http://localhost:56382/callback}") private String claudeRedirect;
     @Bean AuthorizationServerSettings integrationAuthorizationSettings() {
@@ -107,8 +109,10 @@ public class IntegrationAuthorizationConfig {
             OAuth2AuthorizationRequest request=authorization.getAttribute(OAuth2AuthorizationRequest.class.getName());
             if(request==null || !(issuer+"/mcp").equals(request.getAdditionalParameters().get("resource")))
                 throw new BadOpaqueTokenException("Invalid audience");
-            var scopes=authorization.getAccessToken().getToken().getScopes();
-            if(!grant.scopeSet().containsAll(scopes)) throw new BadOpaqueTokenException("Invalid scope");
+            // 권한은 사용자가 승인·수정한 연결 기록(grant)의 현재 범위를 따른다. 설정에서 범위를 바꾸면
+            // 다시 로그인하지 않아도 다음 요청부터 적용된다(토큰은 이 연결을 가리키는 열쇠 역할만 한다).
+            var scopes=grant.scopeSet();
+            if(scopes.isEmpty()) throw new BadOpaqueTokenException("Invalid scope");
             var attributes=new HashMap<String,Object>();attributes.put("sub",grant.getMemberId().toString());
             attributes.put("member_id",grant.getMemberId());attributes.put("client_id",grant.getClientId());
             attributes.put("grant_id",grant.getGrantId().toString());attributes.put("scope",List.copyOf(scopes));
@@ -133,7 +137,7 @@ public class IntegrationAuthorizationConfig {
                     "introspection_endpoint_auth_methods_supported","tls_client_certificate_bound_access_tokens","dpop_signing_alg_values_supported")
                     .forEach(claims::remove));
             }))
-            .authorizationEndpoint(endpoint->endpoint.consentPage(issuer+"/integrations/oauth/consent").authenticationProviders(providers->{
+            .authorizationEndpoint(endpoint->endpoint.consentPage(frontend.replaceAll("/+$","")+"/settings/connections").authenticationProviders(providers->{
                 for(int i=0;i<providers.size();i++) {
                     var provider=providers.get(i);
                     if(provider instanceof OAuth2AuthorizationCodeRequestAuthenticationProvider code) {

@@ -30,4 +30,12 @@ public class IntegrationGrant {
     public Set<String> scopeSet() {return Set.of(scopes.split(" "));}
     public boolean active(Instant now) {return revokedAt==null && expiresAt.isAfter(now);}
     public void revoke(Instant now) {if(revokedAt==null) revokedAt=now;}
+    /** 연결을 다시 하지 않고 프로젝트·기능 범위를 바꾼다(설정 → 연결된 도구). 다음 요청부터 바로 적용된다. */
+    public void updateScope(Set<Long> projects,Set<String> scopes) {
+        if(projects==null || projects.isEmpty() || projects.size()>50 || projects.stream().anyMatch(p->p==null||p<=0)
+                || scopes==null || scopes.isEmpty()) throw new IllegalArgumentException("INVALID_GRANT");
+        scopes.forEach(com.timiroom.domain.integration.dto.IntegrationScope::from);
+        projectIds=projects.stream().sorted().map(String::valueOf).collect(Collectors.joining(","));
+        this.scopes=scopes.stream().sorted().collect(Collectors.joining(" "));
+    }
 }
