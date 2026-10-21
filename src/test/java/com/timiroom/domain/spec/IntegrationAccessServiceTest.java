@@ -37,4 +37,23 @@ class IntegrationAccessServiceTest {
         assertThatThrownBy(()->service.require(principal(grant),1L,IntegrationScope.SPECS_READ)).isInstanceOf(SecurityException.class);
         verifyNoInteractions(access);
     }
+    @Test void ownerCanChangeProjectsAndScopesWithoutReconnecting() {
+        var grant=grant();when(grants.findById(grant.getGrantId())).thenReturn(Optional.of(grant));
+        service.update(2L,grant.getGrantId(),Set.of(1L,5L),Set.of("specs:read","specs:propose"));
+        verify(access).requireRead(5L,2L);
+        assertThat(grant.projects()).containsExactlyInAnyOrder(1L,5L);
+        assertThat(grant.scopeSet()).containsExactlyInAnyOrder("specs:read","specs:propose");
+        // 새 범위가 다음 요청부터 바로 적용된다
+        service.require(new IntegrationPrincipal(2L,"client",grant.getGrantId(),grant.scopeSet()),5L,IntegrationScope.SPECS_PROPOSE);
+    }
+    @Test void scopeUpdateRejectsOtherMembersRevokedGrantsAndBadInput() {
+        var grant=grant();when(grants.findById(grant.getGrantId())).thenReturn(Optional.of(grant));
+        assertThatThrownBy(()->service.update(3L,grant.getGrantId(),Set.of(1L),Set.of("specs:read"))).isInstanceOf(SecurityException.class);
+        assertThatThrownBy(()->service.update(2L,grant.getGrantId(),Set.of(),Set.of("specs:read"))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(()->service.update(2L,grant.getGrantId(),Set.of(1L),Set.of("admin:all"))).isInstanceOf(RuntimeException.class);
+        doThrow(new SecurityException("ACCESS_DENIED")).when(access).requireRead(9L,2L);
+        assertThatThrownBy(()->service.update(2L,grant.getGrantId(),Set.of(9L),Set.of("specs:read"))).isInstanceOf(SecurityException.class);
+        grant.revoke(Instant.now());
+        assertThatThrownBy(()->service.update(2L,grant.getGrantId(),Set.of(1L),Set.of("specs:read"))).isInstanceOf(SecurityException.class);
+    }
 }

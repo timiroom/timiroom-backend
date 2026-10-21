@@ -34,6 +34,15 @@ public class IntegrationAccessService {
         projects.forEach(project->access.requireRead(project,member));
         return grants.save(new IntegrationGrant(member,client,authorization,projects,scopes,Instant.now()));
     }
+    /** 연결의 프로젝트·기능 범위 수정. 내가 읽을 수 있는 프로젝트만 넣을 수 있다. */
+    @Transactional
+    public IntegrationGrant update(Long member,UUID id,Set<Long> projects,Set<String> scopes) {
+        var grant=grants.findById(id).orElseThrow(()->new SecurityException("ACCESS_DENIED"));
+        if(!Objects.equals(grant.getMemberId(),member) || !grant.active(Instant.now())) throw new SecurityException("ACCESS_DENIED");
+        projects.forEach(project->access.requireRead(project,member));
+        grant.updateScope(projects,scopes);
+        return grant;
+    }
     @Transactional
     public void revoke(Long member,UUID id) {
         var grant=grants.findById(id).orElseThrow(()->new SecurityException("ACCESS_DENIED"));

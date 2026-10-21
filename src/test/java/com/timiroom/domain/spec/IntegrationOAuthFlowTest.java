@@ -53,9 +53,9 @@ class IntegrationOAuthFlowTest {
             .queryParam("resource","http://127.0.0.1:56380/mcp").queryParam("code_challenge",challenge).queryParam("code_challenge_method","S256"))
             .andExpect(status().is3xxRedirection()).andReturn().getResponse();
         assertThat(response.getRedirectedUrl()).endsWith("/integrations/login");
-        mvc.perform(get("/integrations/login")).andExpect(status().isOk())
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("/oauth2/authorization/google")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("/oauth2/authorization/github")));
+        // 로그인 화면은 티미룸 프론트가 그린다(버튼은 이 서버의 /oauth2/authorization/{google|github}로 온다)
+        mvc.perform(get("/integrations/login")).andExpect(status().isFound())
+            .andExpect(header().string("Location",org.hamcrest.Matchers.endsWith("/settings/connections")));
     }
     static final String URL="jdbc:postgresql://127.0.0.1:55439/timiroom_integration_test";
     static final String SCHEMA="timiroom_oauth_"+UUID.randomUUID().toString().replace("-","");
@@ -68,7 +68,8 @@ class IntegrationOAuthFlowTest {
     @EntityScan(basePackageClasses=IntegrationGrant.class)
     @EnableJpaRepositories(basePackageClasses=IntegrationGrantRepository.class)
     @Import({IntegrationAuthorizationConfig.class,IntegrationAccessService.class,IntegrationActorResolver.class,
-        com.timiroom.domain.integration.controller.IntegrationLoginController.class,BearerProbe.class})
+        com.timiroom.domain.integration.controller.IntegrationLoginController.class,
+        com.timiroom.domain.integration.controller.IntegrationConnectionController.class,BearerProbe.class})
     static class Fixture {}
     @org.springframework.web.bind.annotation.RestController
     static class BearerProbe {
@@ -78,6 +79,7 @@ class IntegrationOAuthFlowTest {
     @Autowired IntegrationGrantRepository grants;
     @MockitoBean DocumentAccessService access;
     @MockitoBean MemberRepository members;
+    @MockitoBean com.timiroom.domain.project.service.ProjectService projects;
     final ObjectMapper mapper=new ObjectMapper();
     final String verifier="test-verifier-abcdefghijklmnopqrstuvwxyz-0123456789";
     final String redirect="http://127.0.0.1:56381/callback";
@@ -117,8 +119,20 @@ class IntegrationOAuthFlowTest {
             .queryParam("scope","specs:read").queryParam("state","client-state").queryParam("code_challenge",challenge)
             .queryParam("code_challenge_method","S256").queryParam("resource","http://127.0.0.1:56380/mcp"))
             .andExpect(status().is3xxRedirection()).andReturn();
+        // 승인 화면은 프론트 설정 → 연결된 도구가 그리고, 그릴 내용은 /api/v1/integrations/consent로 받는다
+        assertThat(initial.getResponse().getRedirectedUrl()).contains("/settings/connections?");
         String consentState=java.net.URLDecoder.decode(UriComponentsBuilder.fromUriString(initial.getResponse().getRedirectedUrl()).build().getQueryParams().getFirst("state"),StandardCharsets.UTF_8);
         var session=(MockHttpSession)initial.getRequest().getSession();
+        mvc.perform(get("/api/v1/integrations/consent").with(authentication(user)).session(session)
+                .param("client_id","timiroom-codex").param("state",consentState))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.clientName").value("Codex"))
+            .andExpect(jsonPath("$.scopes[0].value").value("specs:read"))
+            .andExpect(jsonPath("$.csrf.token").isNotEmpty())
+            .andExpect(jsonPath("$.authorizeUrl").value(org.hamcrest.Matchers.endsWith("/oauth2/authorize")));
+        mvc.perform(get("/api/v1/integrations/consent").with(authentication(user)).session(session)
+                .param("client_id","timiroom-claude").param("state",consentState))
+            .andExpect(status().isForbidden());
         var csrfRequest=new org.springframework.mock.web.MockHttpServletRequest();csrfRequest.setSession(session);
         var csrfResponse=new org.springframework.mock.web.MockHttpServletResponse();
         var csrfRepository=new org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository();

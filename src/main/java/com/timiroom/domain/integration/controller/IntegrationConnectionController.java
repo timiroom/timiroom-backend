@@ -12,7 +12,6 @@ import org.springframework.security.oauth2.server.authorization.*;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.HtmlUtils;
 import java.time.Instant;
 import java.util.*;
 
@@ -26,6 +25,7 @@ public class IntegrationConnectionController {
     private final RegisteredClientRepository clients;
     private final ProjectService projects;
     @Value("${integration.issuer:http://localhost:8080}") private String issuer;
+    @Value("${frontend.url:http://localhost:3000}") private String frontend;
     @GetMapping("/api/v1/integrations/csrf")
     public Map<String,String> csrf(CsrfToken token) {
         return Map.of("headerName",token.getHeaderName(),"parameterName",token.getParameterName(),"token",token.getToken());
@@ -40,12 +40,38 @@ public class IntegrationConnectionController {
             dto.put("mcpUrl",issuer+"/mcp");return dto;
         }).toList();
     }
+    public record ScopeUpdate(List<Long> projectIds,List<String> scopes) {}
+    @PatchMapping("/api/v1/integrations/connections/{id}")
+    public ResponseEntity<Void> update(Authentication authentication,@PathVariable UUID id,@RequestBody ScopeUpdate body) {
+        if(body==null || body.projectIds()==null || body.scopes()==null) throw new IllegalArgumentException("INVALID_GRANT");
+        access.update(actors.memberId(authentication),id,new LinkedHashSet<>(body.projectIds()),new LinkedHashSet<>(body.scopes()));
+        return ResponseEntity.noContent().build();
+    }
     @DeleteMapping("/api/v1/integrations/connections/{id}")
     public ResponseEntity<Void> revoke(Authentication authentication,@PathVariable UUID id) {
         access.revoke(actors.memberId(authentication),id);return ResponseEntity.noContent().build();
     }
-    @GetMapping(value="/integrations/oauth/consent",produces=MediaType.TEXT_HTML_VALUE)
-    public String consent(Authentication authentication,CsrfToken csrf,@RequestParam("client_id") String clientId,@RequestParam String state) {
+    /** 예전 서버 그림 승인 화면 주소 — 티미룸 설정 → 연결된 도구 화면으로 넘긴다. */
+    @GetMapping("/integrations/oauth/consent")
+    public ResponseEntity<Void> consentPage(@RequestParam("client_id") String clientId,@RequestParam String state,
+                                            @RequestParam(required=false) String scope) {
+        var target=org.springframework.web.util.UriComponentsBuilder.fromUriString(frontend.replaceAll("/+$","")+"/settings/connections")
+            .queryParam("client_id",clientId).queryParam("state",state);
+        if(scope!=null) target.queryParam("scope",scope);
+        return ResponseEntity.status(HttpStatus.FOUND).location(target.encode().build().toUri()).build();
+    }
+
+    /**
+     * 승인 화면(프론트 설정 → 연결된 도구)이 그릴 내용. 승인 처리 자체는 그대로 /oauth2/authorize(POST)가 한다.
+     * state로 찾은 승인 요청이 이 로그인 사용자·이 클라이언트·티미룸 MCP 자원의 것인지 확인한 뒤에만 내려준다.
+     */
+    @GetMapping("/api/v1/integrations/consent")
+    public ResponseEntity<Map<String,Object>> consent(Authentication authentication,CsrfToken csrf,@RequestParam("client_id") String clientId,@RequestParam String state) {
+        // 남의 요청이거나 이미 끝난 요청이면 어떤 정보도 주지 않고 403으로 끝낸다
+        try { return ResponseEntity.ok(consentView(authentication,csrf,clientId,state)); }
+        catch(SecurityException denied) { return ResponseEntity.status(HttpStatus.FORBIDDEN).build(); }
+    }
+    private Map<String,Object> consentView(Authentication authentication,CsrfToken csrf,String clientId,String state) {
         Long member=actors.memberId(authentication);
         var authorization=authorizations.findByToken(state,new OAuth2TokenType(OAuth2ParameterNames.STATE));
         var client=clients.findByClientId(clientId);
@@ -53,32 +79,30 @@ public class IntegrationConnectionController {
                 || !member.toString().equals(authorization.getPrincipalName())) throw new SecurityException("ACCESS_DENIED");
         OAuth2AuthorizationRequest request=authorization.getAttribute(OAuth2AuthorizationRequest.class.getName());
         if(request==null || !(issuer+"/mcp").equals(request.getAdditionalParameters().get("resource"))) throw new SecurityException("ACCESS_DENIED");
-        var html=new StringBuilder(IntegrationPageView.start("AI 개발 도구 연결", "consent"));
         String clientName=switch(clientId) {
             case "timiroom-codex" -> "Codex";
             case "timiroom-claude" -> "Claude Code";
             default -> client.getClientName();
         };
-        html.append("<p><strong>").append(escape(clientName)).append("</strong>에 허용할 프로젝트와 기능을 선택하세요. 티미룸 화면에서 언제든 연결을 해제할 수 있습니다.</p>");
-        html.append("<form method=post action=\"").append(escape(issuer+"/oauth2/authorize")).append("\">");
-        hidden(html,"client_id",clientId);hidden(html,"state",state);hidden(html,csrf.getParameterName(),csrf.getToken());
-        html.append("<fieldset><legend>프로젝트</legend><label class=field-label for=projects>연결할 프로젝트</label><select id=projects name=project_id multiple required size=5>");
-        for(var project:projects.getMyProjects(member)) html.append("<option value=\"").append(project.getProjectId()).append("\">").append(escape(project.getProjectName())).append("</option>");
-        html.append("</select><small>여러 프로젝트는 Ctrl 또는 Command 키를 누르고 선택하세요.</small></fieldset><fieldset><legend>허용할 기능</legend>");
-        var labels=Map.of("projects:read","프로젝트 목록 조회","specs:read","확정 명세와 변경안 조회","specs:propose","문서 수정안 생성",
-            "consistency:run","티미룸 정합성 검사 실행","consistency:read","정합성 검사 결과 조회");
+        var scopes=new ArrayList<Map<String,Object>>();
         for(var scope:request.getScopes().stream().sorted().toList()) {
-            if(!labels.containsKey(scope)) throw new SecurityException("INVALID_SCOPE");
-            html.append("<label class=permission><input type=checkbox name=scope value=\"").append(escape(scope)).append("\"");
-            if(Set.of("projects:read","specs:read").contains(scope)) html.append(" checked");
-            html.append("><span>").append(escape(labels.get(scope))).append("</span></label>");
+            var label=SCOPE_LABELS.get(scope);
+            if(label==null) throw new SecurityException("INVALID_SCOPE");
+            scopes.add(Map.of("value",scope,"label",label[0],"description",label[1],"defaultChecked",Set.of("projects:read","specs:read").contains(scope)));
         }
-        html.append("</fieldset><p class=notice>수정안은 원본에 바로 반영되지 않습니다. 티미룸의 교차검증을 거쳐 PM이 승인합니다.</p>")
-            .append("<div class=actions><button class=primary type=submit>선택한 범위로 연결</button><button type=submit name=cancel value=1 formnovalidate>취소</button></div></form>").append(IntegrationPageView.end());
-        return html.toString();
+        var projectList=projects.getMyProjects(member).stream()
+            .map(p->Map.<String,Object>of("projectId",p.getProjectId(),"name",p.getProjectName())).toList();
+        Map<String,Object> result=new LinkedHashMap<>();
+        result.put("clientId",clientId);result.put("clientName",clientName);result.put("state",state);
+        result.put("authorizeUrl",issuer+"/oauth2/authorize");
+        result.put("csrf",Map.of("parameterName",csrf.getParameterName(),"token",csrf.getToken()));
+        result.put("projects",projectList);result.put("scopes",scopes);
+        return result;
     }
-    private void hidden(StringBuilder html,String key,String value) {
-        html.append("<input type=hidden name=\"").append(escape(key)).append("\" value=\"").append(escape(value)).append("\">");
-    }
-    private String escape(String value) {return HtmlUtils.htmlEscape(value==null?"":value);}
+    private static final Map<String,String[]> SCOPE_LABELS=Map.of(
+        "projects:read",new String[]{"프로젝트 정보 조회","선택한 프로젝트의 이름과 연결된 저장소를 확인합니다."},
+        "specs:read",new String[]{"명세 조회","확정된 PRD·기능 명세·API·ERD와 변경안을 확인합니다."},
+        "specs:propose",new String[]{"수정안 작성","명세 변경안을 작성합니다. 원본에는 교차검증과 PM 승인 뒤에만 반영됩니다."},
+        "consistency:run",new String[]{"검사 요청","문서 교차검증과 PR 정합성 검사를 요청합니다. AI 사용량이 차감됩니다."},
+        "consistency:read",new String[]{"검사 결과 조회","교차검증과 PR 검사 결과를 확인합니다."});
 }
