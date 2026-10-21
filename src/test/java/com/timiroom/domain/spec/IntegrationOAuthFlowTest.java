@@ -68,7 +68,8 @@ class IntegrationOAuthFlowTest {
     @EntityScan(basePackageClasses=IntegrationGrant.class)
     @EnableJpaRepositories(basePackageClasses=IntegrationGrantRepository.class)
     @Import({IntegrationAuthorizationConfig.class,IntegrationAccessService.class,IntegrationActorResolver.class,
-        com.timiroom.domain.integration.controller.IntegrationLoginController.class,BearerProbe.class})
+        com.timiroom.domain.integration.controller.IntegrationLoginController.class,
+        com.timiroom.domain.integration.controller.IntegrationConnectionController.class,BearerProbe.class})
     static class Fixture {}
     @org.springframework.web.bind.annotation.RestController
     static class BearerProbe {
@@ -78,6 +79,7 @@ class IntegrationOAuthFlowTest {
     @Autowired IntegrationGrantRepository grants;
     @MockitoBean DocumentAccessService access;
     @MockitoBean MemberRepository members;
+    @MockitoBean com.timiroom.domain.project.service.ProjectService projects;
     final ObjectMapper mapper=new ObjectMapper();
     final String verifier="test-verifier-abcdefghijklmnopqrstuvwxyz-0123456789";
     final String redirect="http://127.0.0.1:56381/callback";
@@ -130,7 +132,7 @@ class IntegrationOAuthFlowTest {
             .andExpect(jsonPath("$.authorizeUrl").value(org.hamcrest.Matchers.endsWith("/oauth2/authorize")));
         mvc.perform(get("/api/v1/integrations/consent").with(authentication(user)).session(session)
                 .param("client_id","timiroom-claude").param("state",consentState))
-            .andExpect(status().is4xxClientError());
+            .andExpect(status().isForbidden());
         var csrfRequest=new org.springframework.mock.web.MockHttpServletRequest();csrfRequest.setSession(session);
         var csrfResponse=new org.springframework.mock.web.MockHttpServletResponse();
         var csrfRepository=new org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository();

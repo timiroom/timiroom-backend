@@ -66,7 +66,12 @@ public class IntegrationConnectionController {
      * state로 찾은 승인 요청이 이 로그인 사용자·이 클라이언트·티미룸 MCP 자원의 것인지 확인한 뒤에만 내려준다.
      */
     @GetMapping("/api/v1/integrations/consent")
-    public Map<String,Object> consent(Authentication authentication,CsrfToken csrf,@RequestParam("client_id") String clientId,@RequestParam String state) {
+    public ResponseEntity<Map<String,Object>> consent(Authentication authentication,CsrfToken csrf,@RequestParam("client_id") String clientId,@RequestParam String state) {
+        // 남의 요청이거나 이미 끝난 요청이면 어떤 정보도 주지 않고 403으로 끝낸다
+        try { return ResponseEntity.ok(consentView(authentication,csrf,clientId,state)); }
+        catch(SecurityException denied) { return ResponseEntity.status(HttpStatus.FORBIDDEN).build(); }
+    }
+    private Map<String,Object> consentView(Authentication authentication,CsrfToken csrf,String clientId,String state) {
         Long member=actors.memberId(authentication);
         var authorization=authorizations.findByToken(state,new OAuth2TokenType(OAuth2ParameterNames.STATE));
         var client=clients.findByClientId(clientId);
