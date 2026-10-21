@@ -131,8 +131,13 @@ public class TimiroomMcpTools {
         var result=mapper.createObjectNode().put("snapshotId",snapshot.snapshotId().toString()).put("projectId",snapshot.projectId())
             .put("revision",snapshot.revision()).put("publishedAt",snapshot.publishedAt().toString());
         var documents=result.putArray("documents");
-        for(var doc:snapshot.documents()) documents.addObject().put("documentType",doc.type().name()).put("artifactId",doc.artifactId())
-            .put("executionId",doc.executionId()).put("version",doc.version()).put("hash",doc.hash()).put("chars",doc.content().length());
+        for(var doc:snapshot.documents()) {
+            var item=documents.addObject().put("documentType",doc.type().name()).put("artifactId",doc.artifactId())
+                .put("executionId",doc.executionId()).put("version",doc.version()).put("hash",doc.hash()).put("chars",doc.content().length());
+            // 처음 생성된 프로젝트의 기능 목록은 이름만 있다. 기능 설명·요구사항은 PRD에 있다고 알려 준다.
+            if(doc.type()==ArtifactType.FEATURE_LIST && namesOnlyFeatureList(doc.content()))
+                item.put("note","기능 이름만 들어 있습니다. 기능 설명과 요구사항은 같은 기준의 PRD 문서 coreFeatures를 읽으세요.");
+        }
         return result;
     }
     private JsonNode read(IntegrationPrincipal actor,Long project,JsonNode input) {
@@ -262,5 +267,9 @@ public class TimiroomMcpTools {
             }
             default -> throw new IllegalArgumentException("INVALID_INPUT");
         }
+    }
+    private boolean namesOnlyFeatureList(String content) {
+        try {return com.timiroom.domain.spec.service.FeatureListPromotion.namesOnly(mapper.readTree(content));}
+        catch(Exception unreadable) {return false;}
     }
 }
