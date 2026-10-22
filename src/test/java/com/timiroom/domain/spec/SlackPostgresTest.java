@@ -103,7 +103,9 @@ class SlackPostgresTest {
         queue.collectNotifications();queue.collectNotifications();
         assertThat(jdbc.queryForObject("select count(*) from slack_notification",Integer.class)).isEqualTo(2);
         var texts=jdbc.queryForList("select message_text from slack_notification",String.class);
-        assertThat(texts).anyMatch(t->t.contains("문서 교차검증 · PASS")).anyMatch(t->t.contains("PR 정합성 검증 · PASS"));
+        assertThat(texts).anyMatch(t->t.startsWith("*문서 교차검증* · :white_check_mark: PASS")).anyMatch(t->t.startsWith("*PR 정합성 검증* · :white_check_mark: PASS"));
+        // 긴 주소와 작업 번호 전체 대신 짧은 링크 글씨와 앞 8자리만 보인다
+        assertThat(texts).allMatch(t->t.contains("|결과 보기>") && !t.matches("(?s).*작업 `[0-9a-f-]{9,}`.*"));
         assertThat(texts).allMatch(t->!t.contains("private fixture document") && !t.contains("secretOriginal"));
         var notification=queue.claimNotification().orElseThrow();accounts.unlink(2L);
         assertThatThrownBy(()->queue.validateNotification(notification)).isInstanceOf(SecurityException.class);

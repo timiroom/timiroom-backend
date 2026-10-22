@@ -62,15 +62,17 @@ public class SlackQueueService {
                     UUID.fromString(proposal);
                     var ready=jdbc.queryForList("select state from spec_change_proposal where proposal_id=? and project_id=?",UUID.fromString(proposal),project);
                     if(ready.size()!=1 || !"READY".equals(ready.getFirst().get("state"))) continue;
-                    text="티미룸 변경안 승인 요청\n"+commands.reviewLink(project,UUID.fromString(proposal));
+                    text="*변경안 승인 요청* · "+SlackCommandService.escape(commands.projectName(project))+"\n"
+                        +"AI가 만든 명세 변경안이 PM 승인을 기다립니다. "+SlackCommandService.link(commands.reviewLink(project,UUID.fromString(proposal)),"변경안 열기");
                 } else {
                     String label=kind.equals("ARTIFACT_REVIEW")?"문서 교차검증":kind.equals("PR_REVIEW")?"PR 정합성 검증":"변경안 생성";
-                    String outcome=state.equals("FAILED")?"실행 실패":"검토 필요";
+                    String outcome=state.equals("FAILED")?":x: 실행 실패":":warning: 검토 필요";
                     if(!kind.equals("SPEC_CHANGE") && state.equals("COMPLETED")) {
                         var result=mapper.readTree((String)row.get("result_json"));
-                        if(result.path("passed").isBoolean() && result.path("passed").booleanValue()) outcome="PASS";
+                        if(result.path("passed").isBoolean() && result.path("passed").booleanValue()) outcome=":white_check_mark: PASS";
                     }
-                    text="티미룸 "+label+" · "+outcome+"\n작업: "+job+"\n"+link;
+                    text="*"+label+"* · "+outcome+" · "+SlackCommandService.escape(commands.projectName(project))+"\n"
+                        +"작업 `"+job.substring(0,8)+"` · "+SlackCommandService.link(link,"결과 보기");
                 }
             } catch(Exception invalidStoredResult) { continue; }
             jdbc.update("insert into slack_notification(event_key,project_id,actor_id,team_id,channel_id,message_text,created_at,state) values(?,?,?,?,?,?,?,'QUEUED') on conflict(event_key) do nothing",
@@ -93,10 +95,12 @@ public class SlackQueueService {
         } catch(org.springframework.dao.DataAccessException missingTable) { return; }
         for(var row:rows) {
             Object score=row.get("score");
-            String title=String.valueOf(row.getOrDefault("pull_title","")).replaceAll("[<>&]","");
+            String title=String.valueOf(row.getOrDefault("pull_title","")).replaceAll("[<>&*_~`]","");
             if(title.length()>80) title=title.substring(0,80)+"…";
+            Long project=((Number)row.get("project_id")).longValue();
             Object result=row.get("review_url")!=null?row.get("review_url"):row.get("check_run_url")!=null?row.get("check_run_url"):row.get("pull_url");
-            String text="티미룸 PR 자동 검사 · #"+row.get("pull_number")+(score!=null?" · 정합성 "+score+"점":"")+"\n"+title+(result!=null?"\n"+result:"");
+            String text="*PR #"+row.get("pull_number")+" 자동 검사*"+(score!=null?" · 정합성 "+score+"점":"")+" · "+SlackCommandService.escape(commands.projectName(project))+"\n"
+                +title+(result!=null?" · "+SlackCommandService.link(String.valueOf(result),"결과 보기"):"");
             jdbc.update("insert into slack_notification(event_key,project_id,actor_id,team_id,channel_id,message_text,created_at,state) values(?,?,?,?,?,?,?,'QUEUED') on conflict(event_key) do nothing",
                 "prauto:"+row.get("github_pr_review_record_id")+":"+row.get("head_sha")+":"+row.get("channel_id"),((Number)row.get("project_id")).longValue(),
                 ((Number)row.get("configured_by")).longValue(),row.get("slack_team"),row.get("channel_id"),text,Timestamp.from(Instant.now()));
