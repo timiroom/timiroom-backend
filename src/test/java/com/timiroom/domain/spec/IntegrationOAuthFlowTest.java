@@ -113,6 +113,12 @@ class IntegrationOAuthFlowTest {
         user=new OAuth2AuthenticationToken(new DefaultOAuth2User(authorities,Map.of("sub","123"),"sub"),authorities,"google");
     }
     String authorize() throws Exception { return authorize(false); }
+    @Test void securityConfigDoesNotExposeASelfDelegatingAuthenticationManager() {
+        // 이 빈이 있으면 인증 실패 때 상위 매니저로 넘기다 자기 자신을 다시 불러 운영에서 500이 났다
+        assertThat(java.util.Arrays.stream(com.timiroom.config.SecurityConfig.class.getDeclaredMethods())
+            .map(java.lang.reflect.Method::getReturnType))
+            .doesNotContain(org.springframework.security.authentication.AuthenticationManager.class);
+    }
     @Test void cancelReturnsAccessDeniedToTheClient() throws Exception {
         // 승인 창의 "거절"은 같은 폼으로 고른 권한까지 함께 보낸다(cancel=1)
         var params=UriComponentsBuilder.fromUriString(authorize(true)).build().getQueryParams();
@@ -147,10 +153,12 @@ class IntegrationOAuthFlowTest {
         var csrfToken=csrfRepository.generateToken(csrfRequest);csrfRepository.saveToken(csrfToken,csrfRequest,csrfResponse);
         new org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler().handle(csrfRequest,csrfResponse,()->csrfToken);
         String masked=((org.springframework.security.web.csrf.CsrfToken)csrfRequest.getAttribute(org.springframework.security.web.csrf.CsrfToken.class.getName())).getToken();
-        var approval=mvc.perform(post("/oauth2/authorize").with(authentication(user))
+        var consent=post("/oauth2/authorize").with(authentication(user))
             .session(session).param("_csrf",masked)
-            .param("client_id","timiroom-codex").param("state",consentState).param("scope","specs:read").param("project_id","1")
-            .param("cancel",cancel?"1":"0"))
+            .param("client_id","timiroom-codex").param("state",consentState).param("scope","specs:read");
+        // 거절은 승인 창 그대로 보낸다: 프로젝트를 고르지 않았어도 거절할 수 있다
+        if(cancel) consent.param("cancel","1"); else consent.param("project_id","1");
+        var approval=mvc.perform(consent)
             .andExpect(status().is3xxRedirection()).andReturn();
         if(cancel) return approval.getResponse().getRedirectedUrl();
         var params=UriComponentsBuilder.fromUriString(approval.getResponse().getRedirectedUrl()).build().getQueryParams();
