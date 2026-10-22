@@ -50,6 +50,9 @@ class SlackPostgresTest {
     @MockitoBean com.timiroom.domain.github.PullRequestConsistencyService pullRequests;
     @MockitoBean com.timiroom.domain.aikey.service.SecretCipher cipher;
     @BeforeEach void resetTables() {
+        // 프로젝트 표는 운영에서 JPA가 만든다. 알림 문구에 프로젝트 이름을 쓰므로 테스트에는 최소한의 표를 둔다.
+        jdbc.execute("create table if not exists project(project_id bigint primary key, project_name varchar(255))");
+        jdbc.update("insert into project(project_id,project_name) values(7,'캠퍼스스냅') on conflict(project_id) do nothing");
         jdbc.update("delete from slack_notification");jdbc.update("delete from slack_command_request");
         jdbc.update("delete from slack_project_channel");jdbc.update("delete from slack_account_link");jdbc.update("delete from slack_link_code");
         jdbc.update("delete from slack_workspace");
