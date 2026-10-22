@@ -27,7 +27,7 @@ public class SlackWebClient {
         return token!=null && token.startsWith("xoxb-") && !token.contains("\n") && !token.contains("\r");
     }
     public void notifyChannel(String team,String channel,String text) {
-        send(team,"chat.postMessage",Map.of("channel",channel,"text",text,"unfurl_links",false,"unfurl_media",false,"mrkdwn",false,"parse","none"));
+        send(team,"chat.postMessage",Map.of("channel",channel,"text",text,"unfurl_links",false,"unfurl_media",false,"mrkdwn",true,"parse","none"));
     }
     public void reply(String team,String channel,String user,String text) {
         send(team,"chat.postEphemeral",Map.of("channel",channel,"user",user,"text",text,"parse","none"));

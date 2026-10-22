@@ -59,6 +59,12 @@ public class SlackCommandService {
             throw new IllegalStateException("SLACK_FRONTEND_URL_INVALID");
         return frontend.replaceAll("/+$","")+"/dashboard?projectId="+project;
     }
+    /** Slack 링크: 긴 주소 대신 짧은 글씨로 보인다 */
+    public static String link(String url,String label) { return "<"+url+"|"+label+">"; }
+    /** Slack 서식 문자(&, <, >)를 그대로 보이게 바꾼다. 프로젝트 이름·PR 제목처럼 사용자가 쓴 글에 쓴다. */
+    public static String escape(String text) {
+        return text==null?"":text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;");
+    }
     public String reviewLink(Long project,UUID proposal) {
         return projectLink(project).replace("/dashboard?","/spec-review?")+"&proposalId="+proposal;
     }
@@ -113,14 +119,14 @@ public class SlackCommandService {
             case HOME -> home(project,actor);
             case SPEC -> {
                 var snapshot=snapshots.latest(project,actor);
-                yield "*"+projectName(project)+"* 기준 명세 revision "+snapshot.revision()+"\n"+projectLink(project);
+                yield "*"+escape(projectName(project))+"* 기준 명세 revision "+snapshot.revision()+" · "+link(projectLink(project),"티미룸에서 열기");
             }
             case PENDING -> pending(project,actor);
             case REVIEW -> {
                 var target=resolveProposal(project,actor,args);
                 if(target==null) yield "검토를 기다리는 변경안이 없습니다. `/timiroom 대기`로 목록을 확인하세요.";
                 var job=tasks.beginArtifactReview(project,actor,target.id(),target.revision(),"slack:"+requestId);
-                yield "문서 교차검증을 시작했습니다 (작업 `"+shortId(job.jobId())+"`). 끝나면 이 채널에 알립니다.\n"+reviewLink(project,target.id());
+                yield "문서 교차검증을 시작했습니다 (작업 `"+shortId(job.jobId())+"`). 끝나면 이 채널에 알립니다. "+link(reviewLink(project,target.id()),"변경안 열기");
             }
             case PR -> pullRequest(project,actor,args,requestId);
             case STATUS -> status(project,actor,args);
@@ -184,15 +190,15 @@ public class SlackCommandService {
     }
     private String pending(Long project,Long actor) {
         var rows=readyProposals(project,6);
-        if(rows.isEmpty()) return "*"+projectName(project)+"* 승인을 기다리는 변경안이 없습니다.";
+        if(rows.isEmpty()) return "*"+escape(projectName(project))+"* 승인을 기다리는 변경안이 없습니다.";
         UUID latest=latestSnapshot(project,actor);
         var lines=new ArrayList<String>();
-        lines.add("*"+projectName(project)+"* 승인 대기 변경안 "+(rows.size()>5?"5개 이상":rows.size()+"개"));
+        lines.add("*"+escape(projectName(project))+"* 승인 대기 변경안 "+(rows.size()>5?"5개 이상":rows.size()+"개"));
         for(var row:rows.subList(0,Math.min(5,rows.size()))) {
             UUID id=(UUID)row.get("proposal_id");
             boolean stale=latest!=null && !latest.equals(row.get("snapshot_id"));
             lines.add("• `"+shortId(id)+"` "+documentLabels((String)row.get("documents_json"))
-                +(stale?" · 기준이 바뀌어 승인할 수 없음":"")+" · <"+reviewLink(project,id)+"|열기>");
+                +(stale?" · 기준이 바뀌어 승인할 수 없음":"")+" · "+link(reviewLink(project,id),"열기"));
         }
         lines.add("교차검증: `/timiroom 검증 <ID 앞부분>` · 승인은 티미룸 화면에서 합니다.");
         return String.join("\n",lines);
@@ -231,23 +237,23 @@ public class SlackCommandService {
             if(snapshot==null) return "아직 기준으로 발행한 명세가 없습니다. 티미룸에서 기준 명세를 먼저 발행하세요.";
         }
         var job=tasks.beginPullRequestReview(project,actor,snapshot,repo,args.pull(),head,"slack:"+requestId);
-        return "PR #"+args.pull()+" 정합성 검사를 시작했습니다 (작업 `"+shortId(job.jobId())+"`). 끝나면 이 채널에 알립니다.\n"+jobLink(project,job.jobId());
+        return "PR #"+args.pull()+" 정합성 검사를 시작했습니다 (작업 `"+shortId(job.jobId())+"`). 끝나면 이 채널에 알립니다. "+link(jobLink(project,job.jobId()),"진행 보기");
     }
     private String status(Long project,Long actor,SlackCommand.Arguments args) {
         if(args.id()!=null) {
             var job=jobs.get(project,actor,args.id());
             return JOB_LABELS.getOrDefault(job.kind().name(),job.kind().name())+" · "
-                +STATE_LABELS.getOrDefault(job.status().name(),job.status().name())+"\n"+jobLink(project,job.jobId());
+                +STATE_LABELS.getOrDefault(job.status().name(),job.status().name())+" · "+link(jobLink(project,job.jobId()),"보기");
         }
         var rows=args.query()!=null
             ? jdbc.queryForList("select job_id,kind,state,result_json from integration_job where project_id=? and job_id::text like ? order by created_at desc limit 5",project,args.query()+"%")
             : jdbc.queryForList("select job_id,kind,state,result_json from integration_job where project_id=? order by created_at desc limit 5",project);
         if(rows.isEmpty()) return args.query()!=null?"그 ID로 시작하는 작업이 없습니다.":"아직 실행한 작업이 없습니다.";
-        var lines=new ArrayList<String>();lines.add("*"+projectName(project)+"* 최근 작업");
+        var lines=new ArrayList<String>();lines.add("*"+escape(projectName(project))+"* 최근 작업");
         for(var row:rows) {
             UUID id=(UUID)row.get("job_id");
             lines.add("• `"+shortId(id)+"` "+JOB_LABELS.getOrDefault((String)row.get("kind"),(String)row.get("kind"))
-                +" · "+outcome((String)row.get("state"),(String)row.get("result_json"))+" · <"+jobLink(project,id)+"|보기>");
+                +" · "+outcome((String)row.get("state"),(String)row.get("result_json"))+" · "+link(jobLink(project,id),"보기"));
         }
         return String.join("\n",lines);
     }
@@ -261,9 +267,9 @@ public class SlackCommandService {
         UUID latest=latestSnapshot(project,actor);
         String spec=latest==null?"기준 명세 없음":"기준 명세 revision "+snapshots.latest(project,actor).revision();
         long ready=readyProposals(project,50).stream().filter(row->latest==null || latest.equals(row.get("snapshot_id"))).count();
-        return "*"+projectName(project)+"* · "+spec+" · 승인 대기 "+ready+"개\n"
+        return "*"+escape(projectName(project))+"* · "+spec+" · 승인 대기 "+ready+"개 · "+link(projectLink(project),"티미룸에서 열기")+"\n"
             +(ready>0?"`/timiroom 대기`로 목록을 보고 `/timiroom 검증`으로 교차검증을 돌릴 수 있습니다.\n":"")
-            +"`/timiroom 도움말`로 전체 명령을 볼 수 있습니다.\n"+projectLink(project);
+            +"`/timiroom 도움말`로 전체 명령을 볼 수 있습니다.";
     }
     private Map<String,String> privateResponse(String text) { return Map.of("response_type","ephemeral","text",text); }
 }
