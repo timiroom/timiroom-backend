@@ -23,6 +23,16 @@ public class GlobalExceptionHandler {
                 "plan", e.getPlan()));
     }
 
+    /** AI 서버가 이유를 알려 준 실패. 화면은 code로 안내와 바로가기를 고른다(예: AI_KEY_INVALID → 내 AI 키 설정). */
+    @ExceptionHandler(com.timiroom.infra.ragpipeline.AiServiceException.class)
+    public ResponseEntity<Map<String, String>> handleAiService(com.timiroom.infra.ragpipeline.AiServiceException e) {
+        log.warn("AI 서비스 오류 {}: {}", e.code(), e.getMessage());
+        return ResponseEntity.status(e.status()).body(Map.of(
+                "error", e.getMessage(),
+                "message", e.getMessage(),
+                "code", e.code()));
+    }
+
     /** RAG 파이프라인 서비스 연결 불가 */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleServiceUnavailable(IllegalStateException e) {

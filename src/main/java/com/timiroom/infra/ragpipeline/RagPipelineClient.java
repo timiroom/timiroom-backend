@@ -141,6 +141,9 @@ public class RagPipelineClient {
                     .block();
         } catch (WebClientRequestException e) {
             throw unavailable("chat", e);
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            log.warn("RAG 파이프라인 채팅 오류 status={}", e.getStatusCode().value());
+            throw AiServiceException.from(e, "AI 응답을 받지 못했습니다. 잠시 후 다시 보내 주세요.");
         } catch (RuntimeException e) {
             if (causedByTimeout(e)) {
                 log.warn("RAG 파이프라인 채팅 응답 시간 초과 ({}초)", chatTimeout.toSeconds());
@@ -237,7 +240,7 @@ public class RagPipelineClient {
             throw unavailable("generateQaScenarios", e);
         } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
             log.warn("QA 시나리오 에이전트 오류 | generateQaScenarios status={}", e.getStatusCode().value());
-            throw new IllegalStateException("AI가 QA 작업을 마치지 못했습니다. 잠시 후 다시 시도해 주세요.");
+            throw AiServiceException.from(e, "AI가 QA 작업을 마치지 못했습니다. 잠시 후 다시 시도해 주세요.");
         } catch (RuntimeException e) {
             if (!(e.getCause() instanceof java.util.concurrent.TimeoutException)) throw e;
             throw new IllegalStateException("AI 응답이 늦어 QA 작업을 마치지 못했습니다. 잠시 후 다시 시도해 주세요.");
@@ -268,7 +271,7 @@ public class RagPipelineClient {
             throw unavailable("evaluateQaScenario", e);
         } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
             log.warn("QA 시나리오 에이전트 오류 | evaluateQaScenario status={}", e.getStatusCode().value());
-            throw new IllegalStateException("AI가 QA 작업을 마치지 못했습니다. 잠시 후 다시 시도해 주세요.");
+            throw AiServiceException.from(e, "AI가 QA 작업을 마치지 못했습니다. 잠시 후 다시 시도해 주세요.");
         } catch (RuntimeException e) {
             if (!(e.getCause() instanceof java.util.concurrent.TimeoutException)) throw e;
             throw new IllegalStateException("AI 응답이 늦어 QA 작업을 마치지 못했습니다. 잠시 후 다시 시도해 주세요.");
