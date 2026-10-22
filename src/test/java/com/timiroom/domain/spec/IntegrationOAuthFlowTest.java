@@ -112,7 +112,15 @@ class IntegrationOAuthFlowTest {
         var authorities=List.of(providerAuthority,new SimpleGrantedAuthority("ROLE_USER"));
         user=new OAuth2AuthenticationToken(new DefaultOAuth2User(authorities,Map.of("sub","123"),"sub"),authorities,"google");
     }
-    String authorize() throws Exception {
+    String authorize() throws Exception { return authorize(false); }
+    @Test void cancelReturnsAccessDeniedToTheClient() throws Exception {
+        // 승인 창의 "거절"은 같은 폼으로 고른 권한까지 함께 보낸다(cancel=1)
+        var params=UriComponentsBuilder.fromUriString(authorize(true)).build().getQueryParams();
+        assertThat(params.getFirst("error")).isEqualTo("access_denied");
+        assertThat(params.getFirst("code")).isNull();
+        assertThat(params.getFirst("state")).isEqualTo("client-state");
+    }
+    String authorize(boolean cancel) throws Exception {
         var challenge=Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)));
         var initial=mvc.perform(get("/oauth2/authorize").with(authentication(user))
             .queryParam("client_id","timiroom-codex").queryParam("response_type","code").queryParam("redirect_uri",redirect)
@@ -141,8 +149,10 @@ class IntegrationOAuthFlowTest {
         String masked=((org.springframework.security.web.csrf.CsrfToken)csrfRequest.getAttribute(org.springframework.security.web.csrf.CsrfToken.class.getName())).getToken();
         var approval=mvc.perform(post("/oauth2/authorize").with(authentication(user))
             .session(session).param("_csrf",masked)
-            .param("client_id","timiroom-codex").param("state",consentState).param("scope","specs:read").param("project_id","1"))
+            .param("client_id","timiroom-codex").param("state",consentState).param("scope","specs:read").param("project_id","1")
+            .param("cancel",cancel?"1":"0"))
             .andExpect(status().is3xxRedirection()).andReturn();
+        if(cancel) return approval.getResponse().getRedirectedUrl();
         var params=UriComponentsBuilder.fromUriString(approval.getResponse().getRedirectedUrl()).build().getQueryParams();
         assertThat(params.getFirst("state")).isEqualTo("client-state");
         assertThat(java.net.URLDecoder.decode(params.getFirst("iss"),StandardCharsets.UTF_8)).isEqualTo("http://127.0.0.1:56380");
