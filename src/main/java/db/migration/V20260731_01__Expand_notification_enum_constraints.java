@@ -53,10 +53,10 @@ public class V20260731_01__Expand_notification_enum_constraints extends BaseJava
     private static boolean tableExists(Connection connection, String tableName) throws SQLException {
         DatabaseMetaData metadata = connection.getMetaData();
         Set<String> schemas = new LinkedHashSet<>();
-        if (connection.getSchema() != null && !connection.getSchema().isBlank()) {
-            schemas.add(connection.getSchema());
-        }
-        schemas.add(null);
+        String currentSchema = connection.getSchema();
+        // A table in an unrelated schema is not the unqualified table altered above.
+        // Only fall back to driver-wide discovery when the driver has no schema concept.
+        schemas.add(currentSchema != null && !currentSchema.isBlank() ? currentSchema : null);
 
         Set<String> names = new LinkedHashSet<>();
         names.add(tableName);

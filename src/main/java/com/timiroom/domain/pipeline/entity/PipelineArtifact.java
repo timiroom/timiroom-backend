@@ -37,11 +37,17 @@ public class PipelineArtifact {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    /**
+     * 내용을 바꾸고 버전을 하나 올린다.
+     * 이전 내용은 호출하는 쪽에서 ArtifactRevision으로 옮겨 둔 뒤여야 한다 —
+     * 그래야 무엇이 바뀌었는지 나중에 비교할 수 있다.
+     */
     public void updateContent(String content) {
         this.content = content;
+        this.version += 1;
     }
 
     public enum ArtifactType {
-        PRD, DB_SCHEMA, API_SPEC, FEATURE_LIST, MARKET_RESEARCH, QA_REPORT
+        PRD, DB_SCHEMA, API_SPEC, FEATURE_LIST, FEATURE_SPEC, MARKET_RESEARCH, QA_REPORT
     }
 }

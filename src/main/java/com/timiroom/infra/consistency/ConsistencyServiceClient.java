@@ -1,5 +1,6 @@
 package com.timiroom.infra.consistency;
 
+import com.timiroom.domain.usage.service.AiUsageScope;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,8 +10,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientException;
 
 import java.time.Duration;
+import com.timiroom.domain.integrationjob.service.JobTimeBudget;
 
-/** Friendli K-EXAONE을 사용하는 독립 Python 정합성 서비스 클라이언트. */
+/** 독립 Python 정합성 서비스 클라이언트. 사용 모델은 서비스가 정하고 응답의 evaluationMode로 알려 준다. */
 @Slf4j
 @Component
 public class ConsistencyServiceClient {
@@ -30,17 +32,31 @@ public class ConsistencyServiceClient {
         log.info("ConsistencyServiceClient initialized with base-url: {}", baseUrl);
     }
 
+    public JsonNode reviewArtifacts(Object requestBody) {
+        return call("/api/v1/artifacts/consistency/review", requestBody, "findings");
+    }
+
+    public JsonNode reviseArtifact(Object requestBody) {
+        return call("/api/v1/artifacts/revise", requestBody, "revisedContent");
+    }
+
     public JsonNode reviewPullRequestConsistency(Object requestBody) {
+        return call("/api/v1/agents/pr-consistency/review", requestBody, "findings");
+    }
+
+    private JsonNode call(String path, Object requestBody, String requiredField) {
         try {
             JsonNode response = webClient.post()
-                    .uri("/api/v1/agents/pr-consistency/review")
+                    .uri(path)
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody)
                     .retrieve()
                     .bodyToMono(JsonNode.class)
-                    .timeout(Duration.ofSeconds(95))
+                    .timeout(JobTimeBudget.limit(Duration.ofSeconds(95)))
                     .block();
-            if (response == null || !response.path("findings").isArray()) {
+            if (response != null) AiUsageScope.addNode(response.path("usage"));
+            if (response == null || !response.hasNonNull(requiredField)
+                    || ("findings".equals(requiredField) && !response.get(requiredField).isArray())) {
                 throw new IllegalStateException("Python Consistency Agent의 구조화된 응답이 없습니다");
             }
             return response;

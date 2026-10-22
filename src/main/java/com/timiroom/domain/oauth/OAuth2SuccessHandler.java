@@ -24,6 +24,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     @Value("${frontend.url}")
     private String frontendUrl;
+    @Value("${integration.enabled:false}")
+    private boolean integrationEnabled;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -49,6 +51,18 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         session.setAttribute("memberId", member.getMemberId());
 
         clearAuthenticationAttributes(request);
+        if(integrationEnabled) {
+            var cache=new org.springframework.security.web.savedrequest.HttpSessionRequestCache();
+            var saved=cache.getRequest(request,response);
+            if(saved!=null) {
+                var target=java.net.URI.create(saved.getRedirectUrl());
+                if((request.getContextPath()+"/oauth2/authorize").equals(target.getPath())) {
+                    cache.removeRequest(request,response);
+                    response.sendRedirect(target.getRawPath()+(target.getRawQuery()==null?"":"?"+target.getRawQuery()));
+                    return;
+                }
+            }
+        }
         response.sendRedirect(frontendUrl + "/auth/callback");
     }
 }

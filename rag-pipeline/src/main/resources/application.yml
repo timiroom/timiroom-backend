@@ -97,6 +97,8 @@ app:
       sync: 60
     pr-consistency:
       model: ${PR_CONSISTENCY_AGENT_MODEL:gpt-5.4-mini}
+    qa-scenario:
+      model: ${QA_SCENARIO_AGENT_MODEL:gpt-5.4-mini}
   rag:
     chunk-size: 512
     chunk-overlap: 64

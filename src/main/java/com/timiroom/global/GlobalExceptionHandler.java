@@ -12,6 +12,17 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    /** AI 사용 한도 초과. 화면은 code·resetAt·plan을 보고 안내와 업그레이드 버튼을 보여 준다. */
+    @ExceptionHandler(com.timiroom.domain.usage.service.UsageLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleUsageLimit(com.timiroom.domain.usage.service.UsageLimitExceededException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(
+                "error", e.getMessage(),
+                "detail", e.getMessage(),
+                "code", "USAGE_LIMIT_EXCEEDED",
+                "resetAt", e.getResetAt().toString(),
+                "plan", e.getPlan()));
+    }
+
     /** RAG 파이프라인 서비스 연결 불가 */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleServiceUnavailable(IllegalStateException e) {

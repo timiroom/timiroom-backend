@@ -1,0 +1,9 @@
+{
+  "display_information": {"name": "Timiroom", "description": "티미룸 명세 조회와 정합성 검사 알림", "background_color": "#1a1916"},
+  "features": {
+    "bot_user": {"display_name": "Timiroom", "always_online": false},
+    "slash_commands": [{"command": "/timiroom", "url": "https://YOUR_API_HOST/integrations/slack/commands", "description": "티미룸 명세 조회·검사 요청", "usage_hint": "help | connect | spec | review | pr | status", "should_escape": false}]
+  },
+  "oauth_config": {"scopes": {"bot": ["commands", "chat:write"]}},
+  "settings": {"socket_mode_enabled": false, "org_deploy_enabled": false, "token_rotation_enabled": false}
+}
