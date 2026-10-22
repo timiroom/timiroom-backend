@@ -36,12 +36,10 @@ spring:
       password: ${REDIS_PASSWORD:}
 
   session:
-    timeout: 30m
+    # 마지막 요청부터 이 기간 동안 로그인을 유지한다(요청할 때마다 다시 늘어난다). 쿠키 max-age와 맞춘다.
+    timeout: ${SESSION_TIMEOUT:14d}
     redis:
       namespace: spring:session
-    cookie:
-      same-site: lax
-      http-only: true
 
   # ── OAuth2 ───────────────────────────────────────────────────────
   security:
@@ -66,6 +64,13 @@ spring:
 # ── Server ───────────────────────────────────────────────────────
 server:
   port: ${SERVER_PORT:8080}
+  servlet:
+    session:
+      cookie:
+        # 브라우저를 닫아도 로그인이 남도록 기간이 있는 쿠키로 보낸다
+        max-age: ${SESSION_TIMEOUT:14d}
+        same-site: lax
+        http-only: true
 
 # ── rag-pipeline 연동 URL ─────────────────────────────────────────
 rag-pipeline:
