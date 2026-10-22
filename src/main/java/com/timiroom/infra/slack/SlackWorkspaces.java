@@ -53,6 +53,12 @@ public class SlackWorkspaces {
             if(!rs.getString(1).equals(configuredTeam)) result.add(new Workspace(rs.getString(1),rs.getString(2),false));return null;});
         return result;
     }
+    /** 이 사람이 계정을 연결했거나 직접 설치한 워크스페이스만(다른 팀의 워크스페이스 이름은 보여 주지 않는다) */
+    public List<Workspace> visibleTo(Long member,Collection<String> linkedTeams) {
+        var mine=new HashSet<>(linkedTeams);
+        mine.addAll(jdbc.queryForList("select team_id from slack_workspace where installed_by=? and revoked_at is null",String.class,member));
+        return list().stream().filter(w->mine.contains(w.teamId())).toList();
+    }
     /** "Slack에 앱 추가"를 마친 워크스페이스를 저장한다(다시 설치하면 토큰을 바꾼다). */
     public void install(String team,String teamName,String botToken,String botUserId,Long member) {
         if(team==null || !team.matches("T[A-Z0-9]{1,63}") || botToken==null || !botToken.startsWith("xoxb-"))

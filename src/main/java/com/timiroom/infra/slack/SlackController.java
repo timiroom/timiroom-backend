@@ -37,7 +37,7 @@ public class SlackController {
         var linked=accounts.connections(member);
         // account·connected는 예전 화면용(첫 번째 연결). accounts·workspaces가 여러 워크스페이스용이다.
         return Map.of("connected",!linked.isEmpty(),"account",linked.isEmpty()?Map.of():linked.getFirst(),"accounts",linked,
-            "workspaces",workspaces.list(),"channels",accounts.channels(member),
+            "workspaces",workspaces.visibleTo(member,linked.stream().map(r->(String)r.get("team_id")).toList()),"channels",accounts.channels(member),
             "connectAvailable",oidc.ready(),"installAvailable",install.ready());
     }
     public record LinkRequest(String code) {}

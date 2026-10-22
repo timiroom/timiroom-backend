@@ -126,6 +126,11 @@ class SlackPostgresTest {
             +"values(?,7,2,'ARTIFACT_REVIEW','COMPLETED','k','hash','{}','binding','{\"passed\":true}',?)",UUID.randomUUID(),Timestamp.from(Instant.now().plusSeconds(1)));
         queue.collectNotifications();
         assertThat(jdbc.queryForList("select distinct channel_id||':'||team_id from slack_notification order by 1",String.class)).containsExactly("COTHER:TOTHER","CTEST:TTEST");
+        // 남이 설치한 워크스페이스는 연결하지 않은 사람에게 보이지 않는다
+        var workspaces=new com.timiroom.infra.slack.SlackWorkspaces(jdbc,cipher,"TTEST","");
+        jdbc.update("insert into slack_workspace(team_id,team_name,bot_token_enc,installed_by,installed_at) values('TTHIRD','남의 팀','enc',99,now())");
+        assertThat(workspaces.visibleTo(2L,List.of("TTEST","TOTHER"))).extracting(w->w.teamId()).containsExactly("TTEST","TOTHER");
+        assertThat(workspaces.visibleTo(99L,List.of())).extracting(w->w.teamId()).containsExactly("TTHIRD");
         // 한 워크스페이스만 해제하면 그 워크스페이스의 채널만 사라진다
         accounts.unlink(2L,"TOTHER");
         assertThat(accounts.connections(2L)).extracting(r->r.get("team_id")).containsExactly("TTEST");
