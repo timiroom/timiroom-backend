@@ -107,7 +107,7 @@ GITHUB_CLIENT_SECRET=your_github_client_secret
 # rag-pipeline 연동 URL
 RAG_PIPELINE_URL=http://localhost:8081
 
-# PR 정합성 실행기: PYTHON(국내 LG K-EXAONE) | SPRING(해외 Foundry)
+# PR 정합성 실행기: PYTHON(독립 Python 정합성 서비스) | SPRING(해외 Foundry)
 GITHUB_CONSISTENCY_RUNTIME=PYTHON
 
 # PYTHON 실행기용 독립 정합성 서비스

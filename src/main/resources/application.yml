@@ -7,9 +7,9 @@ spring:
 
   # ── Database ─────────────────────────────────────────────────────
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:timiroom}
-    username: ${POSTGRES_USER:timiroom}
-    password: ${POSTGRES_PASSWORD:timiroom1234}
+    url: ${DB_URL:jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5433}/${POSTGRES_DB:timiroom}}
+    username: ${DB_USERNAME:${POSTGRES_USER:timiroom}}
+    password: ${DB_PASSWORD:${POSTGRES_PASSWORD:timiroom1234}}
     driver-class-name: org.postgresql.Driver
 
   # 기존 Hibernate 관리 DB를 Flyway에 안전하게 편입한다.
@@ -70,8 +70,79 @@ server:
 # ── rag-pipeline 연동 URL ─────────────────────────────────────────
 rag-pipeline:
   base-url: ${RAG_PIPELINE_URL:http://localhost:8081}
+  # AI 서버의 INTERNAL_API_TOKEN과 같은 값. 비우면 보내지 않는다(로컬).
+  internal-token: ${RAG_INTERNAL_TOKEN:}
 
-# 후속 정합성/수정 전용 Python 서비스 (Friendli LG K-EXAONE)
+# ── AI 사용량·요금제 ────────────────────────────────────────────────
+# 금액은 모두 원. 모델 단가는 "100만 토큰당 원"이며 운영 전 실제 단가로 맞춘다(추정치).
+usage:
+  enforce: ${USAGE_ENFORCE:true}
+  zone: Asia/Seoul
+  # 사용자 AI 키·결제 빌링키 암호화 키(32바이트 base64). 비우면 AI 키 등록과 정기결제가 꺼진다.
+  secret-key: ${USAGE_SECRET_KEY:}
+  # 한도는 AI 비용(원) 기준이다. 운영은 Codex 구독(정액)으로 돌아 실제 호출당 비용이 없어 넉넉히 준다.
+  # 실측(gpt-5.6-luna, 2026-10-16): 프로젝트 생성 한 번 약 1,000원, AI 채팅 한 번 약 10원.
+  # 무료 10,000원 ≈ 빠름 생성 10번, 프로 50,000원 ≈ 빠름 생성 50번(균형은 약 1/3, 정밀은 약 1/6).
+  # OpenAI API로 바꾸면 실제 비용이 생기므로 그때 다시 정한다.
+  plans:
+    FREE: { name: 무료, price-krw: 0, monthly-limit-krw: "${USAGE_FREE_LIMIT_KRW:10000}" }
+    PRO: { name: 프로, price-krw: "${USAGE_PRO_PRICE_KRW:30000}", monthly-limit-krw: "${USAGE_PRO_LIMIT_KRW:50000}" }
+  # 기능을 시작하려면 남아 있어야 하는 금액이자, 진행 중인 호출이 미리 잡아 두는 금액(없으면 default-reserve-krw)
+  reserve-krw:
+    # 생성은 한 번에 약 3,000원(기본 균형, 빠름은 약 1,000원)이 들어, 그보다 적게 남았으면 시작하지 않는다(중간에 한도를 크게 넘지 않게).
+    PROJECT_GENERATION: 3000
+    PR_CONSISTENCY: 100
+    SPEC_REVIEW: 100
+    QA_SCENARIO: 50
+    DOCUMENT_EDIT: 50
+  default-reserve-krw: 20
+  hold-ttl: 30m
+  # 운영 비용 경보(원): 하루 전체, 한 사람의 하루
+  alert-daily-total-krw: ${USAGE_ALERT_DAILY_TOTAL_KRW:50000}
+  alert-daily-member-krw: ${USAGE_ALERT_DAILY_MEMBER_KRW:5000}
+  # 추가 사용량 충전: 요금제 한도를 다 쓰면 내부 비용 × credit-rate만큼 잔액(원)에서 차감한다.
+  # 1.3이면 부가세·카드 수수료를 빼고도 약 10%가 남는다(1.0이면 충전할수록 손해).
+  credit-rate: ${USAGE_CREDIT_RATE:1.3}
+  credit-presets-krw: [5000, 10000, 30000]
+  credit-min-krw: 5000
+  credit-max-krw: 500000
+  # 단가(원/100만 토큰): OpenAI 공식 표준 요금(2026-10 확인) x 1달러 1,450원(환율 여유분 포함).
+  # 표에 없는 모델은 가장 비싼 모델 값으로 잡아 손해를 보지 않게 한다. 위에서부터 먼저 맞는 것을 쓴다.
+  default-price: { model: "*", input-krw-per-million: 7250, output-krw-per-million: 43500 }
+  models:
+    - { model: "gpt-5.5*", input-krw-per-million: 7250, output-krw-per-million: 43500 }       # $5 / $30
+    # Codex 게이트웨이 모델. 공식 요금이 없어 같은 등급의 OpenAI 모델 단가로 셈한다(luna≈mini, terra·sol≈5.4, astra≈5.5).
+    - { model: "gpt-5.6-luna*", input-krw-per-million: 1100, output-krw-per-million: 6600 }
+    - { model: "gpt-5.6-terra*", input-krw-per-million: 3650, output-krw-per-million: 21750 }
+    - { model: "gpt-5.6-sol*", input-krw-per-million: 3650, output-krw-per-million: 21750 }
+    - { model: "gpt-6-astra*", input-krw-per-million: 7250, output-krw-per-million: 43500 }
+    - { model: "gpt-5.4-mini*", input-krw-per-million: 1100, output-krw-per-million: 6600 }   # $0.75 / $4.50
+    - { model: "gpt-5.4*", input-krw-per-million: 3650, output-krw-per-million: 21750 }       # $2.50 / $15
+    # 전용 엔드포인트(시간 과금)라 토큰 단가는 추정치다.
+    - { model: "LGAI-EXAONE*", input-krw-per-million: 1300, output-krw-per-million: 1300 }
+    - { model: "dep*", input-krw-per-million: 1300, output-krw-per-million: 1300 }
+    - { model: "solar-embedding*", input-krw-per-million: 150, output-krw-per-million: 0 }
+
+# ── PortOne 정기결제 (V2) ───────────────────────────────────────────
+portone:
+  enabled: ${PORTONE_ENABLED:false}
+  api-base-url: https://api.portone.io
+  store-id: ${PORTONE_STORE_ID:}
+  channel-key: ${PORTONE_CHANNEL_KEY:}
+  api-secret: ${PORTONE_API_SECRET:}
+  webhook-secret: ${PORTONE_WEBHOOK_SECRET:}
+  # 실연동 채널로 바꾸기 전까지 true. 화면에 테스트 결제임을 알린다.
+  test-mode: ${PORTONE_TEST_MODE:true}
+
+# ── 알림 메일 ──────────────────────────────────────────────
+# SMTP는 SPRING_MAIL_HOST·PORT·USERNAME·PASSWORD 환경 변수로 켠다. 없으면 메일을 보내지 않는다(로그만 남긴다).
+notify:
+  site-url: ${SITE_URL:https://timiroom.kro.kr}
+  mail-from: ${MAIL_FROM:Align-it <no-reply@timiroom.kro.kr>}
+  # 비용 경보를 받을 운영자 메일(쉼표로 여러 개)
+  admin-emails: ${NOTIFY_ADMIN_EMAILS:}
+
+# 후속 정합성/수정 전용 Python 서비스 (사용 모델은 서비스가 정하고 응답의 evaluationMode로 알려 준다)
 consistency-service:
   base-url: ${CONSISTENCY_SERVICE_URL:http://localhost:8082}
   api-key: ${CONSISTENCY_SERVICE_API_KEY:}
@@ -100,7 +171,7 @@ github:
   consistency:
     # 전용 Consistency Agent가 우선 검증하고, 호출 실패 시 규칙 엔진으로 안전하게 fallback한다.
     agent-enabled: ${GITHUB_CONSISTENCY_AGENT_ENABLED:${GITHUB_CONSISTENCY_LLM_ENABLED:true}}
-    # PYTHON: 독립 EXAONE 서비스, SPRING: 기존 rag-pipeline의 해외 Foundry Agent
+    # PYTHON: 독립 Python 정합성 서비스, SPRING: 기존 rag-pipeline의 해외 Foundry Agent
     runtime: ${GITHUB_CONSISTENCY_RUNTIME:PYTHON}
     agent-model: ${GITHUB_CONSISTENCY_AGENT_MODEL:${GITHUB_CONSISTENCY_LLM_MODEL:gpt-5.4-mini}}
 

@@ -17,11 +17,12 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
 
     @Transactional
-    public Notification create(Long memberId, NotificationType type,
+    public Notification create(Long memberId, Long projectId, NotificationType type,
                                String title, String content,
                                NotificationReferenceType referenceType, Long referenceId) {
         return notificationRepository.save(Notification.builder()
                 .memberId(memberId)
+                .projectId(projectId)
                 .type(type)
                 .title(title)
                 .content(content)
@@ -40,13 +41,23 @@ public class NotificationService {
         return notificationRepository.countByMemberIdAndIsReadFalse(memberId);
     }
 
+    /**
+     * 본인 알림만 읽음 처리한다. 존재하지 않거나 다른 회원의 알림이면 존재 여부를 숨기기 위해 동일하게 NotFound.
+     */
     @Transactional
-    public void markAsRead(Long notificationId) {
-        notificationRepository.findById(notificationId)
-                .ifPresent(n -> {
-                    n.markAsRead();
-                    notificationRepository.save(n);
-                });
+    public void markAsRead(Long memberId, Long notificationId) {
+        Notification notification = notificationRepository.findByNotificationIdAndMemberId(notificationId, memberId)
+                .orElseThrow(() -> new NotificationNotFoundException(notificationId));
+        if (!notification.isRead()) {
+            notification.markAsRead();
+            notificationRepository.save(notification);
+        }
+    }
+
+    public static class NotificationNotFoundException extends RuntimeException {
+        public NotificationNotFoundException(Long notificationId) {
+            super("알림을 찾을 수 없습니다: " + notificationId);
+        }
     }
 
     @Transactional
