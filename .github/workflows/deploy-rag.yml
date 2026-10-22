@@ -6,6 +6,10 @@ on:
     paths:
       - 'rag-pipeline/**'
 
+concurrency:
+  group: ops-deploy-${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -42,7 +46,17 @@ jobs:
 
       - name: Update Ops Repo with Sealed Secrets
         run: |
-          git clone https://${{ secrets.GH_PAT }}@github.com/timiroom/timiroom-ops.git
+          # 토큰은 주소가 아니라 인증 헤더로 보낸다. 주소에 넣으면 GitHub가 redirect할 때 토큰이 빠져
+          # 'could not read Username'으로 실패했다.
+          OPS_AUTH=$(printf 'x-access-token:%s' "$GH_PAT" | base64 -w0)
+          echo "::add-mask::$OPS_AUTH"
+          for attempt in 1 2 3; do
+            rm -rf timiroom-ops
+            git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $OPS_AUTH" clone https://github.com/timiroom/timiroom-ops.git && break
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            sleep $((attempt * 5))
+          done
+          git -C timiroom-ops config http.https://github.com/.extraheader "AUTHORIZATION: basic $OPS_AUTH"
           cd timiroom-ops/apps/rag-pipeline
 
           if [ ! -f pub-cert.pem ]; then
@@ -63,6 +77,13 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git add kustomization.yaml sealed-secret.yaml
           git commit -m "chore: deploy rag-pipeline image [${{ env.IMAGE_TAG }}]"
-          git push
+          for attempt in 1 2 3 4 5; do
+            git push && break
+            if [ "$attempt" = 5 ]; then exit 1; fi
+            # 다른 배포가 먼저 올렸으면 그 위에 다시 쌓고 재시도한다(서비스마다 다른 폴더라 충돌하지 않는다)
+            sleep $((attempt * 3))
+            git pull --rebase
+          done
         env:
+          GH_PAT: ${{ secrets.GH_PAT }}
           ALL_SECRETS_JSON: ${{ toJson(secrets) }}
