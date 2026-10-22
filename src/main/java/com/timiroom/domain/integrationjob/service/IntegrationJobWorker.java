@@ -26,7 +26,8 @@ public class IntegrationJobWorker {
             try { notifier.ifAvailable(n->n.completed(job,result)); }
             catch(RuntimeException notifyFailure) { log.warn("변경안 알림 실패: {}",job.getJobId()); }
         } catch(Exception failure) {
-            String code=failure instanceof SecurityException ? "ACCESS_DENIED" :
+            var ai=aiFailure(failure);
+            String code=ai!=null ? ai.code() : failure instanceof SecurityException ? "ACCESS_DENIED" :
                 java.util.Set.of("PR_CHANGED","SPEC_CONFLICT","NO_SPEC_CHANGES","JOB_TIMEOUT","CONSISTENCY_PROVIDER_FAILED")
                     .contains(failure.getMessage()==null?"":failure.getMessage()) ? failure.getMessage() : "JOB_FAILED";
             try {
@@ -35,5 +36,11 @@ public class IntegrationJobWorker {
             }
             catch(IllegalStateException expired) { log.info("Job lease expired: {}",job.getJobId()); }
         }
+    }
+    /** AI 서버가 알려 준 실패(AI_로 시작하는 코드)면 그 이유를 작업 기록에 남긴다 */
+    static com.timiroom.infra.ragpipeline.AiServiceException aiFailure(Throwable failure) {
+        for(Throwable current=failure; current!=null; current=current.getCause())
+            if(current instanceof com.timiroom.infra.ragpipeline.AiServiceException ai && ai.code().matches("AI_[A-Z_]{1,40}")) return ai;
+        return null;
     }
 }

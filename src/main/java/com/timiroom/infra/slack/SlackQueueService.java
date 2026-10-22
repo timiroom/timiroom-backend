@@ -21,6 +21,16 @@ public class SlackQueueService {
     private final DocumentAccessService access;
     private final ObjectMapper mapper;
     public record CommandRequest(String id,SlackCommand command) {}
+    /** AI 때문에 실패한 작업은 알림에 이유를 한 줄 붙인다(내 AI 키를 고치면 되는지, 잠시 뒤 다시 하면 되는지) */
+    static final Map<String,String> AI_FAILURE_REASONS=Map.of(
+        "AI_KEY_INVALID","연결한 AI 키가 올바르지 않습니다. 설정 > 내 AI 키를 확인해 주세요.",
+        "AI_KEY_FORBIDDEN","연결한 AI 키에 이 모델 권한이 없습니다. 설정 > 내 AI 키를 확인해 주세요.",
+        "AI_MODEL_NOT_FOUND","연결한 AI 키에서 고른 모델을 찾지 못했습니다. 설정 > 내 AI 키를 확인해 주세요.",
+        "AI_KEY_QUOTA_EXCEEDED","연결한 AI 키의 크레딧을 모두 썼습니다.",
+        "AI_BUSY","AI 요청이 잠시 몰렸습니다. 잠시 후 다시 요청해 주세요.",
+        "AI_TIMEOUT","AI 응답이 오래 걸려 중단했습니다. 잠시 후 다시 요청해 주세요.",
+        "AI_SERVICE_UNAVAILABLE","AI에 잠시 연결할 수 없었습니다. 잠시 후 다시 요청해 주세요.",
+        "AI_INPUT_TOO_LONG","문서가 AI가 한 번에 읽을 수 있는 길이를 넘었습니다.");
     /** team: 보낼 Slack 워크스페이스(예전 행은 비어 있으면 설정값 워크스페이스) */
     public record Notification(String id,Long project,Long actor,String team,String channel,String text,Instant createdAt) {}
     @Transactional
@@ -71,7 +81,9 @@ public class SlackQueueService {
                         var result=mapper.readTree((String)row.get("result_json"));
                         if(result.path("passed").isBoolean() && result.path("passed").booleanValue()) outcome=":white_check_mark: PASS";
                     }
+                    String reason=state.equals("FAILED")?AI_FAILURE_REASONS.get(String.valueOf(row.get("error_code"))):null;
                     text="*"+label+"* · "+outcome+" · "+SlackCommandService.escape(commands.projectName(project))+"\n"
+                        +(reason!=null?reason+"\n":"")
                         +"작업 `"+job.substring(0,8)+"` · "+SlackCommandService.link(link,"결과 보기");
                 }
             } catch(Exception invalidStoredResult) { continue; }
