@@ -57,7 +57,7 @@ public class TimiroomMcpTools {
         definition("read_spec","불변 명세 원문을 부분 조회합니다. 모든 페이지를 합쳐 hash를 확인하세요.",true,properties("projectId",integer(1,Long.MAX_VALUE),"snapshotId",uuid(),"documentType",docType(),"cursor",string(),"maxChars",integer(2,24000)),"projectId","snapshotId","documentType"),
         definition("get_change_impact","같은 명세 기준의 문서 그래프와 최대 깊이 2의 변경 영향을 조회합니다.",true,properties("projectId",integer(1,Long.MAX_VALUE),"snapshotId",uuid(),"proposalId",uuid(),"focusNodeIds",array(string(),0,100),"cursor",string()),"projectId","snapshotId"),
         definition("propose_spec_change","기존 티미룸 수정 엔진으로 변경안을 만듭니다. 원본 반영은 티미룸 화면의 검증과 PM 승인이 필요합니다.",false,properties("projectId",integer(1,Long.MAX_VALUE),"snapshotId",uuid(),"targetDocumentTypes",array(docType(),1,4),"instruction",Map.of("type","string","minLength",1,"maxLength",8000),"constraints",array(Map.of("type","string","maxLength",1000),0,20),"idempotencyKey",Map.of("type","string","minLength",1,"maxLength",128)),"projectId","snapshotId","targetDocumentTypes","instruction","idempotencyKey"),
-        definition("get_spec_change","변경안 상태, 원본과 수정 diff, 영향과 문서 교차검증 상태를 조회합니다.",true,properties("projectId",integer(1,Long.MAX_VALUE),"proposalId",uuid(),"documentType",docType(),"cursor",string()),"projectId","proposalId"),
+        definition("get_spec_change","변경안 상태, 바뀐 문서와 diff, 영향, 교차검증 상태, 승인 링크를 조회합니다. 문서 원문은 documentType을 지정하면 함께 줍니다.",true,properties("projectId",integer(1,Long.MAX_VALUE),"proposalId",uuid(),"documentType",docType(),"cursor",string()),"projectId","proposalId"),
         definition("start_artifact_review","변경안 전체 문서의 티미룸 교차검증 작업을 시작합니다. ARTIFACT_REVIEW는 문서 검증입니다.",false,properties("projectId",integer(1,Long.MAX_VALUE),"proposalId",uuid(),"proposalRevision",integer(1,Integer.MAX_VALUE),"idempotencyKey",Map.of("type","string","minLength",1,"maxLength",128)),"projectId","proposalId","proposalRevision","idempotencyKey"),
         definition("start_consistency_check","고정 명세와 PR 커밋을 티미룸 Fact Gate로 검사합니다. GitHub 댓글이나 Check Run을 게시하지 않습니다.",false,properties("projectId",integer(1,Long.MAX_VALUE),"snapshotId",uuid(),"repoId",integer(1,Long.MAX_VALUE),"pullNumber",integer(1,Integer.MAX_VALUE),"expectedHeadSha",Map.of("type","string","pattern","^(?:[a-f0-9]{40}|[a-f0-9]{64})$"),"idempotencyKey",Map.of("type","string","minLength",1,"maxLength",128)),"projectId","snapshotId","repoId","pullNumber","expectedHeadSha","idempotencyKey"),
         definition("get_job","작업 종류, 상태와 고정 기준의 결과를 조회합니다. 문서 검증과 PR 검증을 구분하세요.",true,properties("projectId",integer(1,Long.MAX_VALUE),"jobId",uuid(),"cursor",string()),"projectId","jobId")
@@ -131,8 +131,13 @@ public class TimiroomMcpTools {
         var result=mapper.createObjectNode().put("snapshotId",snapshot.snapshotId().toString()).put("projectId",snapshot.projectId())
             .put("revision",snapshot.revision()).put("publishedAt",snapshot.publishedAt().toString());
         var documents=result.putArray("documents");
-        for(var doc:snapshot.documents()) documents.addObject().put("documentType",doc.type().name()).put("artifactId",doc.artifactId())
-            .put("executionId",doc.executionId()).put("version",doc.version()).put("hash",doc.hash()).put("chars",doc.content().length());
+        for(var doc:snapshot.documents()) {
+            var item=documents.addObject().put("documentType",doc.type().name()).put("artifactId",doc.artifactId())
+                .put("executionId",doc.executionId()).put("version",doc.version()).put("hash",doc.hash()).put("chars",doc.content().length());
+            // 처음 생성된 프로젝트의 기능 목록은 이름만 있다. 기능 설명·요구사항은 PRD에 있다고 알려 준다.
+            if(doc.type()==ArtifactType.FEATURE_LIST && namesOnlyFeatureList(doc.content()))
+                item.put("note","기능 이름만 들어 있습니다. 기능 설명과 요구사항은 같은 기준의 PRD 문서 coreFeatures를 읽으세요.");
+        }
         return result;
     }
     private JsonNode read(IntegrationPrincipal actor,Long project,JsonNode input) {
@@ -185,19 +190,41 @@ public class TimiroomMcpTools {
         full.nodes().stream().filter(n->selected.contains(n.id())&&n.parent()!=null).map(GraphResponse.Node::parent).toList().forEach(selected::add);
         return new GraphResponse(full.nodes().stream().filter(n->selected.contains(n.id())).toList(),full.edges().stream().filter(e->selected.contains(e.source())&&selected.contains(e.target())).toList(),full.summary());
     }
+    /**
+     * 변경안 조회. 요약(상태·바뀐 문서·diff·영향·승인 링크)을 앞에 두고, 문서 원문은 documentType을 준 경우에만 싣는다.
+     * 예전에는 기준 문서 4개와 변경안 원문을 통째로 실어 응답이 20만 자를 넘었고, 요약이 맨 뒤에 있어
+     * AI 도구가 쪽을 여러 번 넘겨야 상태를 알 수 있었다.
+     */
     private JsonNode proposal(IntegrationPrincipal actor,Long project,JsonNode input) {
-        var proposal=changes.view(project,actor.memberId(),id(input,"proposalId"));var result=(ObjectNode)mapper.valueToTree(proposal);
-        if(actor.scopes().contains(IntegrationScope.CONSISTENCY_READ.value())) access.require(actor,project,IntegrationScope.CONSISTENCY_READ);
-        else result.remove(List.of("artifactReview","artifactReviewPassed"));
+        var proposal=changes.view(project,actor.memberId(),id(input,"proposalId"));
+        boolean canReadReview=actor.scopes().contains(IntegrationScope.CONSISTENCY_READ.value());
+        if(canReadReview) access.require(actor,project,IntegrationScope.CONSISTENCY_READ);
+        String type=input.has("documentType")?input.path("documentType").asText():null;
+        var result=mapper.createObjectNode().put("proposalId",proposal.proposalId().toString()).put("status",proposal.status().name())
+            .put("proposalRevision",proposal.proposalRevision()).put("snapshotId",proposal.snapshotId().toString())
+            .put("baseRevision",proposal.base().revision()).put("stale",proposal.stale());
+        var changed=result.putArray("changedDocumentTypes");
+        if(proposal.documents()!=null) proposal.documents().fieldNames().forEachRemaining(changed::add);
         if(frontend!=null) result.put("approvalUrl",frontend.replaceAll("/+$","")+"/spec-review?projectId="+project+"&proposalId="+proposal.proposalId());
-        if(input.has("documentType")) {
-            String type=input.path("documentType").asText();var selected=mapper.createObjectNode();
-            if(proposal.documents().has(type)) selected.set(type,proposal.documents().get(type));result.set("documents",selected);
-            var diffs=mapper.createArrayNode();if(proposal.diffs().isArray()) for(var diff:proposal.diffs()) if(type.equals(diff.path("type").asText())) diffs.add(diff);
-            result.set("diffs",diffs);
-            var base=(ObjectNode)result.get("base");var docs=mapper.createArrayNode();
-            for(var doc:base.path("documents")) if(type.equals(doc.path("type").asText())) docs.add(doc);
-            base.set("documents",docs);
+        if(canReadReview) {
+            result.put("artifactReviewPassed",proposal.artifactReviewPassed());
+            result.set("artifactReview",proposal.artifactReview());
+        }
+        var diffs=mapper.createArrayNode();
+        if(proposal.diffs()!=null && proposal.diffs().isArray()) for(var diff:proposal.diffs()) if(type==null || type.equals(diff.path("type").asText())) diffs.add(diff);
+        result.set("diffs",diffs);
+        result.set("impact",proposal.impact());
+        var base=result.putObject("base").put("snapshotId",proposal.base().snapshotId().toString()).put("revision",proposal.base().revision());
+        var baseDocs=base.putArray("documents");
+        for(var doc:proposal.base().documents()) {
+            var item=baseDocs.addObject().put("type",doc.type().name()).put("version",doc.version()).put("hash",doc.hash()).put("chars",doc.content().length());
+            if(doc.type().name().equals(type)) item.put("content",doc.content());
+        }
+        if(type!=null) {
+            var selected=result.putObject("documents");
+            if(proposal.documents()!=null && proposal.documents().has(type)) selected.set(type,proposal.documents().get(type));
+        } else {
+            result.put("documentsHint","문서 원문(기준·변경안)이 필요하면 documentType을 지정해 다시 조회하세요.");
         }
         return jsonPage(actor,"proposal:"+DocumentHash.of(result.toString()),result,cursor(input));
     }
@@ -262,5 +289,9 @@ public class TimiroomMcpTools {
             }
             default -> throw new IllegalArgumentException("INVALID_INPUT");
         }
+    }
+    private boolean namesOnlyFeatureList(String content) {
+        try {return com.timiroom.domain.spec.service.FeatureListPromotion.namesOnly(mapper.readTree(content));}
+        catch(Exception unreadable) {return false;}
     }
 }

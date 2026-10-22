@@ -24,11 +24,13 @@ public class SpecSnapshotService {
     private final SpecSnapshotRepository snapshots;
     private final DocumentAccessService access;
     private final ObjectMapper mapper;
+    private final ArtifactWriteService writer;
 
     @Transactional
     public SpecSnapshotDto publish(Long projectId,Long actorId) {
         access.requirePm(projectId,actorId);
         projects.findForUpdate(projectId).orElseThrow(()->new SecurityException("ACCESS_DENIED"));
+        promoteFeatureList(projectId,actorId);
         var selected=pipeline.getLatestArtifactsByProject(projectId).stream()
             .filter(a->TYPES.contains(a.getArtifactType())).sorted(Comparator.comparing(PipelineArtifact::getArtifactId)).toList();
         var documents=new ArrayList<SpecDocumentDto>();
@@ -46,6 +48,17 @@ public class SpecSnapshotService {
             var snapshot=snapshots.save(new SpecSnapshot(projectId,revision,actorId,mapper.writeValueAsString(documents)));
             return dto(snapshot,documents);
         } catch(JsonProcessingException e) { throw new IllegalStateException("Cannot serialize snapshot",e); }
+    }
+    /** 이름만 있는 기능 목록을 화면과 같은 상세 기능으로 먼저 저장해, 원본과 확정본이 같은 내용이 되게 한다. */
+    private void promoteFeatureList(Long projectId,Long actorId) {
+        var latest=new EnumMap<ArtifactType,PipelineArtifact>(ArtifactType.class);
+        for(var artifact:pipeline.getLatestArtifactsByProject(projectId)) latest.putIfAbsent(artifact.getArtifactType(),artifact);
+        var list=latest.get(ArtifactType.FEATURE_LIST);
+        if(list==null) return;
+        String spec=latest.containsKey(ArtifactType.FEATURE_SPEC)?latest.get(ArtifactType.FEATURE_SPEC).getContent():null;
+        String prd=latest.containsKey(ArtifactType.PRD)?latest.get(ArtifactType.PRD).getContent():null;
+        FeatureListPromotion.promote(list.getContent(),spec,prd,mapper)
+            .ifPresent(content->writer.write(projectId,actorId,list.getArtifactId(),list.getVersion(),content));
     }
     @Transactional(readOnly=true)
     public SpecSnapshotDto get(Long projectId,Long actorId,UUID snapshotId) {

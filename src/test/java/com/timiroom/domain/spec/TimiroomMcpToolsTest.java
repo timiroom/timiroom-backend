@@ -35,6 +35,23 @@ class TimiroomMcpToolsTest {
         assertThat(mapper.readTree(page.path("content").asText()).has("artifactReview")).isFalse();
         assertThat(mapper.readTree(page.path("content").asText()).has("artifactReviewPassed")).isFalse();
     }
+    @Test void specChangeLeadsWithSummaryAndOmitsDocumentBodiesUnlessRequested() throws Exception {
+        var proposal=UUID.randomUUID();
+        var doc=new SpecDocumentDto(API_SPEC,5L,6L,1,"h","{\"endpoints\":[\"ORIGINAL_BODY\"]}");
+        var base=new SpecSnapshotDto(snapshot,1L,8,2L,Instant.now(),List.of(doc));
+        var documents=mapper.createObjectNode();documents.set("API_SPEC",mapper.createObjectNode().put("changed","CHANGED_BODY"));
+        var diffs=mapper.createArrayNode();diffs.addObject().put("type","API_SPEC").put("path","/endpoints/0");
+        var view=new SpecChangeProposalDto(proposal,1L,snapshot,1,com.timiroom.domain.spec.entity.SpecChangeProposal.State.READY,base,documents,
+            diffs,mapper.createObjectNode(),"test","hash",null,false,null,false);
+        when(changes.view(1L,2L,proposal)).thenReturn(view);
+        var summary=mapper.readTree(tools.invoke("timiroom_get_spec_change",actor,Map.of("projectId",1,"proposalId",proposal.toString())).path("content").asText());
+        assertThat(summary.fieldNames().next()).isEqualTo("proposalId");
+        assertThat(summary.path("changedDocumentTypes").get(0).asText()).isEqualTo("API_SPEC");
+        assertThat(summary.path("diffs").size()).isEqualTo(1);
+        assertThat(summary.toString()).doesNotContain("ORIGINAL_BODY").doesNotContain("CHANGED_BODY");
+        var full=mapper.readTree(tools.invoke("timiroom_get_spec_change",actor,Map.of("projectId",1,"proposalId",proposal.toString(),"documentType","API_SPEC")).path("content").asText());
+        assertThat(full.toString()).contains("ORIGINAL_BODY").contains("CHANGED_BODY");
+    }
     @Test void runOnlyIdempotentSubmissionNeverReturnsStoredReviewResults() {
         var principal=new IntegrationPrincipal(2L,"client",UUID.randomUUID(),Set.of("consistency:run"));
         var proposal=UUID.randomUUID();

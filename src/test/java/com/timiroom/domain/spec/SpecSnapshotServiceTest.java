@@ -21,10 +21,11 @@ class SpecSnapshotServiceTest {
     final PipelineArtifactRepository artifacts=mock(PipelineArtifactRepository.class);
     final SpecSnapshotRepository snapshots=mock(SpecSnapshotRepository.class);
     final DocumentAccessService access=mock(DocumentAccessService.class);
+    final com.timiroom.domain.spec.service.ArtifactWriteService writer=mock(com.timiroom.domain.spec.service.ArtifactWriteService.class);
     SpecSnapshotService service;
     List<PipelineArtifact> docs;
     @BeforeEach void setup(){
-        service=new SpecSnapshotService(projects,pipeline,artifacts,snapshots,access,new ObjectMapper().findAndRegisterModules());
+        service=new SpecSnapshotService(projects,pipeline,artifacts,snapshots,access,new ObjectMapper().findAndRegisterModules(),writer);
         docs=List.of(doc(10,PipelineArtifact.ArtifactType.PRD,"prd"),doc(11,PipelineArtifact.ArtifactType.API_SPEC,"api"),doc(12,PipelineArtifact.ArtifactType.DB_SCHEMA,"db"));
         lenient().when(projects.findForUpdate(1L)).thenReturn(Optional.of(Project.builder().projectId(1L).build()));
         lenient().when(pipeline.getLatestArtifactsByProject(1L)).thenReturn(docs);
@@ -54,5 +55,22 @@ class SpecSnapshotServiceTest {
     }
     private PipelineArtifact doc(long id,PipelineArtifact.ArtifactType type,String content){
         return PipelineArtifact.builder().artifactId(id).executionId(20L).artifactType(type).content(content).version(1).build();
+    }
+    @Test void namesOnlyFeatureListIsFilledFromPrdBeforePublishing(){
+        var prd=doc(10,PipelineArtifact.ArtifactType.PRD,"{\"coreFeatures\":[{\"name\":\"A\"},{\"name\":\"B\"}]}");
+        var list=doc(13,PipelineArtifact.ArtifactType.FEATURE_LIST,"[\"A\"]");
+        var all=List.of(prd,docs.get(1),docs.get(2),list);
+        when(pipeline.getLatestArtifactsByProject(1L)).thenReturn(all);
+        for(var d:all) lenient().when(artifacts.findForUpdate(d.getArtifactId())).thenReturn(Optional.of(d));
+        service.publish(1L,2L);
+        verify(writer).write(eq(1L),eq(2L),eq(13L),anyInt(),argThat(c->c.contains("\"B\"")));
+    }
+    @Test void detailedFeatureListIsPublishedAsIs(){
+        var list=doc(13,PipelineArtifact.ArtifactType.FEATURE_LIST,"[{\"name\":\"edited\"}]");
+        var all=List.of(docs.get(0),docs.get(1),docs.get(2),list);
+        when(pipeline.getLatestArtifactsByProject(1L)).thenReturn(all);
+        for(var d:all) lenient().when(artifacts.findForUpdate(d.getArtifactId())).thenReturn(Optional.of(d));
+        service.publish(1L,2L);
+        verifyNoInteractions(writer);
     }
 }
