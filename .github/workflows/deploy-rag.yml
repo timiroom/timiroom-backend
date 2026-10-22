@@ -1,0 +1,89 @@
+name: Rag-Pipeline CI/CD
+
+on:
+  push:
+    branches: [ develop ]
+    paths:
+      - 'rag-pipeline/**'
+
+concurrency:
+  group: ops-deploy-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set Image Tag
+        run: echo "IMAGE_TAG=sha-${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v4
+        with:
+          context: rag-pipeline
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/timiroom-rag-pipeline:${{ env.IMAGE_TAG }}
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: "5.4.3"
+
+      - name: Install kubeseal
+        run: |
+          wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.27.3/kubeseal-0.27.3-linux-amd64.tar.gz
+          tar -xvzf kubeseal-0.27.3-linux-amd64.tar.gz kubeseal
+          sudo mv kubeseal /usr/local/bin/
+
+      - name: Update Ops Repo with Sealed Secrets
+        run: |
+          # 토큰은 주소가 아니라 인증 헤더로 보낸다. 주소에 넣으면 GitHub가 redirect할 때 토큰이 빠져
+          # 'could not read Username'으로 실패했다.
+          OPS_AUTH=$(printf 'x-access-token:%s' "$GH_PAT" | base64 -w0)
+          echo "::add-mask::$OPS_AUTH"
+          for attempt in 1 2 3; do
+            rm -rf timiroom-ops
+            git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $OPS_AUTH" clone https://github.com/timiroom/timiroom-ops.git && break
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            sleep $((attempt * 5))
+          done
+          git -C timiroom-ops config http.https://github.com/.extraheader "AUTHORIZATION: basic $OPS_AUTH"
+          cd timiroom-ops/apps/rag-pipeline
+
+          if [ ! -f pub-cert.pem ]; then
+            echo "❌ ERROR: pub-cert.pem not found in timiroom-ops/apps/rag-pipeline/"
+            exit 1
+          fi
+
+          kustomize edit set image rag-pipeline-image=${{ secrets.DOCKER_USERNAME }}/timiroom-rag-pipeline:${{ env.IMAGE_TAG }}
+
+          rm -f temp-secrets.env
+          echo "$ALL_SECRETS_JSON" | jq -r 'to_entries[] | select(.key | startswith("RAG_")) | "\(.key | sub("^RAG_"; ""))=\(.value)"' > temp-secrets.env
+
+          kubectl create secret generic rag-pipeline-secrets -n timiroom --from-env-file=temp-secrets.env --dry-run=client -o yaml > plain-secret.yaml
+          kubeseal --format=yaml --cert=pub-cert.pem < plain-secret.yaml > sealed-secret.yaml
+          rm -f temp-secrets.env plain-secret.yaml
+
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add kustomization.yaml sealed-secret.yaml
+          git commit -m "chore: deploy rag-pipeline image [${{ env.IMAGE_TAG }}]"
+          for attempt in 1 2 3 4 5; do
+            git push && break
+            if [ "$attempt" = 5 ]; then exit 1; fi
+            # 다른 배포가 먼저 올렸으면 그 위에 다시 쌓고 재시도한다(서비스마다 다른 폴더라 충돌하지 않는다)
+            sleep $((attempt * 3))
+            git pull --rebase
+          done
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          ALL_SECRETS_JSON: ${{ toJson(secrets) }}

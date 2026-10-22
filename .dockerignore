@@ -1,0 +1,16 @@
+build/
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+*.class
+*.jar
+*.log
+.git
+.gitignore
+README.md
+docs/
+src/test
+.vscode
+.idea
+*.iml
+target/
+bin/
