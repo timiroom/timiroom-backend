@@ -16,11 +16,13 @@ import java.util.*;
 public class SlackQueueService {
     private final JdbcTemplate jdbc;
     private final SlackAccountService accounts;
+    private final SlackWorkspaces workspaces;
     private final SlackCommandService commands;
     private final DocumentAccessService access;
     private final ObjectMapper mapper;
     public record CommandRequest(String id,SlackCommand command) {}
-    public record Notification(String id,Long project,Long actor,String channel,String text,Instant createdAt) {}
+    /** team: 보낼 Slack 워크스페이스(예전 행은 비어 있으면 설정값 워크스페이스) */
+    public record Notification(String id,Long project,Long actor,String team,String channel,String text,Instant createdAt) {}
     @Transactional
     public Optional<CommandRequest> claimCommand() {
         expire("slack_command_request");
@@ -44,7 +46,7 @@ public class SlackQueueService {
     public void collectNotifications() {
         // Only jobs created after explicit channel configuration; connecting a channel never floods old history.
         // 프로젝트에 채널이 여럿이면 채널마다, 그 채널이 고른 알림 종류(CHANGE·REVIEW·PR)만 보낸다.
-        var rows=jdbc.queryForList("select j.*, c.channel_id from integration_job j join slack_project_channel c on c.project_id=j.project_id "
+        var rows=jdbc.queryForList("select j.*, c.channel_id, c.team_id as slack_team from integration_job j join slack_project_channel c on c.project_id=j.project_id "
             +"where j.state in ('COMPLETED','FAILED') and j.created_at>=c.configured_at and j.created_at>? "
             +"and position((case j.kind when 'SPEC_CHANGE' then 'CHANGE' when 'ARTIFACT_REVIEW' then 'REVIEW' else 'PR' end) in c.events)>0 "
             +"and not exists(select 1 from slack_notification n where n.event_key='job:' || j.job_id::text "
@@ -71,8 +73,8 @@ public class SlackQueueService {
                     text="티미룸 "+label+" · "+outcome+"\n작업: "+job+"\n"+link;
                 }
             } catch(Exception invalidStoredResult) { continue; }
-            jdbc.update("insert into slack_notification(event_key,project_id,actor_id,channel_id,message_text,created_at,state) values(?,?,?,?,?,?,'QUEUED') on conflict(event_key) do nothing",
-                "job:"+job+":"+row.get("channel_id"),project,actor,row.get("channel_id"),text,Timestamp.from(Instant.now()));
+            jdbc.update("insert into slack_notification(event_key,project_id,actor_id,team_id,channel_id,message_text,created_at,state) values(?,?,?,?,?,?,?,'QUEUED') on conflict(event_key) do nothing",
+                "job:"+job+":"+row.get("channel_id"),project,actor,row.get("slack_team"),row.get("channel_id"),text,Timestamp.from(Instant.now()));
         }
         collectPullRequestChecks();
     }
@@ -84,7 +86,7 @@ public class SlackQueueService {
         List<Map<String,Object>> rows;
         try {
             rows=jdbc.queryForList("select r.github_pr_review_record_id,r.project_id,r.pull_number,r.head_sha,r.score,r.pull_title,r.pull_url,r.review_url,"
-                +"r.check_run_url,c.channel_id,c.configured_by from github_pull_request_review_record r join slack_project_channel c on c.project_id=r.project_id "
+                +"r.check_run_url,c.channel_id,c.team_id as slack_team,c.configured_by from github_pull_request_review_record r join slack_project_channel c on c.project_id=r.project_id "
                 +"where r.updated_at>=c.configured_at and r.updated_at>? and position('PR' in c.events)>0 and not exists(select 1 from slack_notification n "
                 +"where n.event_key='prauto:' || r.github_pr_review_record_id || ':' || r.head_sha || ':' || c.channel_id) order by r.updated_at limit 50",
                 Timestamp.from(Instant.now().minusSeconds(172800)));
@@ -95,9 +97,9 @@ public class SlackQueueService {
             if(title.length()>80) title=title.substring(0,80)+"…";
             Object result=row.get("review_url")!=null?row.get("review_url"):row.get("check_run_url")!=null?row.get("check_run_url"):row.get("pull_url");
             String text="티미룸 PR 자동 검사 · #"+row.get("pull_number")+(score!=null?" · 정합성 "+score+"점":"")+"\n"+title+(result!=null?"\n"+result:"");
-            jdbc.update("insert into slack_notification(event_key,project_id,actor_id,channel_id,message_text,created_at,state) values(?,?,?,?,?,?,'QUEUED') on conflict(event_key) do nothing",
+            jdbc.update("insert into slack_notification(event_key,project_id,actor_id,team_id,channel_id,message_text,created_at,state) values(?,?,?,?,?,?,?,'QUEUED') on conflict(event_key) do nothing",
                 "prauto:"+row.get("github_pr_review_record_id")+":"+row.get("head_sha")+":"+row.get("channel_id"),((Number)row.get("project_id")).longValue(),
-                ((Number)row.get("configured_by")).longValue(),row.get("channel_id"),text,Timestamp.from(Instant.now()));
+                ((Number)row.get("configured_by")).longValue(),row.get("slack_team"),row.get("channel_id"),text,Timestamp.from(Instant.now()));
         }
     }
     @Transactional public Optional<Notification> claimNotification() {
@@ -106,10 +108,10 @@ public class SlackQueueService {
         if(rows.isEmpty()) return Optional.empty();var row=rows.getFirst();String id=(String)row.get("event_key");
         jdbc.update("update slack_notification set state='SENDING',claimed_at=? where event_key=?",Timestamp.from(Instant.now()),id);
         return Optional.of(new Notification(id,((Number)row.get("project_id")).longValue(),((Number)row.get("actor_id")).longValue(),
-            (String)row.get("channel_id"),(String)row.get("message_text"),((Timestamp)row.get("created_at")).toInstant()));
+            workspaces.resolve((String)row.get("team_id")),(String)row.get("channel_id"),(String)row.get("message_text"),((Timestamp)row.get("created_at")).toInstant()));
     }
     public void validateNotification(Notification notification) {
-        var channel=accounts.channel(notification.channel());
+        var channel=accounts.channel(notification.team(),notification.channel());
         if(!channel.projectId().equals(notification.project()) || notification.createdAt().isBefore(channel.configuredAt()))
             throw new SecurityException("ACCESS_DENIED");
         access.requireRead(notification.project(),notification.actor());access.requirePm(notification.project(),channel.configuredBy());

@@ -16,19 +16,19 @@ public class SlackWorker {
         queue.claimCommand().ifPresent(request->{
             try {
                 String text=commands.execute(request.command(),request.id());
-                client.reply(request.command().channel(),request.command().user(),text);
+                client.reply(request.command().team(),request.command().channel(),request.command().user(),text);
                 queue.commandDone(request.id(),null);
             } catch(Exception failure) {
                 queue.commandDone(request.id(),failure instanceof SecurityException?"ACCESS_DENIED":"COMMAND_FAILED");
                 String text=failure instanceof RuntimeException runtime?SlackCommandService.friendly(runtime):"요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요.";
-                try { client.reply(request.command().channel(),request.command().user(),text); }
+                try { client.reply(request.command().team(),request.command().channel(),request.command().user(),text); }
                 catch(Exception ignored) { /* Delivery errors never repeat paid work or expose provider details. */ }
             }
         });
         queue.collectNotifications();
         queue.claimNotification().ifPresent(notification->{
             try {
-                queue.validateNotification(notification);client.notifyChannel(notification.channel(),notification.text());
+                queue.validateNotification(notification);client.notifyChannel(notification.team(),notification.channel(),notification.text());
                 queue.notificationDone(notification.id(),null);
             } catch(Exception failure) {
                 queue.notificationDone(notification.id(),failure instanceof SecurityException?"ACCESS_DENIED":"DELIVERY_UNKNOWN");

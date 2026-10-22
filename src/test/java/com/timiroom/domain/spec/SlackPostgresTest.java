@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
     "integration.enabled=true","integration.slack.enabled=true","integration.slack.team-id=TTEST","frontend.url=http://localhost:3000"})
 @AutoConfigureTestDatabase(replace=AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({SlackAccountService.class,SlackCommandService.class,SlackQueueService.class,SlackPostgresTest.JsonConfig.class})
+@Import({SlackAccountService.class,SlackCommandService.class,SlackQueueService.class,com.timiroom.infra.slack.SlackWorkspaces.class,SlackPostgresTest.JsonConfig.class})
 @ContextConfiguration(classes=SlackPostgresTest.JsonConfig.class)
 @Transactional(propagation=Propagation.NOT_SUPPORTED)
 @EnabledIfEnvironmentVariable(named="TIMIROOM_TEST_POSTGRES",matches="true")
@@ -48,9 +48,11 @@ class SlackPostgresTest {
     @MockitoBean IntegrationTaskService tasks;
     @MockitoBean IntegrationJobService jobs;
     @MockitoBean com.timiroom.domain.github.PullRequestConsistencyService pullRequests;
+    @MockitoBean com.timiroom.domain.aikey.service.SecretCipher cipher;
     @BeforeEach void resetTables() {
         jdbc.update("delete from slack_notification");jdbc.update("delete from slack_command_request");
         jdbc.update("delete from slack_project_channel");jdbc.update("delete from slack_account_link");jdbc.update("delete from slack_link_code");
+        jdbc.update("delete from slack_workspace");
     }
     private SlackCommand command(String text) {return new SlackCommand("TTEST","UTEST","CTEST",text);}
     private void linked() {accounts.link(2L,accounts.issueCode(command("connect")));accounts.configure(7L,2L,"CTEST");}
@@ -105,5 +107,28 @@ class SlackPostgresTest {
         assertThat(texts).allMatch(t->!t.contains("private fixture document") && !t.contains("secretOriginal"));
         var notification=queue.claimNotification().orElseThrow();accounts.unlink(2L);
         assertThatThrownBy(()->queue.validateNotification(notification)).isInstanceOf(SecurityException.class);
+    }
+    @Test void secondWorkspaceKeepsAccountsChannelsAndNotificationsApart() {
+        linked();
+        var other=new SlackCommand("TOTHER","UOTHER","COTHER","connect");
+        // 앱을 설치하지 않은 워크스페이스는 받지 않는다
+        assertThatThrownBy(()->accounts.issueCode(other)).isInstanceOf(SecurityException.class);
+        jdbc.update("insert into slack_workspace(team_id,team_name,bot_token_enc,installed_at) values('TOTHER','다른 팀','enc',now())");
+        accounts.link(2L,accounts.issueCode(other));
+        assertThat(accounts.connections(2L)).extracting(r->r.get("team_id")).containsExactly("TTEST","TOTHER");
+        assertThat(accounts.connections(2L)).anyMatch(r->"다른 팀".equals(r.get("team_name")));
+        // 계정이 둘이면 워크스페이스를 골라야 한다
+        assertThatThrownBy(()->accounts.configure(7L,2L,null,"COTHER",null)).isInstanceOf(IllegalArgumentException.class);
+        accounts.configure(7L,2L,"TOTHER","COTHER",null);
+        assertThat(accounts.channel("TOTHER","COTHER").projectId()).isEqualTo(7L);
+        assertThatThrownBy(()->accounts.channel("TTEST","COTHER")).isInstanceOf(SecurityException.class);
+        jdbc.update("insert into integration_job(job_id,project_id,actor_id,kind,state,idempotency_key,request_hash,request_json,binding_key,result_json,created_at) "
+            +"values(?,7,2,'ARTIFACT_REVIEW','COMPLETED','k','hash','{}','binding','{\"passed\":true}',?)",UUID.randomUUID(),Timestamp.from(Instant.now().plusSeconds(1)));
+        queue.collectNotifications();
+        assertThat(jdbc.queryForList("select distinct channel_id||':'||team_id from slack_notification order by 1",String.class)).containsExactly("COTHER:TOTHER","CTEST:TTEST");
+        // 한 워크스페이스만 해제하면 그 워크스페이스의 채널만 사라진다
+        accounts.unlink(2L,"TOTHER");
+        assertThat(accounts.connections(2L)).extracting(r->r.get("team_id")).containsExactly("TTEST");
+        assertThat(accounts.channels(2L)).extracting(r->r.get("channel_id")).containsExactly("CTEST");
     }
 }

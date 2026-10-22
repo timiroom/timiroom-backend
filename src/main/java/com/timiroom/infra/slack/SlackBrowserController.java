@@ -16,6 +16,7 @@ import java.util.Map;
 @ConditionalOnProperty(name={"integration.enabled","integration.slack.enabled"},havingValue="true")
 public class SlackBrowserController {
     private final SlackBrowserConnection flow;
+    private final SlackInstallFlow install;
     private final IntegrationActorResolver actors;
     @Value("${frontend.url}") private String frontend;
 
@@ -50,6 +51,23 @@ public class SlackBrowserController {
             @RequestParam(required=false) String error) {
         String result=flow.complete(actors.memberId(auth),request.getSession(false),state,code,error);
         return redirect(frontend+"/mypage?slack="+result);
+    }
+    /** "Slack 워크스페이스에 앱 추가": Slack 설치 화면 주소를 돌려준다 */
+    @PostMapping("/api/v1/integrations/slack/install")
+    public ResponseEntity<?> startInstall(Authentication auth,HttpServletRequest request) {
+        try {return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+            .body(Map.of("url",install.start(actors.memberId(auth),request.getSession())));}
+        catch(IllegalStateException unavailable) {return ResponseEntity.status(503)
+            .body(Map.of("code","SLACK_INSTALL_UNAVAILABLE"));}
+    }
+    // Slack이 최상위 GET으로 돌려보내므로 SameSite=Lax 세션 쿠키가 함께 온다
+    @GetMapping("/integrations/slack/install/callback")
+    public ResponseEntity<Void> installCallback(Authentication auth,HttpServletRequest request,
+            @RequestParam(required=false) String state,@RequestParam(required=false) String code,
+            @RequestParam(required=false) String error) {
+        if(state==null || !state.matches("[A-Za-z0-9_-]{43}")) return redirect(frontend+"/settings/connections?slack=failed");
+        String result=install.complete(actors.memberId(auth),request.getSession(false),state,code,error);
+        return redirect(frontend+"/settings/connections?slack="+result);
     }
     private ResponseEntity<Void> redirect(String target) {
         return ResponseEntity.status(HttpStatus.SEE_OTHER).location(URI.create(target))

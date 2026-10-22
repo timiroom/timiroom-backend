@@ -32,6 +32,11 @@ public class SlackWorkspaces {
         if(team.equals(configuredTeam)) return true;
         return !jdbc.queryForList("select 1 from slack_workspace where team_id=? and revoked_at is null",team).isEmpty();
     }
+    /** 비어 있는 team(예전 행)은 설정값 워크스페이스로 본다 */
+    public String resolve(String team) { return team==null || team.isBlank()?configuredTeam:team; }
+    /** 설치된 워크스페이스가 둘 이상일 수 있으면 true. 로그인 화면에서 워크스페이스를 고정하지 않는다. */
+    public boolean multiple() { return list().size()!=1; }
+    public String configuredTeam() { return configuredTeam; }
     /** 이 워크스페이스로 메시지를 보낼 봇 토큰 */
     public String token(String team) {
         if(team==null || team.isBlank() || team.equals(configuredTeam)) {

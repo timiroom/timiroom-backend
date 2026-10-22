@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class SlackBrowserControllerTest {
     final SlackBrowserConnection flow=mock(SlackBrowserConnection.class);
-    final SlackBrowserController controller=new SlackBrowserController(flow,mock(IntegrationActorResolver.class));
+    final SlackBrowserController controller=new SlackBrowserController(flow,mock(SlackInstallFlow.class),mock(IntegrationActorResolver.class));
     @Test void publicRelayDoesNotCreateSessionOrLinkAccount() throws Exception {
         ReflectionTestUtils.setField(controller,"frontend","https://timiroom.kro.kr");
         var mvc=MockMvcBuilders.standaloneSetup(controller).build();

@@ -35,7 +35,7 @@ class SlackSocketHandlerTest {
         pending.getFirst().run();
         verify(commands).accept(new SlackCommand("T1","U1","C1","connect"),
             com.timiroom.domain.spec.service.DocumentHash.of("socket:envelope-1"));
-        verify(web).reply("C1","U1","private result");
+        verify(web).reply("T1","C1","U1","private result");
     }
     @Test void foreignTeamOrAppNeverReachesCommands() {
         var handler=new SlackSocketHandler("T1","A1",commands,web,Runnable::run);
@@ -56,7 +56,7 @@ class SlackSocketHandlerTest {
         when(commands.accept(any(),anyString())).thenThrow(new SecurityException("sensitive details"));
         var handler=new SlackSocketHandler("T1","A1",commands,web,Runnable::run);
         handler.receive("envelope-1",payload("spec"),ack->{});
-        verify(web).reply(eq("C1"),eq("U1"),argThat(text->text.contains("권한")&&!text.contains("sensitive")));
+        verify(web).reply(eq("T1"),eq("C1"),eq("U1"),argThat(text->text.contains("권한")&&!text.contains("sensitive")));
     }
     @Test void busyReceiverAcknowledgesWithRetryGuidanceWithoutExecuting() {
         var pending=new ArrayList<Runnable>();var acks=new ArrayList<Map<String,Object>>();

@@ -33,7 +33,7 @@ class SlackBrowserSecurityTest {
         @Bean SlackBrowserConnection flow(){return mock(SlackBrowserConnection.class);}
         @Bean IntegrationActorResolver actors(){var actors=mock(IntegrationActorResolver.class);when(actors.memberId(any())).thenReturn(7L);return actors;}
         @Bean SlackBrowserController controller(SlackBrowserConnection flow,IntegrationActorResolver actors){
-            return new SlackBrowserController(flow,actors);
+            return new SlackBrowserController(flow,org.mockito.Mockito.mock(SlackInstallFlow.class),actors);
         }
     }
     @Autowired WebApplicationContext context;

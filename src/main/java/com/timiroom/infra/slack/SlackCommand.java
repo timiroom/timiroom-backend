@@ -11,6 +11,10 @@ public record SlackCommand(String team,String user,String channel,String text) {
         public Arguments(Action action,UUID id,int revision,Long repo,int pull,String head) { this(action,id,revision,repo,pull,head,null); }
     }
     public static SlackCommand from(String raw,String expectedTeam,String expectedApp) {
+        return from(raw,team->Objects.equals(expectedTeam,team),expectedApp);
+    }
+    /** allowedTeam: 티미룸 앱이 설치된 워크스페이스인지 */
+    public static SlackCommand from(String raw,java.util.function.Predicate<String> allowedTeam,String expectedApp) {
         var fields=new HashMap<String,String>();
         try {
             for(String pair:raw.split("&")) {
@@ -20,11 +24,12 @@ public record SlackCommand(String team,String user,String channel,String text) {
                 if(fields.putIfAbsent(key,value)!=null) throw new SecurityException("SLACK_REQUEST_INVALID");
             }
         } catch(IllegalArgumentException e) { throw new SecurityException("SLACK_REQUEST_INVALID"); }
-        if(!Objects.equals(expectedTeam,fields.get("team_id")) || !Objects.equals(expectedApp,fields.get("api_app_id"))
+        String team=fields.get("team_id");
+        if(!id(team,"T[A-Z0-9]+") || !allowedTeam.test(team) || !Objects.equals(expectedApp,fields.get("api_app_id"))
             || !"/timiroom".equals(fields.get("command")) || !id(fields.get("user_id"),"[UW][A-Z0-9]+")
             || !id(fields.get("channel_id"),"[CGD][A-Z0-9]+") || fields.getOrDefault("text","").length()>1000)
             throw new SecurityException("SLACK_REQUEST_INVALID");
-        return new SlackCommand(expectedTeam,fields.get("user_id"),fields.get("channel_id"),fields.getOrDefault("text","").trim());
+        return new SlackCommand(team,fields.get("user_id"),fields.get("channel_id"),fields.getOrDefault("text","").trim());
     }
     private static boolean id(String value,String pattern) { return value!=null && value.matches(pattern); }
     private static final Map<String,Action> WORDS=Map.ofEntries(
