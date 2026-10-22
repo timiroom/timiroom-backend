@@ -92,7 +92,7 @@ public class SlackCommandService {
         }
         if(arguments.action()==SlackCommand.Action.UNLINK) {
             enqueue(command,requestId,"DONE");
-            var channel=accounts.channel(command.channel());accounts.removeChannel(channel.projectId(),actor,command.channel());
+            var channel=accounts.channel(command.team(),command.channel());accounts.removeChannel(channel.projectId(),actor,command.channel());
             return privateResponse("이 채널과 '"+projectName(channel.projectId())+"' 프로젝트의 연결을 끊었습니다.");
         }
         accounts.require(command,actor);
@@ -149,7 +149,7 @@ public class SlackCommandService {
             command.team(),command.channel(),project);
         if(!existing.isEmpty())
             return "이 채널은 이미 '"+projectName(((Number)existing.getFirst().get("project_id")).longValue())+"' 프로젝트와 연결되어 있습니다. 먼저 `/timiroom 연결해제`를 실행하세요.";
-        accounts.configure(project,actor,command.channel());
+        accounts.configure(project,actor,command.team(),command.channel(),null);
         return "이 채널을 '"+matched.getFirst().get("project_name")+"' 알림 채널로 연결했습니다. 알림을 받으려면 이 채널에 티미룸 앱을 초대하세요 (`/invite @앱이름`).\n`/timiroom`으로 현황을 볼 수 있습니다.";
     }
     private static final Map<String,String> EVENT_WORDS=Map.ofEntries(
@@ -162,7 +162,7 @@ public class SlackCommandService {
     }
     /** 이 채널이 받을 알림 종류를 보거나 바꾼다. 바꾸는 것은 프로젝트 PM만 할 수 있다. */
     private String notifySettings(SlackCommand command,Long actor,String query) {
-        var channel=accounts.channel(command.channel());
+        var channel=accounts.channel(command.team(),command.channel());
         if(query==null) return "이 채널은 '"+projectName(channel.projectId())+"'의 "+eventLabels(accounts.events(channel.projectId(),command.channel()))
             +" 알림을 받습니다.\n바꾸려면 `/timiroom 알림 변경안 교차검증 pr` 중 원하는 것만 적거나 `/timiroom 알림 전체`를 실행하세요.";
         var picked=new LinkedHashSet<String>();
@@ -172,7 +172,7 @@ public class SlackCommandService {
             if(event==null) return "알림 종류는 변경안, 교차검증, pr, 전체 중에서 고르세요.";
             picked.add(event);
         }
-        accounts.configure(channel.projectId(),actor,command.channel(),picked);
+        accounts.configure(channel.projectId(),actor,command.team(),command.channel(),picked);
         return "이제 이 채널은 "+eventLabels(SlackAccountService.normalizeEvents(picked))+" 알림만 받습니다.";
     }
     private List<Map<String,Object>> readyProposals(Long project,int limit) {

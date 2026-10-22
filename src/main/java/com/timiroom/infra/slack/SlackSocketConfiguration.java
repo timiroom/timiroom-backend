@@ -13,10 +13,9 @@ import java.util.concurrent.*;
 @ConditionalOnProperty(name={"integration.enabled","integration.slack.enabled","integration.slack.socket-mode.enabled"},havingValue="true")
 public class SlackSocketConfiguration {
     @Bean SlackSocketConnection slackSocketConnection(
-        @Value("${integration.slack.team-id}") String team,
         @Value("${integration.slack.app-id}") String app,
         @Value("${integration.slack.app-token}") String token,
-        SlackCommandService commands,SlackWebClient web) {
+        SlackCommandService commands,SlackWebClient web,SlackWorkspaces workspaces) {
         if(token==null || !token.matches("xapp-[A-Za-z0-9-]{20,}"))
             throw new IllegalArgumentException("Slack app token required for Socket Mode");
         var config=new SlackConfig();
@@ -28,7 +27,7 @@ public class SlackSocketConfiguration {
         var slack=Slack.getInstance(config);
         var workers=Executors.newFixedThreadPool(2,Thread.ofPlatform().daemon().name("slack-command-",0).factory());
         var timer=Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().daemon().name("slack-connect-",0).factory());
-        var handler=new SlackSocketHandler(team,app,commands,web,workers);
+        var handler=new SlackSocketHandler(workspaces::allowed,app,commands,web,workers);
         return new SlackSocketConnection(app,()->{
             var opened=slack.methods(token).appsConnectionsOpen(r->r);
             if(!opened.isOk() || opened.getUrl()==null) throw new IllegalStateException("SLACK_SOCKET_URL_UNAVAILABLE");

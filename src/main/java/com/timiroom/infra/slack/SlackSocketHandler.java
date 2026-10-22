@@ -15,14 +15,19 @@ import java.util.stream.Collectors;
 public final class SlackSocketHandler {
     static final String RETRY="요청이 많습니다. 잠시 후 명령을 다시 실행하세요.";
     private static final Logger log=LoggerFactory.getLogger(SlackSocketHandler.class);
-    private final String team,app;
+    private final java.util.function.Predicate<String> teams;
+    private final String app;
     private final SlackCommandService commands;
     private final SlackWebClient web;
     private final Executor executor;
     private final Semaphore capacity=new Semaphore(64);
 
     public SlackSocketHandler(String team,String app,SlackCommandService commands,SlackWebClient web,Executor executor) {
-        this.team=team;this.app=app;this.commands=commands;this.web=web;this.executor=executor;
+        this(t->Objects.equals(team,t),app,commands,web,executor);
+    }
+    /** teams: 티미룸 앱이 설치된 워크스페이스인지 */
+    public SlackSocketHandler(java.util.function.Predicate<String> teams,String app,SlackCommandService commands,SlackWebClient web,Executor executor) {
+        this.teams=teams;this.app=app;this.commands=commands;this.web=web;this.executor=executor;
     }
 
     public void receive(String envelopeId,Map<String,String> payload,Consumer<Map<String,Object>> acknowledge) {
@@ -35,7 +40,7 @@ public final class SlackSocketHandler {
             fields.putIfAbsent("api_app_id",app);
             String body=fields.entrySet().stream().map(e->encode(e.getKey())+"="+encode(e.getValue()))
                 .collect(Collectors.joining("&"));
-            command=SlackCommand.from(body,team,app);
+            command=SlackCommand.from(body,teams,app);
             if(SlackCommand.parse(command.text()).action()==SlackCommand.Action.HELP) {
                 acknowledge.accept(ack(envelopeId,SlackCommandService.HELP));return;
             }
@@ -59,7 +64,7 @@ public final class SlackSocketHandler {
         String text;
         try {text=commands.accept(command,requestId).get("text");}
         catch(RuntimeException failure) {text=SlackCommandService.friendly(failure);}
-        try {web.reply(command.channel(),command.user(),text);}
+        try {web.reply(command.team(),command.channel(),command.user(),text);}
         catch(RuntimeException delivery) {
             // Never log the payload, connection code, response URL, token, or SDK exception.
             log.warn("SLACK_SOCKET_REPLY_FAILED request={}",requestId);

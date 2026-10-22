@@ -18,13 +18,14 @@ public class SlackController {
     private final SlackAccountService accounts;
     private final IntegrationActorResolver actors;
     private final SlackOidcClient oidc;
-    @Value("${integration.slack.team-id}") private String team;
+    private final SlackWorkspaces workspaces;
+    private final SlackInstallFlow install;
     @Value("${integration.slack.app-id}") private String app;
     @PostMapping(value="/integrations/slack/commands",consumes=MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     public Map<String,String> command(@RequestHeader("X-Slack-Request-Timestamp") String timestamp,
         @RequestHeader("X-Slack-Signature") String signature,@RequestBody String body) {
         verifier.verify(timestamp,signature,body);
-        var request=SlackCommand.from(body,team,app);
+        var request=SlackCommand.from(body,workspaces::allowed,app);
         try {return commands.accept(request,DocumentHash.of(timestamp+":"+body));}
         catch(SecurityException|IllegalArgumentException|IllegalStateException failure) {
             return Map.of("response_type","ephemeral","text",SlackCommandService.friendly(failure));
@@ -33,8 +34,11 @@ public class SlackController {
     @GetMapping("/api/v1/integrations/slack")
     public Map<String,Object> connection(Authentication auth) {
         Long member=actors.memberId(auth);
-        return Map.of("connected",accounts.connection(member).isPresent(),"account",accounts.connection(member).orElse(Map.of()),
-            "channels",accounts.channels(member),"connectAvailable",oidc.ready());
+        var linked=accounts.connections(member);
+        // account·connected는 예전 화면용(첫 번째 연결). accounts·workspaces가 여러 워크스페이스용이다.
+        return Map.of("connected",!linked.isEmpty(),"account",linked.isEmpty()?Map.of():linked.getFirst(),"accounts",linked,
+            "workspaces",workspaces.visibleTo(member,linked.stream().map(r->(String)r.get("team_id")).toList()),"channels",accounts.channels(member),
+            "connectAvailable",oidc.ready(),"installAvailable",install.ready());
     }
     public record LinkRequest(String code) {}
     @PostMapping("/api/v1/integrations/slack/link")
@@ -42,14 +46,14 @@ public class SlackController {
         accounts.link(actors.memberId(auth),input.code());return ResponseEntity.noContent().build();
     }
     @DeleteMapping("/api/v1/integrations/slack/link")
-    public ResponseEntity<Void> unlink(Authentication auth) {
-        accounts.unlink(actors.memberId(auth));return ResponseEntity.noContent().build();
+    public ResponseEntity<Void> unlink(Authentication auth,@RequestParam(required=false) String teamId) {
+        accounts.unlink(actors.memberId(auth),teamId==null || teamId.isBlank()?null:teamId);return ResponseEntity.noContent().build();
     }
     /** events를 비우면 모든 알림(CHANGE·REVIEW·PR)을 받는다. 같은 채널을 다시 보내면 받을 알림만 바뀐다. */
-    public record ChannelRequest(Long projectId,String channelId,java.util.List<String> events) {}
+    public record ChannelRequest(Long projectId,String teamId,String channelId,java.util.List<String> events) {}
     @PostMapping("/api/v1/integrations/slack/channels")
     public ResponseEntity<Void> configure(Authentication auth,@RequestBody ChannelRequest input) {
-        accounts.configure(input.projectId(),actors.memberId(auth),input.channelId(),input.events());return ResponseEntity.noContent().build();
+        accounts.configure(input.projectId(),actors.memberId(auth),input.teamId(),input.channelId(),input.events());return ResponseEntity.noContent().build();
     }
     @DeleteMapping("/api/v1/integrations/slack/channels/{project}")
     public ResponseEntity<Void> remove(Authentication auth,@PathVariable Long project,@RequestParam(required=false) String channelId) {

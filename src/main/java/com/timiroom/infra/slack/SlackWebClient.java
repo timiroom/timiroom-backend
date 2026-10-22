@@ -1,7 +1,6 @@
 package com.timiroom.infra.slack;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import java.net.URI;
@@ -12,22 +11,30 @@ import java.util.Map;
 @Component
 @ConditionalOnProperty(name={"integration.enabled","integration.slack.enabled"},havingValue="true")
 public class SlackWebClient {
-    private final String token;
+    private final java.util.function.Function<String,String> tokens;
     private final ObjectMapper mapper;
     private final HttpClient http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3))
         .followRedirects(HttpClient.Redirect.NEVER).build();
-    public SlackWebClient(@Value("${integration.slack.bot-token}") String token,ObjectMapper mapper) {
-        if(token==null || !token.startsWith("xoxb-") || token.contains("\n") || token.contains("\r"))
-            throw new IllegalArgumentException("Slack bot token required");
-        this.token=token;this.mapper=mapper;
+    /** 워크스페이스마다 그 워크스페이스에 설치된 봇 토큰으로 보낸다 */
+    @org.springframework.beans.factory.annotation.Autowired
+    public SlackWebClient(SlackWorkspaces workspaces,ObjectMapper mapper) { this.tokens=workspaces::token;this.mapper=mapper; }
+    /** 워크스페이스 하나짜리(테스트·예전 설정) */
+    public SlackWebClient(String token,ObjectMapper mapper) {
+        if(!valid(token)) throw new IllegalArgumentException("Slack bot token required");
+        this.tokens=team->token;this.mapper=mapper;
     }
-    public void notifyChannel(String channel,String text) {
-        send("chat.postMessage",Map.of("channel",channel,"text",text,"unfurl_links",false,"unfurl_media",false,"mrkdwn",false,"parse","none"));
+    private static boolean valid(String token) {
+        return token!=null && token.startsWith("xoxb-") && !token.contains("\n") && !token.contains("\r");
     }
-    public void reply(String channel,String user,String text) {
-        send("chat.postEphemeral",Map.of("channel",channel,"user",user,"text",text,"parse","none"));
+    public void notifyChannel(String team,String channel,String text) {
+        send(team,"chat.postMessage",Map.of("channel",channel,"text",text,"unfurl_links",false,"unfurl_media",false,"mrkdwn",false,"parse","none"));
     }
-    private void send(String method,Map<String,Object> body) {
+    public void reply(String team,String channel,String user,String text) {
+        send(team,"chat.postEphemeral",Map.of("channel",channel,"user",user,"text",text,"parse","none"));
+    }
+    private void send(String team,String method,Map<String,Object> body) {
+        String token=tokens.apply(team);
+        if(!valid(token)) throw new IllegalStateException("SLACK_WORKSPACE_NOT_INSTALLED");
         try {
             var request=HttpRequest.newBuilder(URI.create("https://slack.com/api/"+method)).timeout(Duration.ofSeconds(5))
                 .header("Authorization","Bearer "+token).header("Content-Type","application/json; charset=utf-8")
