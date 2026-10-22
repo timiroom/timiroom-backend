@@ -27,11 +27,15 @@ import java.util.Map;
 public class RagPipelineClient {
 
     private final WebClient webClient;
+    /** 기획 대화 한 턴을 기다리는 시간. 운영 API 프록시(nginx)가 120초에서 끊으므로 그보다 짧게 둔다. */
+    private final Duration chatTimeout;
 
     public RagPipelineClient(
             @Value("${rag-pipeline.base-url}") String baseUrl,
             @Value("${rag-pipeline.internal-token:}") String internalToken,
+            @Value("${rag-pipeline.chat-timeout-seconds:100}") long chatTimeoutSeconds,
             ObjectMapper objectMapper) {
+        this.chatTimeout = Duration.ofSeconds(chatTimeoutSeconds);
         WebClient.Builder builder = WebClient.builder()
                 .baseUrl(baseUrl)
                 .codecs(config -> config.defaultCodecs().maxInMemorySize(50 * 1024 * 1024));
@@ -48,6 +52,12 @@ public class RagPipelineClient {
 
     /** 채팅 응답의 data와 사용량 헤더 */
     public record ChatReply(Map<String, Object> data, String usageHeader) {}
+
+    static boolean causedByTimeout(Throwable error) {
+        for (Throwable current = error; current != null; current = current.getCause())
+            if (current instanceof java.util.concurrent.TimeoutException) return true;
+        return false;
+    }
 
     private RuntimeException unavailable(String op, Throwable cause) {
         log.error("RAG 파이프라인 연결 실패 [{}]: {}", op, cause.getMessage());
@@ -127,10 +137,16 @@ public class RagPipelineClient {
                     .bodyValue(requestBody)
                     .retrieve()
                     .toEntity(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .timeout(Duration.ofSeconds(30))
+                    .timeout(chatTimeout)
                     .block();
         } catch (WebClientRequestException e) {
             throw unavailable("chat", e);
+        } catch (RuntimeException e) {
+            if (causedByTimeout(e)) {
+                log.warn("RAG 파이프라인 채팅 응답 시간 초과 ({}초)", chatTimeout.toSeconds());
+                throw new IllegalStateException("AI 응답이 오래 걸려 중단했습니다. 잠시 후 다시 보내 주세요.", e);
+            }
+            throw e;
         }
 
         if (response == null || response.getBody() == null) throw new RuntimeException("rag-pipeline 채팅 응답이 없습니다");
