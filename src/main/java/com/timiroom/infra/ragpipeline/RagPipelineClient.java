@@ -61,7 +61,8 @@ public class RagPipelineClient {
 
     private RuntimeException unavailable(String op, Throwable cause) {
         log.error("RAG 파이프라인 연결 실패 [{}]: {}", op, cause.getMessage());
-        return new IllegalStateException("RAG 파이프라인 서비스에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.", cause);
+        // 화면에 그대로 보이므로 사용자 말로 쓴다(서버 이름·실행 여부 같은 운영 정보는 로그에만)
+        return new IllegalStateException("AI 서버에 잠시 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.", cause);
     }
 
     /**
@@ -179,6 +180,10 @@ public class RagPipelineClient {
             return response;
         } catch (WebClientRequestException e) {
             throw unavailable("forward " + path, e);
+        } catch (RuntimeException e) {
+            if (!causedByTimeout(e)) throw e;
+            log.warn("AI 서버 응답 시간 초과 [{}] {}초", path, timeout.toSeconds());
+            throw new AiServiceException(504, "AI_TIMEOUT", "AI 응답이 오래 걸려 중단했습니다. 잠시 후 다시 시도해 주세요.");
         }
     }
 

@@ -25,6 +25,22 @@ class RagPipelineChatTimeoutTest {
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("AI 응답이 오래 걸려");
         } finally { server.stop(0); }
     }
+    @Test void gatewayTimeoutBecomesAiTimeoutInsteadOfServerError() throws Exception {
+        var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/api/agent/chat",exchange->{
+            try {Thread.sleep(3000);} catch(InterruptedException e) {Thread.currentThread().interrupt();}
+            exchange.sendResponseHeaders(200,-1);exchange.close();
+        });
+        server.start();
+        try {
+            var client=new RagPipelineClient("http://127.0.0.1:"+server.getAddress().getPort(),"",1,new ObjectMapper());
+            assertThatThrownBy(()->client.forward("/api/agent/chat","{}",Map.of(),java.time.Duration.ofSeconds(1)))
+                .isInstanceOfSatisfying(AiServiceException.class,e->{
+                    assertThat(e.status()).isEqualTo(504);
+                    assertThat(e.code()).isEqualTo("AI_TIMEOUT");
+                });
+        } finally { server.stop(0); }
+    }
     @Test void detectsWrappedTimeouts() {
         assertThat(RagPipelineClient.causedByTimeout(new RuntimeException(new java.util.concurrent.TimeoutException()))).isTrue();
         assertThat(RagPipelineClient.causedByTimeout(new RuntimeException("other"))).isFalse();
