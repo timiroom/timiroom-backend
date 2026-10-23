@@ -57,7 +57,8 @@ class ProjectDocumentSaveTest {
     void fixture() {
         var access = new DocumentAccessService(projects, members, executions, requirements, teams);
         service = new ProjectService(projects, members, requirements, executions, artifacts, teams,
-                new ArtifactWriteService(artifacts, mock(ArtifactRevisionRepository.class), access));
+                new ArtifactWriteService(artifacts, mock(ArtifactRevisionRepository.class), access),
+                mock(com.timiroom.domain.project.service.ProjectDataCleaner.class));
         pipeline = new PipelineService(mock(RagPipelineClient.class), executions, artifacts,
                 mock(ArtifactRevisionRepository.class), requirementService, mock(NotificationService.class),
                 new ObjectMapper(), mock(ArtifactWriteService.class), mock(DocumentAccessService.class), mock(com.timiroom.domain.usage.service.AiCallService.class));

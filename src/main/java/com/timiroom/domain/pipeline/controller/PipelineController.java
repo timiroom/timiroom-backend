@@ -46,8 +46,13 @@ public class PipelineController {
      * event: progress | complete | error
      */
     @GetMapping(value = "/progress/{pipelineId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter progress(@PathVariable String pipelineId) {
-        return pipelineService.subscribeProgress(pipelineId);
+    public SseEmitter progress(HttpSession session, @PathVariable String pipelineId) {
+        try {
+            return pipelineService.subscribeProgress(pipelineId, memberId(session));
+        } catch (SecurityException e) {
+            // 스트림 요청에는 JSON 오류 본문을 쓸 수 없어 상태 코드만 돌려준다.
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN);
+        }
     }
 
     /**

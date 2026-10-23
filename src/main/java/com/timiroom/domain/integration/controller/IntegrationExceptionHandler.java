@@ -3,6 +3,8 @@ import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
+// 연동·명세 API는 고유 오류 코드를 쓴다. 전역 처리보다 먼저 적용되게 순서를 고정한다.
+@org.springframework.core.annotation.Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(basePackages={"com.timiroom.domain.integration.controller","com.timiroom.domain.spec.controller"})
 public class IntegrationExceptionHandler {
     @ExceptionHandler(SecurityException.class)

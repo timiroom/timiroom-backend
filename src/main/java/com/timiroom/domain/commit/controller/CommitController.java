@@ -16,16 +16,16 @@ public class CommitController {
 
     private final CommitService commitService;
 
-    /** 커밋 전체 조회 — GET /api/v1/commits */
+    /** 내가 참여한 프로젝트들의 커밋 — GET /api/v1/commits */
     @GetMapping("/api/v1/commits")
-    public ResponseEntity<List<Commit>> getAll() {
-        return ResponseEntity.ok(commitService.getAll());
+    public ResponseEntity<List<Commit>> getAll(HttpSession session) {
+        return ResponseEntity.ok(commitService.getMine(memberId(session)));
     }
 
     /** 프로젝트별 커밋 조회 — GET /api/v1/projects/{id}/commits */
     @GetMapping("/api/v1/projects/{projectId}/commits")
-    public ResponseEntity<List<Commit>> getByProject(@PathVariable Long projectId) {
-        return ResponseEntity.ok(commitService.getByProject(projectId));
+    public ResponseEntity<List<Commit>> getByProject(HttpSession session, @PathVariable Long projectId) {
+        return ResponseEntity.ok(commitService.getByProject(projectId, memberId(session)));
     }
 
     /** 커밋 생성 — POST /api/v1/commits */
@@ -34,13 +34,18 @@ public class CommitController {
             HttpSession session,
             @RequestBody Map<String, Object> body
     ) {
-        Long memberId = (Long) session.getAttribute("memberId");
-        Long projectId = Long.valueOf(body.get("projectId").toString());
-        String message = (String) body.get("message");
-
-        if (message == null || message.isBlank()) {
+        Long memberId = memberId(session);
+        Object projectId = body.get("projectId");
+        Object message = body.get("message");
+        if (projectId == null || !(message instanceof String text) || text.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(commitService.create(projectId, memberId, message));
+        return ResponseEntity.ok(commitService.create(Long.valueOf(projectId.toString()), memberId, text));
+    }
+
+    private Long memberId(HttpSession session) {
+        Long memberId = (Long) session.getAttribute("memberId");
+        if (memberId == null) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED);
+        return memberId;
     }
 }

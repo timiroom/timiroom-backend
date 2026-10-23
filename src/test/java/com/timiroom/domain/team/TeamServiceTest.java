@@ -58,6 +58,9 @@ class TeamServiceTest {
     @Autowired
     private ProjectRepository projectRepository;
 
+    @Autowired
+    private com.timiroom.domain.commit.repository.CommitRepository commitRepository;
+
     @BeforeEach
     void setUp() {
         projectMemberRepository.deleteAll();
@@ -223,6 +226,32 @@ class TeamServiceTest {
         assertThat(teamMemberRepository.findByTeamId(team.getTeamId())).isEmpty();
         assertThat(projectRepository.findById(project.getProjectId())).isEmpty();
         assertThat(projectMemberRepository.findByProjectId(project.getProjectId())).isEmpty();
+    }
+
+    @Test
+    void deletingProjectAlsoRemovesItsCommits() {
+        Member owner = memberRepository.save(Member.create("owner", "pw", "owner@test.com"));
+        Team team = teamService.create(owner.getMemberId(), "Alpha Team", "sample team");
+        var project = projectService.create(team.getTeamId(), owner.getMemberId(), "Project A", "desc");
+        commitRepository.save(com.timiroom.domain.commit.entity.Commit.builder()
+                .projectId(project.getProjectId()).memberId(owner.getMemberId()).message("first").build());
+
+        projectService.delete(project.getProjectId(), owner.getMemberId());
+
+        assertThat(commitRepository.findByProjectIdOrderByCreatedAtDesc(project.getProjectId())).isEmpty();
+    }
+
+    @Test
+    void projectMemberMustBelongToWorkspace() {
+        Member owner = memberRepository.save(Member.create("owner", "pw", "owner@test.com"));
+        Member outsider = memberRepository.save(Member.create("outsider", "pw", "outsider@test.com"));
+        Team team = teamService.create(owner.getMemberId(), "Alpha Team", "sample team");
+        var project = projectService.create(team.getTeamId(), owner.getMemberId(), "Project A", "desc");
+
+        assertThatThrownBy(() -> projectService.addMember(project.getProjectId(), owner.getMemberId(),
+                outsider.getMemberId(), ProjectRole.FRONTEND))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("워크스페이스 멤버");
     }
 
     @Test

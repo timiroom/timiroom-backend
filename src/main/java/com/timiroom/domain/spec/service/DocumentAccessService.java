@@ -40,6 +40,11 @@ public class DocumentAccessService {
         };
         if (!allowed.contains(type)) throw new SecurityException("ACCESS_DENIED");
     }
+    /** 워크스페이스 멤버이면서 프로젝트에도 참여한 사람만. */
+    public void requireProjectMember(Long projectId,Long actorId) {
+        requireRead(projectId,actorId);
+        if(members.findByProjectIdAndMemberId(projectId,actorId).isEmpty()) throw new SecurityException("ACCESS_DENIED");
+    }
     public void requirePm(Long projectId,Long actorId) {
         requireRead(projectId,actorId);
         if(members.findByProjectIdAndMemberId(projectId,actorId).map(m->m.getProjectRole()!=ProjectRole.PM).orElse(true))
