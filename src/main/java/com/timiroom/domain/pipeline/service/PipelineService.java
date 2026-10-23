@@ -54,7 +54,8 @@ public class PipelineService {
     public Map<String, Object> startPipeline(
             Long memberId, Long requirementId, List<MultipartFile> files, String mode) throws Exception {
 
-        Requirement requirement = requirementService.getById(requirementId);
+        // 생성 결과가 프로젝트의 모든 문서를 바꾸므로 프로젝트 PM만 시작할 수 있다.
+        Requirement requirement = requirementService.requireGeneration(requirementId, memberId);
         // 한도를 넘었으면 상태를 바꾸기 전에 막는다(429).
         var call = aiCallService.begin(memberId, requirement.getProjectId(),
                 com.timiroom.domain.usage.enums.UsageFeature.PROJECT_GENERATION);
@@ -107,17 +108,20 @@ public class PipelineService {
         // 같은 요구사항으로 아직 생성 중인 실행이 있으면 두 번 돌리지 않는다(비용이 두 번 든다).
         boolean running = executionRepository.findByRequirementIdOrderByCreatedAtDesc(prev.getRequirementId()).stream()
                 .anyMatch(e -> e.getStatus() == PipelineExecution.ExecutionStatus.RUNNING && !isStale(e));
-        if (running) throw new IllegalStateException("이미 생성 중입니다. 끝난 뒤에 다시 시도해 주세요.");
+        if (running) throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.CONFLICT, "이미 생성 중입니다. 끝난 뒤에 다시 시도해 주세요.");
         return startPipeline(memberId, prev.getRequirementId(), null, mode);
     }
 
     /**
      * SSE 구독: rag-pipeline 스트림 프록시 + 완료 시 Artifact 저장
      */
-    public SseEmitter subscribeProgress(String pipelineId) {
+    public SseEmitter subscribeProgress(String pipelineId, Long memberId) {
+        requireProgressAccess(pipelineId, memberId);
         SseEmitter emitter = new SseEmitter(30 * 60 * 1000L);
 
-        ragPipelineClient.getProgressFlux(pipelineId)
+        // 결과 저장은 서버 쪽 감시(watch)가 맡는다. 브라우저가 떠나면 이 연결의 AI 서버 구독도 닫는다.
+        reactor.core.Disposable subscription = ragPipelineClient.getProgressFlux(pipelineId)
                 .publishOn(Schedulers.boundedElastic())
                 .subscribe(
                         sse -> {
@@ -147,8 +151,20 @@ public class PipelineService {
                         },
                         () -> completeEmitter(emitter)
                 );
+        emitter.onCompletion(subscription::dispose);
+        emitter.onTimeout(subscription::dispose);
+        emitter.onError(error -> subscription.dispose());
 
         return emitter;
+    }
+
+    /** 생성을 시작한 사람이거나 그 프로젝트의 워크스페이스 멤버만 진행 상황을 본다. */
+    private void requireProgressAccess(String pipelineId, Long memberId) {
+        if (memberId == null) throw new SecurityException("ACCESS_DENIED");
+        PipelineExecution execution = executionRepository.findByPipelineId(pipelineId)
+                .orElseThrow(() -> new SecurityException("ACCESS_DENIED"));
+        if (memberId.equals(execution.getMemberId())) return;
+        documentAccessService.requireRead(documentAccessService.projectIdForExecution(execution.getExecutionId()), memberId);
     }
 
     private void sendToEmitter(SseEmitter emitter, String eventName, String data) {

@@ -43,7 +43,7 @@ class ProjectDocumentHistoryTest {
     @BeforeEach void fixture(){
         var access=new DocumentAccessService(projects,members,executions,requirements,teams);
         service=new ProjectService(projects,members,requirements,executions,artifacts,teams,
-            new ArtifactWriteService(artifacts,revisions,access));
+            new ArtifactWriteService(artifacts,revisions,access),mock(com.timiroom.domain.project.service.ProjectDataCleaner.class));
         document=PipelineArtifact.builder().artifactId(10L).executionId(20L)
             .artifactType(PipelineArtifact.ArtifactType.API_SPEC).content("{\"path\":\"/items\"}").version(3).build();
         when(projects.findById(1L)).thenReturn(Optional.of(Project.builder().projectId(1L).teamId(5L).projectName("test").build()));

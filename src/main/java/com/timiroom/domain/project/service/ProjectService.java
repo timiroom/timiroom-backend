@@ -52,6 +52,7 @@ public class ProjectService {
     private final PipelineArtifactRepository pipelineArtifactRepository;
     private final TeamService teamService;
     private final com.timiroom.domain.spec.service.ArtifactWriteService artifactWriteService;
+    private final ProjectDataCleaner projectDataCleaner;
 
     @Transactional
     public Project create(Long teamId, Long memberId, String projectName, String description) {
@@ -82,6 +83,14 @@ public class ProjectService {
             throw new SecurityException("프로젝트 멤버를 추가할 권한이 없습니다");
         }
 
+        // 프로젝트 멤버는 같은 워크스페이스 사람이어야 한다(밖의 사람이 프로젝트 목록에 보이지 않게).
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다: " + projectId));
+        try {
+            teamService.requireMembership(project.getTeamId(), memberId);
+        } catch (SecurityException e) {
+            throw new IllegalArgumentException("워크스페이스 멤버만 프로젝트에 추가할 수 있습니다");
+        }
         if (projectMemberRepository.existsByProjectIdAndMemberId(projectId, memberId)) {
             throw new IllegalStateException("이미 프로젝트에 속해 있습니다");
         }
@@ -122,6 +131,10 @@ public class ProjectService {
     public void delete(Long projectId, Long memberId) {
         Project project = getById(projectId, memberId);
         teamService.requireOwner(project.getTeamId(), memberId);
+
+        // 문서 이력·변경안·연결·알림 등 프로젝트에 딸린 기록을 먼저 지운다.
+        projectDataCleaner.deleteArtifactRevisions(projectId);
+        projectDataCleaner.deleteProjectRecords(projectId);
 
         // PipelineArtifact → PipelineExecution → Requirement → ProjectMember → Project 순서로 삭제
         List<Long> requirementIds = requirementRepository.findRequirementIdsByProjectId(projectId);

@@ -44,6 +44,7 @@ public class TeamService {
     private final RequirementRepository requirementRepository;
     private final PipelineExecutionRepository pipelineExecutionRepository;
     private final PipelineArtifactRepository pipelineArtifactRepository;
+    private final com.timiroom.domain.project.service.ProjectDataCleaner projectDataCleaner;
 
     @Transactional
     public Team create(Long memberId, String teamName, String description) {
@@ -377,6 +378,8 @@ public class TeamService {
     }
 
     private void deleteProjectResources(Long projectId) {
+        projectDataCleaner.deleteArtifactRevisions(projectId);
+        projectDataCleaner.deleteProjectRecords(projectId);
         List<Long> requirementIds = requirementRepository.findRequirementIdsByProjectId(projectId);
         if (!requirementIds.isEmpty()) {
             List<Long> executionIds = pipelineExecutionRepository.findByRequirementIdIn(requirementIds)
