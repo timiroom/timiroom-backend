@@ -35,6 +35,7 @@ class PipelineRunFlowTest {
     private final NotificationService notifications = mock(NotificationService.class);
     private final RagPipelineClient rag = mock(RagPipelineClient.class);
     private final DocumentAccessService access = mock(DocumentAccessService.class);
+    private final com.timiroom.domain.pipeline.repository.PipelineResultReceiptRepository receipts = mock(com.timiroom.domain.pipeline.repository.PipelineResultReceiptRepository.class);
     private PipelineService service;
 
     private static final String COMPLETE = """
@@ -45,7 +46,10 @@ class PipelineRunFlowTest {
     void setUp() {
         service = new PipelineService(rag, executions, artifacts, mock(ArtifactRevisionRepository.class), requirements,
                 notifications, new ObjectMapper(), mock(ArtifactWriteService.class), access,
-                mock(AiCallService.class));
+                mock(AiCallService.class), mock(org.springframework.transaction.PlatformTransactionManager.class), receipts);
+        java.util.Map<String, com.timiroom.domain.pipeline.entity.PipelineResultReceipt> receiptRows = new java.util.HashMap<>();
+        when(receipts.findById(anyString())).thenAnswer(inv -> Optional.ofNullable(receiptRows.get(inv.getArgument(0))));
+        when(receipts.save(any())).thenAnswer(inv -> { var row = (com.timiroom.domain.pipeline.entity.PipelineResultReceipt) inv.getArgument(0); receiptRows.put(row.getPipelineId(), row); return row; });
         when(requirements.getById(30L)).thenReturn(Requirement.builder().requirementId(30L).projectId(5L).title("프로젝트").build());
         when(artifacts.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
@@ -56,6 +60,7 @@ class PipelineRunFlowTest {
         if (status == PipelineExecution.ExecutionStatus.FAILED) e.fail("실패");
         if (status == PipelineExecution.ExecutionStatus.COMPLETED) e.complete(0);
         when(executions.findByPipelineId(id)).thenReturn(Optional.of(e));
+        when(executions.findByPipelineIdForUpdate(id)).thenReturn(Optional.of(e));
         return e;
     }
 
@@ -165,5 +170,29 @@ class PipelineRunFlowTest {
 
         assertThat(runs).hasSize(1);
         assertThat(runs.get(0)).containsEntry("pipelineId", "p-6").containsEntry("projectId", 5L);
+    }
+
+    @Test
+    void 저장_확인_대기는_완료로_기록하지_않는다() {
+        PipelineExecution pending = execution("pending", 8L, PipelineExecution.ExecutionStatus.RUNNING, LocalDateTime.now());
+        service.handleComplete("pending", "{\"result\":{\"storage\":{\"status\":\"pending\",\"kafkaPublished\":true}}}");
+        verify(executions, never()).finishIfRunning(anyString(), eq(PipelineExecution.ExecutionStatus.COMPLETED), anyInt(), any());
+        assertThat(pending.getStatus()).isEqualTo(PipelineExecution.ExecutionStatus.STORAGE_PENDING);
+        verifyNoInteractions(artifacts);
+    }
+
+    @Test
+    void 저장_대기_실행은_다시_생성하지_않는다() {
+        PipelineExecution pending = execution("pending", 8L, PipelineExecution.ExecutionStatus.FAILED, LocalDateTime.now());
+        pending.fail("STORAGE_PENDING: pending verification");
+        assertThatThrownBy(() -> service.restartPipeline(8L, "pending", "collaborative"))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("Kafka");
+    }
+
+    @Test
+    void 상위_생성_실패를_하위_DB_실패로_기록하지_않는다() {
+        service.handleErrorEvent("feature-failed", "{\"message\":\"관리자 검토\",\"failedStage\":\"FEATURE_SPEC\",\"validationMessage\":\"FEATURE_SPEC_JSON\"}");
+        verify(executions).finishIfRunning(eq("feature-failed"), eq(PipelineExecution.ExecutionStatus.FAILED), eq(0),
+                contains("API·DB 설계는 실행되지 않았습니다"));
     }
 }

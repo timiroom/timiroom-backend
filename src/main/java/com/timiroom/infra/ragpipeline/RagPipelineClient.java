@@ -53,6 +53,18 @@ public class RagPipelineClient {
     /** 채팅 응답의 data와 사용량 헤더 */
     public record ChatReply(Map<String, Object> data, String usageHeader) {}
 
+    public Map<String, Object> storageStatus(String pipelineId) {
+        Map<String, Object> response = webClient.get()
+                .uri("/api/v1/orchestration/storage/{pipelineId}", pipelineId)
+                .retrieve().bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .timeout(Duration.ofSeconds(10)).block();
+        if (response == null || !(response.get("data") instanceof Map<?, ?>))
+            throw new IllegalStateException("저장 확인 응답이 없습니다");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.get("data");
+        return data;
+    }
+
     static boolean causedByTimeout(Throwable error) {
         for (Throwable current = error; current != null; current = current.getCause())
             if (current instanceof java.util.concurrent.TimeoutException) return true;

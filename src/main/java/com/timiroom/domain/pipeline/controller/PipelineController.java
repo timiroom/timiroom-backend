@@ -65,6 +65,11 @@ public class PipelineController {
         return ResponseEntity.ok(pipelineService.getExecutionsByMember(memberId));
     }
 
+    @GetMapping("/state/{pipelineId}")
+    public ResponseEntity<?> state(HttpSession session, @PathVariable String pipelineId) {
+        return ResponseEntity.ok(pipelineService.executionState(memberId(session), pipelineId));
+    }
+
     /**
      * 실행 결과 Artifact 조회 (PRD, DB_SCHEMA, API_SPEC, FEATURE_LIST, MARKET_RESEARCH)
      * GET /api/v1/pipeline/executions/{executionId}/artifacts

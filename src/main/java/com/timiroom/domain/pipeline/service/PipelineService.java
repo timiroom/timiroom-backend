@@ -26,6 +26,10 @@ import reactor.core.scheduler.Schedulers;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import com.timiroom.domain.pipeline.entity.PipelineResultReceipt;
+import com.timiroom.domain.pipeline.repository.PipelineResultReceiptRepository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
 @Service
@@ -42,6 +46,8 @@ public class PipelineService {
     private final com.timiroom.domain.spec.service.ArtifactWriteService artifactWriteService;
     private final com.timiroom.domain.spec.service.DocumentAccessService documentAccessService;
     private final com.timiroom.domain.usage.service.AiCallService aiCallService;
+    private final PlatformTransactionManager transactionManager;
+    private final PipelineResultReceiptRepository receiptRepository;
 
     /**
      * 파이프라인 시작
@@ -104,6 +110,10 @@ public class PipelineService {
                 .orElseThrow(() -> new IllegalArgumentException("파이프라인을 찾을 수 없습니다: " + pipelineId));
         if (memberId == null || !memberId.equals(prev.getMemberId())) {
             throw new IllegalArgumentException("파이프라인을 찾을 수 없습니다: " + pipelineId);
+        }
+        if (prev.getStatus() == PipelineExecution.ExecutionStatus.STORAGE_PENDING
+                || (prev.getErrorMessage() != null && prev.getErrorMessage().startsWith("STORAGE_PENDING:"))) {
+            throw new IllegalStateException("이미 Kafka에 발행된 결과입니다. 저장 상태를 확인한 후 재시작 여부를 결정해야 합니다.");
         }
         // 같은 요구사항으로 아직 생성 중인 실행이 있으면 두 번 돌리지 않는다(비용이 두 번 든다).
         boolean running = executionRepository.findByRequirementIdOrderByCreatedAtDesc(prev.getRequirementId()).stream()
@@ -193,22 +203,53 @@ public class PipelineService {
             @SuppressWarnings("unchecked")
             Map<String, Object> result = (Map<String, Object>) event.get("result");
             if (result == null) return;
+            boolean accepted = Boolean.TRUE.equals(new TransactionTemplate(transactionManager).execute(tx -> {
+                PipelineExecution execution = executionRepository.findByPipelineIdForUpdate(pipelineId).orElse(null);
+                if (execution == null || execution.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED
+                        || execution.getStatus() == PipelineExecution.ExecutionStatus.FAILED) return false;
+                PipelineResultReceipt receipt = receiptRepository.findById(pipelineId).orElse(null);
+                if (receipt == null) receipt = new PipelineResultReceipt(pipelineId, completeDataJson);
+                else {
+                    requireSameArtifacts(receipt.getPayload(), completeDataJson);
+                    receipt.updatePayload(completeDataJson);
+                }
+                receiptRepository.save(receipt);
+                execution.waitForStorage();
+                executionRepository.save(execution);
+                return true;
+            }));
+            if (!accepted) return;
+            if (result.get("storage") instanceof Map<?, ?> storage && !"stored".equals(storage.get("status"))) {
+                return;
+            }
 
             int retryCount = result.containsKey("retryCount")
                     ? ((Number) result.get("retryCount")).intValue() : 0;
-            // 서버 쪽 감시와 브라우저 구독이 모두 완료를 받을 수 있다. 진행 중 상태를 먼저 바꾼 한 곳만 저장한다.
-            if (executionRepository.finishIfRunning(pipelineId, PipelineExecution.ExecutionStatus.COMPLETED, retryCount, null) == 0) {
-                log.debug("이미 처리된 완료 | pipelineId: {}", pipelineId);
-                return;
+            PipelineExecution execution = new TransactionTemplate(transactionManager).execute(tx -> {
+                PipelineExecution current = executionRepository.findByPipelineIdForUpdate(pipelineId).orElseThrow();
+                if (current.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED) return null;
+                if (current.getStatus() != PipelineExecution.ExecutionStatus.STORAGE_PENDING) return null;
+                PipelineResultReceipt receipt = receiptRepository.findById(pipelineId).orElseThrow();
+                requireSameArtifacts(receipt.getPayload(), completeDataJson);
+                writeCompletedArtifacts(current, result);
+                current.complete(retryCount);
+                receipt.updatePayload(completeDataJson);
+                receipt.complete();
+                receiptRepository.save(receipt);
+                executionRepository.saveAndFlush(current);
+                return current;
+            });
+            if (execution != null) {
+                try { recordGenerationUsage(execution, objectMapper.valueToTree(result.get("usage")), true); }
+                catch (RuntimeException usageError) { log.error("완료 후 사용량 기록 실패 | pipelineId: {}", pipelineId, usageError); }
             }
-            PipelineExecution execution = executionRepository.findByPipelineId(pipelineId).orElse(null);
-            if (execution == null) {
-                log.warn("PipelineExecution 없음 | pipelineId: {}", pipelineId);
-                return;
-            }
+        } catch (Exception e) {
+            log.error("완료 처리 실패 | pipelineId: {}", pipelineId, e);
+            throw new IllegalStateException("생성 결과 저장을 완료하지 못했습니다. 저장 확인 작업에서 재시도합니다.", e);
+        }
+    }
 
-            recordGenerationUsage(execution, objectMapper.valueToTree(result.get("usage")), true);
-
+    private void writeCompletedArtifacts(PipelineExecution execution, Map<String, Object> result) {
             saveArtifact(execution.getExecutionId(), PipelineArtifact.ArtifactType.PRD,             result.get("prdDocument"));
             saveArtifact(execution.getExecutionId(), PipelineArtifact.ArtifactType.DB_SCHEMA,       result.get("dbSchema"));
             saveArtifact(execution.getExecutionId(), PipelineArtifact.ArtifactType.API_SPEC,        result.get("apiSpec"));
@@ -232,9 +273,15 @@ public class PipelineService {
             }
 
             log.info("파이프라인 완료 저장 | executionId: {}", execution.getExecutionId());
-        } catch (Exception e) {
-            log.error("완료 처리 실패 | pipelineId: {}", pipelineId, e);
-        }
+    }
+
+    private void requireSameArtifacts(String existing, String incoming) {
+        try {
+            var before = objectMapper.readTree(existing).path("result");
+            var after = objectMapper.readTree(incoming).path("result");
+            for (String key : List.of("prdDocument", "dbSchema", "apiSpec", "featureList", "featureSpecDocument", "marketResearch"))
+                if (!before.path(key).equals(after.path(key))) throw new IllegalStateException("동일 pipelineId의 산출물이 변경됐습니다: " + key);
+        } catch (java.io.IOException e) { throw new IllegalStateException("저장 결과 형식 오류", e); }
     }
 
     /**
@@ -249,6 +296,18 @@ public class PipelineService {
 
     /** AI 서버의 error 이벤트(본문에 실패 전까지 쓴 사용량이 들어 있다) */
     public void handleErrorEvent(String pipelineId, String errorDataJson) {
+        try {
+            var event = objectMapper.readTree(errorDataJson);
+            if (event.path("storage").path("kafkaPublished").asBoolean(false)
+                    && !"stored".equals(event.path("storage").path("status").asText())) {
+                var result = event.path("partialResult");
+                if (!result.isObject()) throw new IllegalStateException("저장 대기 결과가 없습니다");
+                var pending = result.deepCopy();
+                ((com.fasterxml.jackson.databind.node.ObjectNode) pending).set("storage", event.path("storage"));
+                handleComplete(pipelineId, objectMapper.writeValueAsString(Map.of("result", pending)));
+                return;
+            }
+        } catch (java.io.IOException e) { throw new IllegalStateException("저장 확인 이벤트 형식 오류", e); }
         com.fasterxml.jackson.databind.JsonNode usage = null;
         try {
             usage = objectMapper.readTree(errorDataJson).path("usage");
@@ -349,15 +408,52 @@ public class PipelineService {
         }
     }
 
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "${pipeline.storage-recover-delay-ms:5000}", initialDelay = 5000)
+    public void recoverPendingResults() {
+        for (PipelineResultReceipt receipt : receiptRepository.findTop100ByCompletedFalseOrderByCreatedAtAsc()) {
+            try {
+                var event = objectMapper.readTree(receipt.getPayload());
+                var result = (com.fasterxml.jackson.databind.node.ObjectNode) event.path("result");
+                Map<String, Object> storage = "stored".equals(result.path("storage").path("status").asText())
+                        ? Map.of("status", "stored", "kafkaPublished", true) : ragPipelineClient.storageStatus(receipt.getPipelineId());
+                if (!"stored".equals(storage.get("status"))) continue;
+                result.set("storage", objectMapper.valueToTree(storage));
+                result.put("completionStatus", "STORED");
+                handleComplete(receipt.getPipelineId(), objectMapper.writeValueAsString(event));
+            } catch (Exception e) {
+                log.warn("저장 확인 복구 대기 | pipelineId: {}, type: {}", receipt.getPipelineId(), e.getClass().getSimpleName());
+            }
+        }
+    }
+
+    public Map<String, Object> executionState(Long memberId, String pipelineId) {
+        PipelineExecution execution = executionRepository.findByPipelineId(pipelineId)
+                .filter(value -> memberId != null && memberId.equals(value.getMemberId()))
+                .orElseThrow(() -> new SecurityException("파이프라인을 조회할 수 없습니다"));
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("pipelineId", pipelineId);
+        result.put("status", execution.getStatus().name());
+        if (execution.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED) {
+            receiptRepository.findById(pipelineId).ifPresent(receipt -> {
+                try { result.put("result", objectMapper.readTree(receipt.getPayload()).path("result")); }
+                catch (java.io.IOException e) { throw new IllegalStateException(e); }
+            });
+        }
+        return result;
+    }
+
     /** 내 진행 중인 생성(새로고침하거나 다시 들어와도 진행 화면을 이어 보이게) */
     public List<Map<String, Object>> activeRuns(Long memberId) {
-        return executionRepository.findByMemberIdAndStatus(memberId, PipelineExecution.ExecutionStatus.RUNNING).stream()
-                .filter(e -> !isStale(e))
+        return java.util.stream.Stream.concat(
+                executionRepository.findByMemberIdAndStatus(memberId, PipelineExecution.ExecutionStatus.RUNNING).stream(),
+                executionRepository.findByMemberIdAndStatus(memberId, PipelineExecution.ExecutionStatus.STORAGE_PENDING).stream())
+                .filter(e -> e.getStatus() == PipelineExecution.ExecutionStatus.STORAGE_PENDING || !isStale(e))
                 .map(e -> {
                     Map<String, Object> row = new java.util.LinkedHashMap<>();
                     row.put("pipelineId", e.getPipelineId());
                     row.put("projectId", projectIdOf(e.getRequirementId()));
                     row.put("startedAt", e.getStartedAt());
+                    row.put("status", e.getStatus().name());
                     return row;
                 })
                 .toList();
@@ -446,7 +542,7 @@ public class PipelineService {
                     .content(json)
                     .build());
         } catch (Exception e) {
-            log.warn("Artifact 저장 실패 | type: {}, error: {}", type, e.getMessage());
+            throw new IllegalStateException("Artifact 저장 실패: " + type, e);
         }
     }
 
@@ -455,6 +551,14 @@ public class PipelineService {
             Map<String, Object> data = objectMapper.readValue(
                     errorDataJson, new TypeReference<>() {});
             Object msg = data.get("message");
+            if (data.get("storage") instanceof Map<?, ?> storage
+                    && Boolean.TRUE.equals(storage.get("kafkaPublished")) && !"stored".equals(storage.get("status"))) {
+                return "STORAGE_PENDING: Kafka 발행 후 DB 저장 확인 대기. 중복 생성하지 마세요.";
+            }
+            if ("FEATURE_SPEC".equals(data.get("failedStage"))) {
+                return "기능명세 생성 계약 검증 실패. API·DB 설계는 실행되지 않았습니다."
+                        + (data.get("validationMessage") instanceof String detail ? " " + detail : "");
+            }
             return msg != null ? msg.toString() : "알 수 없는 오류";
         } catch (Exception e) {
             return errorDataJson;

@@ -61,7 +61,8 @@ class ProjectDocumentSaveTest {
                 mock(com.timiroom.domain.project.service.ProjectDataCleaner.class));
         pipeline = new PipelineService(mock(RagPipelineClient.class), executions, artifacts,
                 mock(ArtifactRevisionRepository.class), requirementService, mock(NotificationService.class),
-                new ObjectMapper(), mock(ArtifactWriteService.class), mock(DocumentAccessService.class), mock(com.timiroom.domain.usage.service.AiCallService.class));
+                new ObjectMapper(), mock(ArtifactWriteService.class), mock(DocumentAccessService.class), mock(com.timiroom.domain.usage.service.AiCallService.class),
+                mock(org.springframework.transaction.PlatformTransactionManager.class), mock(com.timiroom.domain.pipeline.repository.PipelineResultReceiptRepository.class));
 
         when(projects.findById(PROJECT)).thenReturn(Optional.of(
                 Project.builder().projectId(PROJECT).teamId(1L).projectName("p").build()));

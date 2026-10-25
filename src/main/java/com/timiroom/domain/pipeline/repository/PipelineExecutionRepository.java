@@ -8,6 +8,9 @@ import java.util.Optional;
 
 public interface PipelineExecutionRepository extends JpaRepository<PipelineExecution, Long> {
     Optional<PipelineExecution> findByPipelineId(String pipelineId);
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select e from PipelineExecution e where e.pipelineId = :pipelineId")
+    Optional<PipelineExecution> findByPipelineIdForUpdate(@org.springframework.data.repository.query.Param("pipelineId") String pipelineId);
     List<PipelineExecution> findByMemberIdOrderByCreatedAtDesc(Long memberId);
     List<PipelineExecution> findByRequirementIdOrderByCreatedAtDesc(Long requirementId);
     List<PipelineExecution> findByRequirementIdIn(List<Long> requirementIds);

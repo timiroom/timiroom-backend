@@ -70,7 +70,13 @@ public class PipelineExecution {
         this.completedAt = LocalDateTime.now();
     }
 
+    public void waitForStorage() {
+        this.status = ExecutionStatus.STORAGE_PENDING;
+        this.errorMessage = null;
+        this.completedAt = null;
+    }
+
     public enum ExecutionStatus {
-        RUNNING, COMPLETED, FAILED, RETRYING
+        RUNNING, COMPLETED, FAILED, RETRYING, STORAGE_PENDING
     }
 }
