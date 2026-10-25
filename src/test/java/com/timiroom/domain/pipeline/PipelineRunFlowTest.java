@@ -34,6 +34,7 @@ class PipelineRunFlowTest {
     private final RequirementService requirements = mock(RequirementService.class);
     private final NotificationService notifications = mock(NotificationService.class);
     private final RagPipelineClient rag = mock(RagPipelineClient.class);
+    private final DocumentAccessService access = mock(DocumentAccessService.class);
     private final com.timiroom.domain.pipeline.repository.PipelineResultReceiptRepository receipts = mock(com.timiroom.domain.pipeline.repository.PipelineResultReceiptRepository.class);
     private PipelineService service;
 
@@ -44,7 +45,7 @@ class PipelineRunFlowTest {
     @BeforeEach
     void setUp() {
         service = new PipelineService(rag, executions, artifacts, mock(ArtifactRevisionRepository.class), requirements,
-                notifications, new ObjectMapper(), mock(ArtifactWriteService.class), mock(DocumentAccessService.class),
+                notifications, new ObjectMapper(), mock(ArtifactWriteService.class), access,
                 mock(AiCallService.class), mock(org.springframework.transaction.PlatformTransactionManager.class), receipts);
         java.util.Map<String, com.timiroom.domain.pipeline.entity.PipelineResultReceipt> receiptRows = new java.util.HashMap<>();
         when(receipts.findById(anyString())).thenAnswer(inv -> Optional.ofNullable(receiptRows.get(inv.getArgument(0))));
@@ -126,7 +127,38 @@ class PipelineRunFlowTest {
         when(executions.findByRequirementIdOrderByCreatedAtDesc(30L)).thenReturn(List.of(running));
 
         assertThatThrownBy(() -> service.restartPipeline(8L, "p-5", "collaborative"))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("이미 생성 중");
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class).hasMessageContaining("이미 생성 중");
+    }
+
+    @Test
+    void PM이_아니면_생성을_시작할_수_없다() {
+        when(requirements.requireGeneration(30L, 99L)).thenThrow(new SecurityException("ACCESS_DENIED"));
+
+        assertThatThrownBy(() -> service.startPipeline(99L, 30L, null, "collaborative"))
+                .isInstanceOf(SecurityException.class);
+        verifyNoInteractions(rag);
+    }
+
+    @Test
+    void 프로젝트_밖_사람은_진행_상황을_볼_수_없다() {
+        execution("p-7", 8L, PipelineExecution.ExecutionStatus.RUNNING, LocalDateTime.now());
+        when(access.projectIdForExecution(9L)).thenReturn(5L);
+        doThrow(new SecurityException("ACCESS_DENIED")).when(access).requireRead(5L, 99L);
+
+        assertThatThrownBy(() -> service.subscribeProgress("p-7", 99L)).isInstanceOf(SecurityException.class);
+        assertThatThrownBy(() -> service.subscribeProgress("없는-생성", 8L)).isInstanceOf(SecurityException.class);
+        verify(rag, never()).getProgressFlux(any());
+    }
+
+    @Test
+    void 시작한_사람은_진행_상황을_본다() {
+        execution("p-8", 8L, PipelineExecution.ExecutionStatus.RUNNING, LocalDateTime.now());
+        when(rag.getProgressFlux("p-8")).thenReturn(Flux.never());
+
+        service.subscribeProgress("p-8", 8L);
+
+        verify(rag).getProgressFlux("p-8");
+        verify(access, never()).requireRead(any(), any());
     }
 
     @Test

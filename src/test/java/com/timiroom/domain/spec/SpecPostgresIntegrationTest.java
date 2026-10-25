@@ -49,7 +49,7 @@ import static org.mockito.Mockito.*;
 @AutoConfigureTestDatabase(replace=AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation=Propagation.NOT_SUPPORTED)
 @EnabledIfEnvironmentVariable(named="TIMIROOM_TEST_POSTGRES",matches="true")
-@Import({ArtifactWriteService.class,DocumentAccessService.class,TeamService.class,SpecSnapshotService.class,SpecChangeService.class,IntegrationJobService.class,
+@Import({ArtifactWriteService.class,DocumentAccessService.class,TeamService.class,com.timiroom.domain.project.service.ProjectDataCleaner.class,SpecSnapshotService.class,SpecChangeService.class,IntegrationJobService.class,
     com.timiroom.domain.integrationjob.service.IntegrationTaskService.class,com.timiroom.domain.integrationjob.service.TimiroomJobHandler.class,
     ArtifactReviewService.class,SpecPostgresIntegrationTest.JsonConfig.class})
 class SpecPostgresIntegrationTest {

@@ -42,7 +42,9 @@ import static org.mockito.Mockito.*;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @EnabledIfEnvironmentVariable(named = "PIPELINE_TEST_PG_URL", matches = ".+")
-@Import({RequirementService.class, NotificationService.class})
+@Import({RequirementService.class, NotificationService.class,
+        com.timiroom.domain.spec.service.DocumentAccessService.class, com.timiroom.domain.team.service.TeamService.class,
+        com.timiroom.domain.project.service.ProjectDataCleaner.class})
 class PipelineStoragePostgresTest {
     private static final String SCHEMA = "pipeline_tx_" + UUID.randomUUID().toString().replace("-", "");
     private static final String URL = System.getenv("PIPELINE_TEST_PG_URL");
@@ -97,7 +99,9 @@ class PipelineStoragePostgresTest {
         receipts.deleteAll();
         executions.deleteAll();
         requirementRows.deleteAll();
-        var requirement = requirements.create(7L, 8L, "fixture", "{}");
+        // 권한 확인 없이 저장소에 바로 넣는다(이 테스트는 결과 저장만 본다).
+        var requirement = requirementRows.save(com.timiroom.domain.requirement.entity.Requirement.builder()
+                .projectId(7L).memberId(8L).title("fixture").content("{}").build());
         requirementId = requirement.getRequirementId();
         requirements.updateStatus(requirementId, RequirementStatus.PROCESSING);
         id = UUID.randomUUID().toString();
