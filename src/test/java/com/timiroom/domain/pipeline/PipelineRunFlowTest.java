@@ -195,4 +195,62 @@ class PipelineRunFlowTest {
         verify(executions).finishIfRunning(eq("feature-failed"), eq(PipelineExecution.ExecutionStatus.FAILED), eq(0),
                 contains("API·DB 설계는 실행되지 않았습니다"));
     }
+
+    @Test
+    void 상태_조회는_다른_사용자의_AI_상태를_읽지_않는다() {
+        execution("private-state", 8L, PipelineExecution.ExecutionStatus.RUNNING, LocalDateTime.now());
+        assertThatThrownBy(() -> service.executionState(99L, "private-state")).isInstanceOf(SecurityException.class);
+        verify(rag, never()).progressState(anyString());
+    }
+
+    @Test
+    void 실행을_찾지_못해도_실패나_재생성_가능으로_바꾸지_않는다() {
+        PipelineExecution running = execution("missing-state", 8L, PipelineExecution.ExecutionStatus.RUNNING, LocalDateTime.now());
+        when(rag.progressState("missing-state")).thenReturn(java.util.Map.of("status", "UNKNOWN"));
+        var state = service.executionState(8L, "missing-state");
+        assertThat(state).containsEntry("status", "RUNNING").containsEntry("connectionStatus", "UNAVAILABLE").containsEntry("retrySafe", false);
+        assertThat(running.getStatus()).isEqualTo(PipelineExecution.ExecutionStatus.RUNNING);
+        verify(rag, never()).generate(anyString(), any(), anyString(), anyMap());
+    }
+
+    @Test
+    void 상태_조회로_놓친_완료를_복구하고_결과를_반환한다() throws Exception {
+        execution("missed-complete", 8L, PipelineExecution.ExecutionStatus.RUNNING, LocalDateTime.now());
+        var result = new ObjectMapper().readValue(COMPLETE, java.util.Map.class).get("result");
+        when(rag.progressState("missed-complete")).thenReturn(java.util.Map.of("status", "COMPLETED", "result", result));
+        var state = service.executionState(8L, "missed-complete");
+        assertThat(state).containsEntry("status", "COMPLETED").containsKey("result");
+        verify(artifacts, times(3)).save(any());
+    }
+
+    @Test
+    void 실패_상태는_화면에_사유와_재시작_가능_여부를_반환한다() {
+        execution("failed-state", 8L, PipelineExecution.ExecutionStatus.FAILED, LocalDateTime.now());
+        var state = service.executionState(8L, "failed-state");
+        assertThat(state).containsEntry("status", "FAILED").containsEntry("retrySafe", true).containsEntry("message", "실패");
+        verify(rag, never()).progressState(anyString());
+    }
+
+    @Test
+    void 저장_대기_상태는_재시작_가능으로_반환하지_않는다() {
+        var execution = execution("pending-state", 8L, PipelineExecution.ExecutionStatus.RUNNING, LocalDateTime.now());
+        execution.waitForStorage();
+        var state = service.executionState(8L, "pending-state");
+        assertThat(state).containsEntry("status", "STORAGE_PENDING").containsEntry("retrySafe", false).containsKey("message");
+    }
+
+
+    @Test
+    void 저장_대기_조회는_현재_실행의_완료만_복구한다() {
+        var execution = execution("stored-now", 8L, PipelineExecution.ExecutionStatus.RUNNING, LocalDateTime.now());
+        execution.waitForStorage();
+        String payload = COMPLETE.replace("\"usage\":[]", "\"usage\":[],\"storage\":{\"status\":\"pending\",\"kafkaPublished\":true}");
+        when(receipts.findById("stored-now")).thenReturn(Optional.of(new com.timiroom.domain.pipeline.entity.PipelineResultReceipt("stored-now", payload)));
+        when(rag.storageStatus("stored-now")).thenReturn(java.util.Map.of("status", "stored", "kafkaPublished", true));
+        var state = service.executionState(8L, "stored-now");
+        assertThat(state).containsEntry("status", "COMPLETED").containsKey("result");
+        verify(rag).storageStatus("stored-now");
+        verify(rag, never()).generate(anyString(), any(), anyString(), anyMap());
+    }
+
 }

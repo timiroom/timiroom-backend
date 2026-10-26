@@ -57,9 +57,22 @@ public class RagPipelineClient {
         Map<String, Object> response = webClient.get()
                 .uri("/api/v1/orchestration/storage/{pipelineId}", pipelineId)
                 .retrieve().bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                .timeout(Duration.ofSeconds(10)).block();
+                .timeout(Duration.ofSeconds(5)).block();
         if (response == null || !(response.get("data") instanceof Map<?, ?>))
             throw new IllegalStateException("저장 확인 응답이 없습니다");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.get("data");
+        return data;
+    }
+
+    /** Missed SSE completion/failure recovery; never starts an AI request. */
+    public Map<String, Object> progressState(String pipelineId) {
+        Map<String, Object> response = webClient.get()
+                .uri("/api/v1/orchestration/state/{pipelineId}", pipelineId)
+                .retrieve().bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .timeout(Duration.ofSeconds(5)).block();
+        if (response == null || !(response.get("data") instanceof Map<?, ?>))
+            throw new IllegalStateException("진행 상태 응답이 없습니다");
         @SuppressWarnings("unchecked")
         Map<String, Object> data = (Map<String, Object>) response.get("data");
         return data;
@@ -310,6 +323,7 @@ public class RagPipelineClient {
                 .accept(MediaType.TEXT_EVENT_STREAM)
                 .retrieve()
                 .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {})
+                .timeout(Duration.ofSeconds(45))
                 .onErrorMap(WebClientRequestException.class, e -> unavailable("progress", e))
                 .doOnError(e -> log.error("SSE 스트림 오류 | pipelineId: {}", pipelineId, e));
     }

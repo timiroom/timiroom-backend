@@ -392,7 +392,7 @@ public class PipelineService {
      * 진행 중으로 남은 생성 정리(서버 재시작·배포 뒤 등). 아직 기다릴 만하면 다시 지켜보고,
      * 너무 오래됐으면 실패로 바꿔 사용자에게 알리고 다시 시도할 수 있게 한다(사용량은 한도에서 빼 준다).
      */
-    @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "${pipeline.recover-delay-ms:300000}", initialDelay = 60_000)
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "${pipeline.recover-delay-ms:30000}", initialDelay = 10_000)
     public void recoverRunning() {
         try {
             for (PipelineExecution execution : executionRepository.findByStatus(PipelineExecution.ExecutionStatus.RUNNING)) {
@@ -412,18 +412,22 @@ public class PipelineService {
     public void recoverPendingResults() {
         for (PipelineResultReceipt receipt : receiptRepository.findTop100ByCompletedFalseOrderByCreatedAtAsc()) {
             try {
-                var event = objectMapper.readTree(receipt.getPayload());
-                var result = (com.fasterxml.jackson.databind.node.ObjectNode) event.path("result");
-                Map<String, Object> storage = "stored".equals(result.path("storage").path("status").asText())
-                        ? Map.of("status", "stored", "kafkaPublished", true) : ragPipelineClient.storageStatus(receipt.getPipelineId());
-                if (!"stored".equals(storage.get("status"))) continue;
-                result.set("storage", objectMapper.valueToTree(storage));
-                result.put("completionStatus", "STORED");
-                handleComplete(receipt.getPipelineId(), objectMapper.writeValueAsString(event));
+                recoverReceipt(receipt);
             } catch (Exception e) {
                 log.warn("저장 확인 복구 대기 | pipelineId: {}, type: {}", receipt.getPipelineId(), e.getClass().getSimpleName());
             }
         }
+    }
+
+    private void recoverReceipt(PipelineResultReceipt receipt) throws java.io.IOException {
+        var event = objectMapper.readTree(receipt.getPayload());
+        var result = (com.fasterxml.jackson.databind.node.ObjectNode) event.path("result");
+        Map<String, Object> storage = "stored".equals(result.path("storage").path("status").asText())
+                ? Map.of("status", "stored", "kafkaPublished", true) : ragPipelineClient.storageStatus(receipt.getPipelineId());
+        if (!"stored".equals(storage.get("status"))) return;
+        result.set("storage", objectMapper.valueToTree(storage));
+        result.put("completionStatus", "STORED");
+        handleComplete(receipt.getPipelineId(), objectMapper.writeValueAsString(event));
     }
 
     public Map<String, Object> executionState(Long memberId, String pipelineId) {
@@ -431,13 +435,63 @@ public class PipelineService {
                 .filter(value -> memberId != null && memberId.equals(value.getMemberId()))
                 .orElseThrow(() -> new SecurityException("파이프라인을 조회할 수 없습니다"));
         Map<String, Object> result = new java.util.LinkedHashMap<>();
+        if (execution.getStatus() == PipelineExecution.ExecutionStatus.RUNNING) {
+            try {
+                Map<String, Object> remote = ragPipelineClient.progressState(pipelineId);
+                String remoteStatus = String.valueOf(remote.get("status"));
+                if ("COMPLETED".equals(remoteStatus) && remote.get("result") instanceof Map<?, ?>) {
+                    handleComplete(pipelineId, objectMapper.writeValueAsString(Map.of("result", remote.get("result"))));
+                } else if ("FAILED".equals(remoteStatus) && remote.get("error") instanceof Map<?, ?>) {
+                    handleErrorEvent(pipelineId, objectMapper.writeValueAsString(remote.get("error")));
+                } else if ("RUNNING".equals(remoteStatus)) {
+                    if (remote.get("lastProgress") != null) result.put("lastProgress", remote.get("lastProgress"));
+                    watch(pipelineId);
+                } else {
+                    result.put("connectionStatus", "UNAVAILABLE");
+                }
+                execution = executionRepository.findByPipelineId(pipelineId).orElse(execution);
+            } catch (Exception e) {
+                // A lost connection/another replica is not proof that generation failed.
+                result.put("connectionStatus", "UNAVAILABLE");
+                log.debug("진행 상태 확인 대기 | pipelineId: {}, type: {}", pipelineId, e.getClass().getSimpleName());
+            }
+        }
+        if (execution.getStatus() == PipelineExecution.ExecutionStatus.STORAGE_PENDING) {
+            try {
+                var receipt = receiptRepository.findById(pipelineId);
+                if (receipt.isPresent()) recoverReceipt(receipt.get());
+                execution = executionRepository.findByPipelineId(pipelineId).orElse(execution);
+            } catch (Exception e) {
+                result.put("connectionStatus", "UNAVAILABLE");
+                log.debug("저장 상태 확인 대기 | pipelineId: {}, type: {}", pipelineId, e.getClass().getSimpleName());
+            }
+        }
         result.put("pipelineId", pipelineId);
         result.put("status", execution.getStatus().name());
+        result.put("retrySafe", execution.getStatus() == PipelineExecution.ExecutionStatus.FAILED);
+        if (execution.getStatus() == PipelineExecution.ExecutionStatus.FAILED) {
+            result.put("message", friendlyFailure(execution.getErrorMessage()));
+        }
+        if (execution.getStatus() == PipelineExecution.ExecutionStatus.STORAGE_PENDING) {
+            result.put("message", "결과 발행은 완료됐으며 DB 저장을 확인 중입니다. 다시 생성하지 마세요.");
+        }
         if (execution.getStatus() == PipelineExecution.ExecutionStatus.COMPLETED) {
             receiptRepository.findById(pipelineId).ifPresent(receipt -> {
                 try { result.put("result", objectMapper.readTree(receipt.getPayload()).path("result")); }
                 catch (java.io.IOException e) { throw new IllegalStateException(e); }
             });
+            if (!result.containsKey("result")) {
+                Map<String, Object> legacy = new java.util.LinkedHashMap<>();
+                Map<String, String> keys = Map.of("PRD", "prdDocument", "DB_SCHEMA", "dbSchema",
+                        "API_SPEC", "apiSpec", "FEATURE_LIST", "featureList", "MARKET_RESEARCH", "marketResearch");
+                for (PipelineArtifact artifact : artifactRepository.findByExecutionIdOrderByArtifactType(execution.getExecutionId())) {
+                    String key = keys.get(artifact.getArtifactType().name());
+                    if (key == null) continue;
+                    try { legacy.put(key, objectMapper.readTree(artifact.getContent())); }
+                    catch (Exception ignored) { legacy.put(key, artifact.getContent()); }
+                }
+                if (!legacy.isEmpty()) result.put("result", legacy);
+            }
         }
         return result;
     }

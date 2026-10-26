@@ -46,7 +46,10 @@ public class PipelineController {
      * event: progress | complete | error
      */
     @GetMapping(value = "/progress/{pipelineId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter progress(HttpSession session, @PathVariable String pipelineId) {
+    public SseEmitter progress(HttpSession session, @PathVariable String pipelineId,
+                               jakarta.servlet.http.HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("X-Accel-Buffering", "no");
         try {
             return pipelineService.subscribeProgress(pipelineId, memberId(session));
         } catch (SecurityException e) {
