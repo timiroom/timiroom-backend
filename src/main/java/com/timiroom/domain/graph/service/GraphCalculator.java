@@ -286,7 +286,7 @@ public class GraphCalculator {
                             "evaluator", pr.evaluator(),
                             "warnings", pr.warnings(),
                             "files", pr.touched().files(),
-                            "reviewUrl", pr.reviewUrl()
+                            "reviewUrl", java.util.Objects.requireNonNullElse(pr.reviewUrl(), "")
                     )));
         }
 

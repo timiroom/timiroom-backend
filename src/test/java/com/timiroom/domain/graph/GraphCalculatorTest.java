@@ -1,6 +1,8 @@
 package com.timiroom.domain.graph;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.timiroom.domain.graph.service.GraphCalculator;
+import com.timiroom.domain.graph.dto.PrTouchPoint;
+import com.timiroom.domain.github.dto.PullRequestTouchPoints;
 import com.timiroom.domain.pipeline.entity.PipelineArtifact.ArtifactType;
 import com.timiroom.domain.spec.dto.DocumentBundle;
 import com.timiroom.domain.spec.dto.SpecDocumentDto;
@@ -10,6 +12,21 @@ import static org.assertj.core.api.Assertions.*;
 
 class GraphCalculatorTest {
     final GraphCalculator calculator=new GraphCalculator(new ObjectMapper());
+    @Test void historicalPrWithoutReviewUrlStillProducesImpactGraph(){
+        var bundle=bundle(1L,"/api/v1/items","items");
+        var pr=new PrTouchPoint("pr:2:2:head","Profile API",2,"https://github.com/timiroom/example/pull/2",
+            null,"timiroom/example",0,"PYTHON_OPENAI_COMPATIBLE_FACT_GATE",2,
+            new PullRequestTouchPoints(List.of("/api/v1/items"),List.of(),List.of("Controller.java")),"head");
+        var graph=calculator.calculate(bundle,bundle,List.of(pr));
+        assertThat(graph.nodes()).anySatisfy(n->{
+            assertThat(n.id()).isEqualTo(pr.id());
+            assertThat(n.meta()).containsEntry("reviewUrl","");
+        });
+        assertThat(graph.edges()).anySatisfy(e->{
+            assertThat(e.source()).isEqualTo(pr.id());
+            assertThat(e.target()).isEqualTo("api:POST:/api/v1/items");
+        });
+    }
     @Test void historicalGraphUsesOnlySuppliedDocuments(){
         var bundle=bundle(1L,"/api/v1/items","items");
         var graph=calculator.calculate(bundle,bundle,List.of());
