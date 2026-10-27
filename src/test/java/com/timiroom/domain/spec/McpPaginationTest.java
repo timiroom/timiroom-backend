@@ -2,6 +2,8 @@ package com.timiroom.domain.spec;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.timiroom.domain.integration.dto.IntegrationPrincipal;
 import com.timiroom.infra.mcp.McpPaginationService;
+import com.timiroom.domain.graph.dto.GraphResponse;
+import com.timiroom.domain.spec.service.DocumentHash;
 import org.junit.jupiter.api.Test;
 import java.time.*;
 import java.util.*;
@@ -13,6 +15,19 @@ class McpPaginationTest {
     final Clock clock=Clock.fixed(Instant.parse("2026-10-08T00:00:00Z"),ZoneOffset.UTC);
     final McpPaginationService pages=new McpPaginationService(secret,mapper,clock);
     final IntegrationPrincipal actor=new IntegrationPrincipal(2L,"client",UUID.randomUUID(),Set.of("specs:read"));
+    @Test void impactCursorWorksAcrossServersWithDifferentMetadataIterationOrder() throws Exception {
+        var firstMeta=new LinkedHashMap<String,Object>();
+        firstMeta.put("path","/api/v1/items");firstMeta.put("method","POST");
+        var secondMeta=new LinkedHashMap<String,Object>();
+        secondMeta.put("method","POST");secondMeta.put("path","/api/v1/items");
+        var firstNode=new GraphResponse.Node("api:POST:/api/v1/items","POST /api/v1/items","api",null,false,null,false,firstMeta);
+        var secondNode=new GraphResponse.Node("api:POST:/api/v1/items","POST /api/v1/items","api",null,false,null,false,secondMeta);
+        String first=mapper.writeValueAsString(firstNode),second=mapper.writeValueAsString(secondNode);
+        var page=pages.page(actor,"impact:"+DocumentHash.of(first),first,null,20);
+        var next=pages.page(actor,"impact:"+DocumentHash.of(second),second,page.nextCursor(),20);
+        assertThat(first).isEqualTo(second);
+        assertThat(next.content()).isEqualTo(first.substring(20,40));
+    }
     @Test void allPagesReassembleExactUnicodeContent() {
         String original="명세😀한글\n".repeat(31);String cursor=null;var reassembled=new StringBuilder();
         do {var page=pages.page(actor,"document:hash",original,cursor,5);reassembled.append(page.content());cursor=page.nextCursor();
