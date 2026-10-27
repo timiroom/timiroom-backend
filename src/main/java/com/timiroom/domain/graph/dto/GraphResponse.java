@@ -34,7 +34,12 @@ public record GraphResponse(
             String change,
             boolean impacted,
             Map<String, Object> meta
-    ) {}
+    ) {
+        public Node {
+            // MCP cursors bind to serialized content; Map.of iteration order varies by JVM.
+            meta = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(meta));
+        }
+    }
 
     /**
      * @param source 출발 노드 id
