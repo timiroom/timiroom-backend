@@ -33,7 +33,7 @@ public class TimiroomMcpConfiguration {
     @Bean(destroyMethod="close") McpStatelessSyncServer timiroomMcpServer(HttpServletStatelessServerTransport transport,TimiroomMcpTools tools,McpResultMapper results) {
         var specifications=tools.definitions().stream().map(definition->new McpStatelessServerFeatures.SyncToolSpecification(
             McpSchema.Tool.builder().name(definition.name()).description(definition.description()).inputSchema(definition.schema())
-                .annotations(new McpSchema.ToolAnnotations(null,definition.readOnly(),false,true,!definition.readOnly(),false)).build(),
+                .annotations(new McpSchema.ToolAnnotations(null,definition.readOnly(),definition.name().equals("timiroom_approve_spec_change"),true,!definition.readOnly(),false)).build(),
             (context,input)->{
                 try {return results.success(tools.invoke(definition.name(),(IntegrationPrincipal)context.get("actor"),input.arguments()));}
                 catch(RuntimeException error) {return results.error(error);}
