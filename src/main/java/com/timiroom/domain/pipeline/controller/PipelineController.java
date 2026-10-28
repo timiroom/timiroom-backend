@@ -1,0 +1,142 @@
+package com.timiroom.domain.pipeline.controller;
+
+import com.timiroom.domain.pipeline.entity.PipelineExecution;
+import com.timiroom.domain.pipeline.service.PipelineService;
+import com.timiroom.domain.pipeline.entity.PipelineArtifact;
+import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/v1/pipeline")
+@RequiredArgsConstructor
+public class PipelineController {
+
+    private final PipelineService pipelineService;
+    private final com.timiroom.domain.spec.service.LegacyDocumentWriteService documentWrites;
+
+    /**
+     * 파이프라인 시작
+     * POST /api/v1/pipeline/start/{requirementId}
+     * Content-Type: multipart/form-data
+     *   - files[]: PDF 파일 (선택, 최대 5개)
+     * 응답: { executionId: Long, pipelineId: String(UUID) }
+     */
+    @PostMapping(value = "/start/{requirementId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> start(
+            HttpSession session,
+            @PathVariable Long requirementId,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files,
+            @RequestParam(value = "mode", defaultValue = "collaborative") String mode
+    ) throws Exception {
+        Long memberId = (Long) session.getAttribute("memberId");
+        return ResponseEntity.ok(pipelineService.startPipeline(memberId, requirementId, files, mode));
+    }
+
+    /**
+     * SSE 진행 구독
+     * GET /api/v1/pipeline/progress/{pipelineId}
+     * event: progress | complete | error
+     */
+    @GetMapping(value = "/progress/{pipelineId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter progress(HttpSession session, @PathVariable String pipelineId,
+                               jakarta.servlet.http.HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("X-Accel-Buffering", "no");
+        try {
+            return pipelineService.subscribeProgress(pipelineId, memberId(session));
+        } catch (SecurityException e) {
+            // 스트림 요청에는 JSON 오류 본문을 쓸 수 없어 상태 코드만 돌려준다.
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN);
+        }
+    }
+
+    /**
+     * 내 파이프라인 실행 목록
+     * GET /api/v1/pipeline/executions
+     */
+    @GetMapping("/executions")
+    public ResponseEntity<List<PipelineExecution>> myExecutions(HttpSession session) {
+        Long memberId = (Long) session.getAttribute("memberId");
+        return ResponseEntity.ok(pipelineService.getExecutionsByMember(memberId));
+    }
+
+    @GetMapping("/state/{pipelineId}")
+    public ResponseEntity<?> state(HttpSession session, @PathVariable String pipelineId) {
+        return ResponseEntity.ok(pipelineService.executionState(memberId(session), pipelineId));
+    }
+
+    /**
+     * 실행 결과 Artifact 조회 (PRD, DB_SCHEMA, API_SPEC, FEATURE_LIST, MARKET_RESEARCH)
+     * GET /api/v1/pipeline/executions/{executionId}/artifacts
+     */
+    @GetMapping("/executions/{executionId}/artifacts")
+    public ResponseEntity<List<PipelineArtifact>> artifacts(HttpSession session, @PathVariable Long executionId) {
+        return ResponseEntity.ok(pipelineService.getArtifactsByExecution(executionId, memberId(session)));
+    }
+
+    /**
+     * 프로젝트의 최신 완료된 파이프라인 Artifact 조회
+     * GET /api/v1/pipeline/projects/{projectId}/artifacts
+     */
+    @GetMapping("/projects/{projectId}/artifacts")
+    public ResponseEntity<List<PipelineArtifact>> artifactsByProject(HttpSession session, @PathVariable Long projectId) {
+        return ResponseEntity.ok(pipelineService.getLatestArtifactsByProject(projectId, memberId(session)));
+    }
+
+    /**
+     * 파이프라인 재시작
+     * POST /api/v1/pipeline/restart/{pipelineId}
+     * 응답: { pipelineId: String }
+     */
+    /** 내 진행 중인 생성. 새로고침 뒤에도 진행 화면을 이어 보이는 데 쓴다. */
+    @GetMapping("/active")
+    public ResponseEntity<?> active(HttpSession session) {
+        Long memberId = (Long) session.getAttribute("memberId");
+        if (memberId == null) return ResponseEntity.status(401).body(Map.of("error", "로그인이 필요합니다"));
+        return ResponseEntity.ok(Map.of("runs", pipelineService.activeRuns(memberId)));
+    }
+
+    @PostMapping("/restart/{pipelineId}")
+    public ResponseEntity<Map<String, Object>> restart(
+            HttpSession session,
+            @PathVariable String pipelineId,
+            @RequestParam(value = "mode", defaultValue = "collaborative") String mode
+    ) throws Exception {
+        Long memberId = (Long) session.getAttribute("memberId");
+        return ResponseEntity.ok(pipelineService.restartPipeline(memberId, pipelineId, mode));
+    }
+
+    /**
+     * Artifact 내용 수정
+     * PATCH /api/v1/pipeline/artifacts/{artifactId}
+     * Body: { "content": "..." }
+     */
+    @PatchMapping("/artifacts/{artifactId}")
+    public ResponseEntity<Void> updateArtifact(
+            HttpSession session,
+            @PathVariable Long artifactId,
+            @RequestBody Map<String, String> body
+    ) {
+        documentWrites.artifact(memberId(session), artifactId, body.get("content"));
+        return ResponseEntity.ok().build();
+    }
+
+    private Long memberId(HttpSession session) {
+        var memberId = (Long) session.getAttribute("memberId");
+        if (memberId == null) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED);
+        return memberId;
+    }
+
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<Map<String,String>> forbidden() {
+        return ResponseEntity.status(403).body(Map.of("error","ACCESS_DENIED"));
+    }
+}
