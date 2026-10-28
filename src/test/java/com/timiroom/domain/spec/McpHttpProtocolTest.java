@@ -46,6 +46,13 @@ class McpHttpProtocolTest {
         send("fixture-a",session,"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}");
         var list=send("fixture-a",session,"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}");
         assertThat(list.statusCode()).isEqualTo(200);assertThat(list.body()).contains("timiroom_read_spec","timiroom_start_consistency_check");
+        String listPayload=list.body().lines().filter(line->line.startsWith("data:")).map(line->line.substring(5).trim()).findFirst().orElse(list.body());
+        var publishedTools=mapper.readTree(listPayload).path("result").path("tools");
+        var approval=java.util.stream.StreamSupport.stream(publishedTools.spliterator(),false)
+            .filter(tool->"timiroom_approve_spec_change".equals(tool.path("name").asText())).findFirst().orElseThrow();
+        assertThat(approval.path("annotations").path("readOnlyHint").asBoolean()).isFalse();
+        assertThat(approval.path("annotations").path("destructiveHint").asBoolean()).isTrue();
+        assertThat(approval.path("annotations").path("idempotentHint").asBoolean()).isTrue();
         var call=send("fixture-b",session,"{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"timiroom_get_project_context\",\"arguments\":{\"projectId\":1}}}");
         assertThat(call.statusCode()).isEqualTo(200);
         String payload=call.body().lines().filter(line->line.startsWith("data:")).map(line->line.substring(5).trim()).findFirst().orElse(call.body());

@@ -46,6 +46,14 @@ MCP 전송은 stateless HTTP다. 연결마다 특정 서버 메모리에 의존�
 
 ## Codex
 
+### MCP에서 명세 승인·기준 발행
+
+`timiroom_approve_spec_change`는 프로젝트 PM이 사용자에게 명시적으로 승인받은 변경안을 기존 승인 서비스로 발행한다. 별도 `specs:approve` 연결 권한이 필요하며 기존 `specs:propose` 권한으로는 사용할 수 없다. 기존 연결에는 승인 권한을 자동으로 추가하지 않는다. 연결 설정에서 사용자가 승인·발행 범위를 허용하거나 OAuth 연결을 다시 승인해야 한다.
+
+필수 입력은 `projectId`, `proposalId`, `proposalRevision`, `expectedSnapshotId`(변경안의 기준 snapshot)다. 문서 교차검증을 먼저 수행해야 하며 오래된 변경안·revision·기준 명세는 거절된다. 경고가 있으면 먼저 사용자에게 결과를 제시하고 경고를 확인한 명시적 승인 지시가 있을 때만 `acknowledgeWarnings: true`를 전달한다. 기본값은 false이며 미실행 검증을 대신하지 않는다.
+
+결과는 발행된 `snapshotId`, `revision`, 문서 hash/version, 변경안 식별자와 `alreadyApproved`를 포함한다. 같은 승인 완료 변경안의 재요청은 원래 발행본을 반환하고 새 발행본을 만들지 않는다. 재요청에서도 현재 연결 권한과 PM 역할을 다시 검사한다. 촬영/사용 흐름은 변경안 작성 → 문서 교차검증 → 사용자 승인 지시 → 이 도구 호출 → 반환 snapshot으로 구현·PR 검사를 진행하면 된다.
+
 운영자가 확정한 주소로 등록한다.
 
 ```powershell

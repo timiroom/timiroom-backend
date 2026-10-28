@@ -89,7 +89,22 @@ class IntegrationOAuthFlowTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.authorization_response_iss_parameter_supported").value(true))
             .andExpect(jsonPath("$.token_endpoint_auth_methods_supported[0]").value("none"))
             .andExpect(jsonPath("$.grant_types_supported.length()").value(2))
+            .andExpect(jsonPath("$.scopes_supported").value(org.hamcrest.Matchers.hasItem("specs:approve")))
             .andExpect(jsonPath("$.jwks_uri").doesNotExist()).andExpect(jsonPath("$.device_authorization_endpoint").doesNotExist());
+    }
+    @Test void approvalScopeRequiresExplicitConsentAndIsNeverPreselected() throws Exception {
+        String challenge=Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)));
+        var initial=mvc.perform(get("/oauth2/authorize").with(authentication(user))
+            .queryParam("client_id","timiroom-codex").queryParam("response_type","code").queryParam("redirect_uri",redirect)
+            .queryParam("scope","specs:approve").queryParam("state","approval-state").queryParam("code_challenge",challenge)
+            .queryParam("code_challenge_method","S256").queryParam("resource","http://127.0.0.1:56380/mcp"))
+            .andExpect(status().is3xxRedirection()).andReturn();
+        String state=java.net.URLDecoder.decode(UriComponentsBuilder.fromUriString(initial.getResponse().getRedirectedUrl()).build().getQueryParams().getFirst("state"),StandardCharsets.UTF_8);
+        mvc.perform(get("/api/v1/integrations/consent").with(authentication(user)).session((MockHttpSession)initial.getRequest().getSession())
+                .param("client_id","timiroom-codex").param("state",state))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.scopes[0].value").value("specs:approve"))
+            .andExpect(jsonPath("$.scopes[0].defaultChecked").value(false))
+            .andExpect(jsonPath("$.scopes[0].label").value("명세 승인·발행"));
     }
     @Test void invalidAccessTokenIsAuthenticationFailureRatherThanServerFailure() throws Exception {
         mvc.perform(post("/mcp").header("Authorization","Bearer invalid-fixture-token"))

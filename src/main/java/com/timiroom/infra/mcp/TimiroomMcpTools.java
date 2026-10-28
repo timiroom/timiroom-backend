@@ -56,9 +56,10 @@ public class TimiroomMcpTools {
         definition("get_spec_manifest","확정 명세의 문서 ID, version, hash를 조회합니다.",true,properties("projectId",integer(1,Long.MAX_VALUE),"snapshotId",uuid()),"projectId"),
         definition("read_spec","불변 명세 원문을 부분 조회합니다. 모든 페이지를 합쳐 hash를 확인하세요.",true,properties("projectId",integer(1,Long.MAX_VALUE),"snapshotId",uuid(),"documentType",docType(),"cursor",string(),"maxChars",integer(2,24000)),"projectId","snapshotId","documentType"),
         definition("get_change_impact","같은 명세 기준의 문서 그래프와 최대 깊이 2의 변경 영향을 조회합니다.",true,properties("projectId",integer(1,Long.MAX_VALUE),"snapshotId",uuid(),"proposalId",uuid(),"focusNodeIds",array(string(),0,100),"cursor",string()),"projectId","snapshotId"),
-        definition("propose_spec_change","기존 티미룸 수정 엔진으로 변경안을 만듭니다. 원본 반영은 티미룸 화면의 검증과 PM 승인이 필요합니다.",false,properties("projectId",integer(1,Long.MAX_VALUE),"snapshotId",uuid(),"targetDocumentTypes",array(docType(),1,4),"instruction",Map.of("type","string","minLength",1,"maxLength",8000),"constraints",array(Map.of("type","string","maxLength",1000),0,20),"idempotencyKey",Map.of("type","string","minLength",1,"maxLength",128)),"projectId","snapshotId","targetDocumentTypes","instruction","idempotencyKey"),
+        definition("propose_spec_change","기존 티미룸 수정 엔진으로 변경안을 만듭니다. 원본 반영은 문서 교차검증과 PM의 명시적 승인·발행 요청이 필요합니다.",false,properties("projectId",integer(1,Long.MAX_VALUE),"snapshotId",uuid(),"targetDocumentTypes",array(docType(),1,4),"instruction",Map.of("type","string","minLength",1,"maxLength",8000),"constraints",array(Map.of("type","string","maxLength",1000),0,20),"idempotencyKey",Map.of("type","string","minLength",1,"maxLength",128)),"projectId","snapshotId","targetDocumentTypes","instruction","idempotencyKey"),
         definition("get_spec_change","변경안 상태, 바뀐 문서와 diff, 영향, 교차검증 상태, 승인 링크를 조회합니다. 문서 원문은 documentType을 지정하면 함께 줍니다.",true,properties("projectId",integer(1,Long.MAX_VALUE),"proposalId",uuid(),"documentType",docType(),"cursor",string()),"projectId","proposalId"),
         definition("start_artifact_review","변경안 전체 문서의 티미룸 교차검증 작업을 시작합니다. ARTIFACT_REVIEW는 문서 검증입니다.",false,properties("projectId",integer(1,Long.MAX_VALUE),"proposalId",uuid(),"proposalRevision",integer(1,Integer.MAX_VALUE),"idempotencyKey",Map.of("type","string","minLength",1,"maxLength",128)),"projectId","proposalId","proposalRevision","idempotencyKey"),
+        definition("approve_spec_change","PM이 명시적으로 요청한 변경안을 승인하고 기준 명세로 발행합니다. specs:approve 권한과 현재 프로젝트 PM 역할, 고정 변경안 revision·기준 snapshot이 필요합니다. 문서 교차검증 없이 승인하지 않습니다. 경고가 있으면 사용자에게 내용을 보여주고 명시적으로 승인받은 경우에만 acknowledgeWarnings=true를 지정하세요. 같은 변경안 재요청은 기존 발행본을 반환합니다.",false,properties("projectId",integer(1,Long.MAX_VALUE),"proposalId",uuid(),"proposalRevision",integer(1,Integer.MAX_VALUE),"expectedSnapshotId",uuid(),"acknowledgeWarnings",Map.of("type","boolean")),"projectId","proposalId","proposalRevision","expectedSnapshotId"),
         definition("start_consistency_check","고정 명세와 PR 커밋을 티미룸 Fact Gate로 검사합니다. GitHub 댓글이나 Check Run을 게시하지 않습니다.",false,properties("projectId",integer(1,Long.MAX_VALUE),"snapshotId",uuid(),"repoId",integer(1,Long.MAX_VALUE),"pullNumber",integer(1,Integer.MAX_VALUE),"expectedHeadSha",Map.of("type","string","pattern","^(?:[a-f0-9]{40}|[a-f0-9]{64})$"),"idempotencyKey",Map.of("type","string","minLength",1,"maxLength",128)),"projectId","snapshotId","repoId","pullNumber","expectedHeadSha","idempotencyKey"),
         definition("get_job","작업 종류, 상태와 고정 기준의 결과를 조회합니다. 문서 검증과 PR 검증을 구분하세요.",true,properties("projectId",integer(1,Long.MAX_VALUE),"jobId",uuid(),"cursor",string()),"projectId","jobId")
     );
@@ -72,6 +73,7 @@ public class TimiroomMcpTools {
         if(name.equals("timiroom_get_job")) return job(actor,project,input);
         IntegrationScope scope=switch(name) {
             case "timiroom_propose_spec_change" -> IntegrationScope.SPECS_PROPOSE;
+            case "timiroom_approve_spec_change" -> IntegrationScope.SPECS_APPROVE;
             case "timiroom_start_artifact_review","timiroom_start_consistency_check" -> IntegrationScope.CONSISTENCY_RUN;
             case "timiroom_get_project_context" -> IntegrationScope.PROJECTS_READ;
             default -> IntegrationScope.SPECS_READ;
@@ -83,12 +85,27 @@ public class TimiroomMcpTools {
             case "timiroom_read_spec" -> read(actor,project,input);
             case "timiroom_get_change_impact" -> impact(actor,project,input);
             case "timiroom_get_spec_change" -> proposal(actor,project,input);
+            case "timiroom_approve_spec_change" -> approve(actor,project,input);
             case "timiroom_propose_spec_change" -> mapper.valueToTree(tasks.beginChange(project,actor.memberId(),id(input,"snapshotId"),
                 new ChangeInstruction(strings(input,"targetDocumentTypes").stream().map(ArtifactType::valueOf).toList(),input.path("instruction").asText(),strings(input,"constraints")),input.path("idempotencyKey").asText()));
             case "timiroom_start_artifact_review" -> receipt(tasks.beginArtifactReview(project,actor.memberId(),id(input,"proposalId"),input.path("proposalRevision").asInt(),input.path("idempotencyKey").asText()));
             case "timiroom_start_consistency_check" -> receipt(tasks.beginPullRequestReview(project,actor.memberId(),id(input,"snapshotId"),input.path("repoId").asLong(),input.path("pullNumber").asInt(),input.path("expectedHeadSha").asText(),input.path("idempotencyKey").asText()));
             default -> throw new IllegalArgumentException("UNKNOWN_TOOL");
         };
+    }
+    private JsonNode approve(IntegrationPrincipal actor,Long project,JsonNode input) {
+        // Check the current role even on replay: an old grant cannot restore lost PM privileges.
+        documents.requirePm(project,actor.memberId());
+        UUID proposalId=id(input,"proposalId");int revision=input.path("proposalRevision").asInt();
+        var proposal=changes.view(project,actor.memberId(),proposalId);
+        if(proposal.proposalRevision()!=revision || !proposal.snapshotId().equals(id(input,"expectedSnapshotId")))
+            throw new IllegalStateException("SPEC_CONFLICT");
+        boolean replay=proposal.status()==com.timiroom.domain.spec.entity.SpecChangeProposal.State.APPROVED;
+        var published=replay?snapshots.get(project,actor.memberId(),proposal.approvedSnapshotId()):
+            changes.approve(project,actor.memberId(),proposalId,revision,input.path("acknowledgeWarnings").asBoolean(false));
+        var result=metadata(published);result.put("proposalId",proposalId.toString()).put("proposalRevision",revision)
+            .put("state","APPROVED").put("alreadyApproved",replay);
+        return result;
     }
     private JsonNode receipt(com.timiroom.domain.integrationjob.dto.JobDto job) {
         return mapper.createObjectNode().put("jobId",job.jobId().toString()).put("kind",job.kind().name())
@@ -276,6 +293,7 @@ public class TimiroomMcpTools {
     }
     private void validateValue(JsonNode value,JsonNode schema) {
         switch(schema.path("type").asText()) {
+            case "boolean" -> {if(!value.isBoolean()) throw new IllegalArgumentException("INVALID_INPUT");}
             case "string" -> {
                 if(!value.isTextual() || value.asText().length()<schema.path("minLength").asInt(0) || value.asText().length()>schema.path("maxLength").asInt(24000)) throw new IllegalArgumentException("INVALID_INPUT");
                 if("uuid".equals(schema.path("format").asText()) && !value.asText().matches("[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}")) throw new IllegalArgumentException("INVALID_INPUT");

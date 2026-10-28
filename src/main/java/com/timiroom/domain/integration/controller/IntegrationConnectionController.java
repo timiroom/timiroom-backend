@@ -103,6 +103,7 @@ public class IntegrationConnectionController {
         "projects:read",new String[]{"프로젝트 정보 조회","선택한 프로젝트의 이름과 연결된 저장소를 확인합니다."},
         "specs:read",new String[]{"명세 조회","확정된 PRD·기능 명세·API·ERD와 변경안을 확인합니다."},
         "specs:propose",new String[]{"수정안 작성","명세 변경안을 작성합니다. 원본에는 교차검증과 PM 승인 뒤에만 반영됩니다."},
+        "specs:approve",new String[]{"명세 승인·발행","프로젝트 PM이 명시적으로 요청한 변경안을 승인하고 기준 명세로 발행합니다. 문서 교차검증이 먼저 필요합니다."},
         "consistency:run",new String[]{"검사 요청","문서 교차검증과 PR 정합성 검사를 요청합니다. AI 사용량이 차감됩니다."},
         "consistency:read",new String[]{"검사 결과 조회","교차검증과 PR 검사 결과를 확인합니다."});
 }

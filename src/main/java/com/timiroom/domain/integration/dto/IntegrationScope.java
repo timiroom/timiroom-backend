@@ -1,6 +1,6 @@
 package com.timiroom.domain.integration.dto;
 public enum IntegrationScope {
-    PROJECTS_READ("projects:read"),SPECS_READ("specs:read"),SPECS_PROPOSE("specs:propose"),
+    PROJECTS_READ("projects:read"),SPECS_READ("specs:read"),SPECS_PROPOSE("specs:propose"),SPECS_APPROVE("specs:approve"),
     CONSISTENCY_RUN("consistency:run"),CONSISTENCY_READ("consistency:read");
     private final String value;
     IntegrationScope(String value) {this.value=value;}
